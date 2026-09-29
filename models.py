@@ -32,9 +32,10 @@ class Agent(Base):
     agency_url: Mapped[str | None] = mapped_column(String(2048))     # link in captions
     agency_site: Mapped[str | None] = mapped_column(String(253))     # domain shown on poster
 
-    # Logo (stored in Cloudflare R2)
-    logo_r2_key: Mapped[str | None] = mapped_column(String(512))     # R2 object key
-    logo_url: Mapped[str | None] = mapped_column(String(2048))       # public URL
+    # Logo — stored as a base64 data URL in the DB (no external storage needed).
+    # logo_r2_key kept as a nullable column so old rows don't break; unused now.
+    logo_r2_key: Mapped[str | None] = mapped_column(String(512))     # legacy R2 key (unused)
+    logo_url: Mapped[str | None] = mapped_column(Text)               # data: URL or public URL
 
     # Ribbon (drawn over the top-right corner of every poster)
     ribbon_text: Mapped[str | None] = mapped_column(String(40))      # free text: "Summer Sale 2026"
