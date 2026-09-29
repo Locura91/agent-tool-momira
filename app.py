@@ -109,6 +109,23 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
     return TokenResponse(access_token=create_access_token(agent.id))
 
 
+@app.post("/auth/guest", response_model=TokenResponse)
+async def guest_login(db: AsyncSession = Depends(get_db)):
+    """Auto-login as a built-in guest/demo account for testing."""
+    GUEST_EMAIL = "guest@momira.demo"
+    result = await db.execute(select(Agent).where(Agent.email == GUEST_EMAIL))
+    agent = result.scalar_one_or_none()
+    if not agent:
+        agent = Agent(
+            email=GUEST_EMAIL,
+            password_hash=hash_password("guest-demo-2026"),
+            agency_name="Momira Demo",
+        )
+        db.add(agent)
+        await db.commit()
+        await db.refresh(agent)
+    return TokenResponse(access_token=create_access_token(agent.id))
+
 @app.post("/auth/login", response_model=TokenResponse)
 async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Agent).where(Agent.email == req.email, Agent.is_active == True))

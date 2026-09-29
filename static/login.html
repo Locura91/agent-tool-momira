@@ -229,6 +229,15 @@
 
   // Already logged in?
   if (localStorage.getItem('sk_token')) window.location.href = '/dashboard';
+
+  // Auto guest login for testing
+  (async () => {
+    try {
+      const res = await fetch('/auth/guest', { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) { localStorage.setItem('sk_token', data.access_token); window.location.href = '/dashboard'; }
+    } catch (e) {}
+  })();
 </script>
 </body>
 </html>
