@@ -98,11 +98,25 @@
     .style-toggle { display: flex; gap: .5rem; align-items: center; }
     .style-btn { padding: .35rem .8rem; border: 1px solid var(--border); border-radius: 7px; font-size: .82rem; font-weight: 600; cursor: pointer; background: var(--white); color: var(--muted); transition: background .15s, color .15s, border-color .15s; }
     .style-btn.active { background: var(--brand-light); border-color: var(--brand); color: var(--brand); }
+    .style-help { width: 16px; height: 16px; border-radius: 50%; background: var(--muted); color: #fff; font-size: .7rem; display: inline-flex; align-items: center; justify-content: center; cursor: help; flex-shrink: 0; }
+    .style-legend { font-size: .78rem; color: var(--muted); margin-bottom: 1.25rem; line-height: 1.5; }
+    .nav-momira-logo { height: 28px; display: block; }
   </style>
 </head>
 <body>
 <nav>
-  <a class="logo" href="/dashboard"><div class="logo-mark">SK</div><span class="logo-text">Social Kit</span></a>
+  <a class="logo" href="/dashboard">
+    <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="16" cy="16" r="16" fill="#17a39b"/>
+      <!-- stylised 'm' -->
+      <path d="M7 22V12l4 5 5-7 5 7 4-5v10" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      <!-- plane icon (small) -->
+      <g transform="translate(19,8) rotate(35) scale(0.55)">
+        <path d="M0-6 L2 0 L8 0 L2 2 L3 6 L0 4 L-3 6 L-2 2 L-8 0 L-2 0 Z" fill="#fff"/>
+      </g>
+    </svg>
+    <span class="logo-text">Momira Social Kit</span>
+  </a>
   <button class="nav-back" onclick="history.back()">← Dashboard</button>
 </nav>
 
@@ -116,17 +130,24 @@
 
   <div class="input-row">
     <div class="field field-pkg">
-      <label for="pkg-id">Package ID</label>
-      <input type="text" id="pkg-id" placeholder="e.g. HOL-12345" autocomplete="off">
+      <label for="pkg-id">Package ID or URL</label>
+      <input type="text" id="pkg-id" placeholder="e.g. 64800076 or https://momira.travel/…" autocomplete="off">
     </div>
     <div class="field">
-      <label>Style</label>
+      <label style="display:flex;align-items:center;gap:.4rem;">
+        Style
+        <span class="style-help" tabindex="0" title="Photo: full-bleed photograph with text overlay — cinematic and eye-catching. Band: photo on top, white branding band below — cleaner layout for more text.">?</span>
+      </label>
       <div class="style-toggle">
-        <button class="style-btn active" data-style="photo">Photo</button>
-        <button class="style-btn" data-style="band">Band</button>
+        <button class="style-btn active" data-style="photo" title="Full-bleed photo with text overlay">Photo</button>
+        <button class="style-btn" data-style="band" title="Photo top + white branding band below">Band</button>
       </div>
     </div>
     <button class="btn-generate" id="gen-btn">Generate →</button>
+  </div>
+  <div class="style-legend">
+    <strong>Photo</strong> — full-bleed photograph with a dark gradient and text overlay. Cinematic, eye-catching. &nbsp;|&nbsp;
+    <strong>Band</strong> — photo on top, white branding band below with title and price. Cleaner, more structured.
   </div>
 
   <!-- Package preview -->
@@ -206,10 +227,21 @@
   document.getElementById('gen-btn').addEventListener('click', generate);
   document.getElementById('pkg-id').addEventListener('keydown', e => { if (e.key === 'Enter') generate(); });
 
+  function extractPackageId(raw) {
+    // Accept a bare ID like "64800076" or a full URL like:
+    // https://momira.travel/es/idea/64800076/3-days-bush-camp-safari
+    const urlMatch = raw.match(/\/idea\/(\d+)/);
+    if (urlMatch) return urlMatch[1];
+    // Extract first run of digits (works for plain IDs and variations)
+    const digitsOnly = raw.replace(/\D/g, '');
+    return digitsOnly || raw.trim();
+  }
+
   async function generate() {
     hideError();
-    const pkgId = document.getElementById('pkg-id').value.trim();
-    if (!pkgId) { showError('Please enter a Package ID.'); return; }
+    const rawInput = document.getElementById('pkg-id').value.trim();
+    if (!rawInput) { showError('Please enter a Package ID or URL.'); return; }
+    const pkgId = extractPackageId(rawInput);
 
     const btn = document.getElementById('gen-btn');
     btn.disabled = true; btn.textContent = 'Loading…';
@@ -217,7 +249,16 @@
     try {
       // 1. Fetch package info
       const infoRes = await fetch('/package/' + pkgId, { headers: H });
-      if (!infoRes.ok) { const d = await infoRes.json(); showError(d.detail || 'Package not found.'); return; }
+      if (!infoRes.ok) {
+        const d = await infoRes.json().catch(() => ({}));
+        const detail = d.detail || 'Package not found.';
+        if (detail.includes('Login refused') || detail.includes('Missing environment')) {
+          showError('Travel Compositor login failed. Check that TRAVELC_BASE_URL, TRAVELC_MICROSITE_ID, TRAVELC_USERNAME and TRAVELC_PASSWORD are set correctly in Render. Visit /debug/tc for details. Error: ' + detail.slice(0, 200));
+        } else {
+          showError(detail);
+        }
+        return;
+      }
       currentPkg = await infoRes.json();
       currentPhotoIdx = 0;
 

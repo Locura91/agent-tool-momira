@@ -82,6 +82,41 @@ async def health():
 
 
 # --------------------------------------------------------------------------
+# TC debug — diagnose credential / base-URL problems without Render console
+# --------------------------------------------------------------------------
+
+@app.get("/debug/tc")
+async def debug_tc(agent: Agent = Depends(current_agent)):
+    """
+    Shows what TC credentials the app sees and whether authentication works.
+    Safe to expose: the password is masked and no package data is returned.
+    """
+    import os as _os
+    base = _os.environ.get("TRAVELC_BASE_URL", "NOT SET")
+    microsite = _os.environ.get("TRAVELC_MICROSITE_ID", "NOT SET")
+    username = _os.environ.get("TRAVELC_USERNAME", "NOT SET")
+    password_set = bool(_os.environ.get("TRAVELC_PASSWORD"))
+
+    auth_ok = False
+    auth_error = None
+    try:
+        client = sk.TCClient()
+        client.authenticate()
+        auth_ok = True
+    except sk.TCError as e:
+        auth_error = str(e)
+
+    return {
+        "TRAVELC_BASE_URL": base,
+        "TRAVELC_MICROSITE_ID": microsite,
+        "TRAVELC_USERNAME": username,
+        "TRAVELC_PASSWORD_SET": password_set,
+        "auth_ok": auth_ok,
+        "auth_error": auth_error,
+    }
+
+
+# --------------------------------------------------------------------------
 # Auth
 # --------------------------------------------------------------------------
 
@@ -109,6 +144,17 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
     return TokenResponse(access_token=create_access_token(agent.id))
 
 
+@app.post("/auth/login", response_model=TokenResponse)
+async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Agent).where(Agent.email == req.email, Agent.is_active == True))
+    agent = result.scalar_one_or_none()
+
+    if not agent or not verify_password(req.password, agent.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid email or password.")
+
+    return TokenResponse(access_token=create_access_token(agent.id))
+
+
 @app.post("/auth/guest", response_model=TokenResponse)
 async def guest_login(db: AsyncSession = Depends(get_db)):
     """Auto-login as a built-in guest/demo account for testing."""
@@ -124,16 +170,6 @@ async def guest_login(db: AsyncSession = Depends(get_db)):
         db.add(agent)
         await db.commit()
         await db.refresh(agent)
-    return TokenResponse(access_token=create_access_token(agent.id))
-
-@app.post("/auth/login", response_model=TokenResponse)
-async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Agent).where(Agent.email == req.email, Agent.is_active == True))
-    agent = result.scalar_one_or_none()
-
-    if not agent or not verify_password(req.password, agent.password_hash):
-        raise HTTPException(status_code=401, detail="Invalid email or password.")
-
     return TokenResponse(access_token=create_access_token(agent.id))
 
 
