@@ -60,20 +60,35 @@ class TCConfig:
     username: str
     password: str
 
+    # The live Momira TC tool (momira-tc-tool/travelcompositor_api.py) uses this
+    # base URL. `api.travelcompositor.com` is the Travel Compositor *website*,
+    # which answers /authentication/authenticate with an HTML 404 page — the
+    # exact "Login refused (HTTP 404)" symptom. These defaults keep login working
+    # even if TRAVELC_BASE_URL / TRAVELC_MICROSITE_ID are unset or mis-set.
+    DEFAULT_BASE = "https://online.travelcompositor.com/resources"
+    DEFAULT_MICROSITE = "momiratravel"
+
     @classmethod
     def from_env(cls) -> "TCConfig":
-        """The same four variables app.py reads, so nothing new to set up."""
+        """Only the username and password must be set; the base URL and microsite
+        fall back to Momira's known-good values so a wrong TRAVELC_BASE_URL can't
+        break login."""
         missing = [
             k
-            for k in ("TRAVELC_BASE_URL", "TRAVELC_MICROSITE_ID", "TRAVELC_USERNAME", "TRAVELC_PASSWORD")
+            for k in ("TRAVELC_USERNAME", "TRAVELC_PASSWORD")
             if not os.environ.get(k)
         ]
         if missing:
             raise TCError("Missing environment variables: " + ", ".join(missing))
 
+        base = (os.environ.get("TRAVELC_BASE_URL") or cls.DEFAULT_BASE).rstrip("/")
+        # api.travelcompositor.com is the website, not the REST API — correct it.
+        if "api.travelcompositor.com" in base:
+            base = cls.DEFAULT_BASE
+
         return cls(
-            base=os.environ["TRAVELC_BASE_URL"].rstrip("/"),
-            microsite=os.environ["TRAVELC_MICROSITE_ID"],
+            base=base,
+            microsite=os.environ.get("TRAVELC_MICROSITE_ID") or cls.DEFAULT_MICROSITE,
             username=os.environ["TRAVELC_USERNAME"],
             password=os.environ["TRAVELC_PASSWORD"],
         )

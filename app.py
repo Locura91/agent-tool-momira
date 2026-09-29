@@ -1,5 +1,5 @@
 """
-Social Kit SaaS — FastAPI application.
+Travel Agent Kit — FastAPI application.
 
 Agents log in, upload their logo, set an optional ribbon, paste a Travel
 Compositor Holiday Package ID, and get captions + poster images back.
@@ -54,7 +54,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Social Kit for Travel Agents",
+    title="Travel Agent Kit",
     description="A Holiday Package ID in — three captions and a finished post image out.",
     version="1.0.0",
     lifespan=lifespan,
