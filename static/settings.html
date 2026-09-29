@@ -109,6 +109,40 @@
     </div>
   </div>
 
+  <!-- Language & Currency -->
+  <div class="section">
+    <div class="section-head">Language & currency</div>
+    <div class="section-body">
+      <div>
+        <label for="caption-lang">Caption language</label>
+        <select id="caption-lang">
+          <option value="en">English</option>
+          <option value="pl">Polish</option>
+          <option value="de">German</option>
+          <option value="es">Spanish</option>
+          <option value="fr">French</option>
+          <option value="it">Italian</option>
+          <option value="nl">Dutch</option>
+        </select>
+        <span class="hint">Language used for captions and poster text. Travel Compositor will also return package details in this language.</span>
+      </div>
+      <div>
+        <label for="currency">Currency shown on posters</label>
+        <select id="currency">
+          <option value="EUR">EUR — Euro (€)</option>
+          <option value="PLN">PLN — Polish Złoty (zł)</option>
+          <option value="USD">USD — US Dollar ($)</option>
+          <option value="GBP">GBP — British Pound (£)</option>
+          <option value="CHF">CHF — Swiss Franc</option>
+          <option value="SEK">SEK — Swedish Krona</option>
+          <option value="NOK">NOK — Norwegian Krone</option>
+          <option value="DKK">DKK — Danish Krone</option>
+        </select>
+        <span class="hint">The price shown on the poster. Prices come directly from Travel Compositor in the package currency.</span>
+      </div>
+    </div>
+  </div>
+
   <!-- Ribbon -->
   <div class="section">
     <div class="section-head">Post ribbon / badge</div>
@@ -150,6 +184,8 @@
       document.getElementById('agency-site').value = agent.agency_site || '';
       document.getElementById('ribbon-text').value = agent.ribbon_text || '';
       selectedPreset = agent.ribbon_preset || '';
+      if (agent.caption_lang) document.getElementById('caption-lang').value = agent.caption_lang;
+      if (agent.currency) document.getElementById('currency').value = agent.currency;
 
       // Update preset buttons
       document.querySelectorAll('.ribbon-preset').forEach(btn => {
@@ -218,6 +254,8 @@
           agency_site: document.getElementById('agency-site').value.trim() || null,
           ribbon_text: document.getElementById('ribbon-text').value.trim() || null,
           ribbon_preset: selectedPreset || null,
+          caption_lang: document.getElementById('caption-lang').value || null,
+          currency: document.getElementById('currency').value || null,
         }),
       });
       if (!res.ok) { const d = await res.json(); showError(d.detail || 'Save failed.'); return; }

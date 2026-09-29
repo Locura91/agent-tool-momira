@@ -40,6 +40,14 @@ class Agent(Base):
     ribbon_text: Mapped[str | None] = mapped_column(String(40))      # free text: "Summer Sale 2026"
     ribbon_preset: Mapped[str | None] = mapped_column(String(20))    # NEW | SALE | BESTSELLER | HOT
 
+    # Caption / poster language and currency
+    # tc_lang: what TC is asked for ("EN" / "PL" / "DE" / "ES" etc.)
+    # caption_lang: the language of the generated copy ("en" / "pl" / "de" / "es")
+    # currency: what the poster quotes ("EUR" / "PLN" / "USD" / "GBP")
+    tc_lang: Mapped[str | None] = mapped_column(String(5))            # default "EN"
+    caption_lang: Mapped[str | None] = mapped_column(String(5))       # default "en"
+    currency: Mapped[str | None] = mapped_column(String(5))           # default "EUR"
+
     # Account state
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(

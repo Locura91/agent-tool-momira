@@ -40,6 +40,24 @@ class TokenResponse(BaseModel):
 RIBBON_PRESETS = ("NEW", "SALE", "BESTSELLER", "HOT", "")
 
 
+CAPTION_LANGS = {
+    "en": "English",
+    "pl": "Polish",
+    "de": "German",
+    "es": "Spanish",
+    "fr": "French",
+    "it": "Italian",
+    "nl": "Dutch",
+}
+
+TC_LANGS = {v: k.upper() for k, v in {
+    "EN": "en", "PL": "pl", "DE": "de", "ES": "es",
+    "FR": "fr", "IT": "it", "NL": "nl",
+}.items()}
+
+CURRENCIES = ("EUR", "PLN", "USD", "GBP", "CHF", "SEK", "NOK", "DKK")
+
+
 class AgentProfile(BaseModel):
     id: str
     email: str
@@ -49,6 +67,9 @@ class AgentProfile(BaseModel):
     logo_url: Optional[str]
     ribbon_text: Optional[str]
     ribbon_preset: Optional[str]
+    tc_lang: Optional[str]
+    caption_lang: Optional[str]
+    currency: Optional[str]
 
     model_config = {"from_attributes": True}
 
@@ -59,6 +80,16 @@ class UpdateProfileRequest(BaseModel):
     agency_site: Optional[str] = None
     ribbon_text: Optional[str] = None
     ribbon_preset: Optional[str] = None
+    tc_lang: Optional[str] = None
+    caption_lang: Optional[str] = None
+    currency: Optional[str] = None
+
+    @field_validator("currency")
+    @classmethod
+    def valid_currency(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in CURRENCIES:
+            raise ValueError(f"currency must be one of {CURRENCIES}")
+        return v or None
 
     @field_validator("ribbon_preset")
     @classmethod

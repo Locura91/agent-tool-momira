@@ -198,6 +198,12 @@ async def update_profile(
         agent.ribbon_text = req.ribbon_text
     if req.ribbon_preset is not None:
         agent.ribbon_preset = req.ribbon_preset
+    if req.tc_lang is not None:
+        agent.tc_lang = req.tc_lang
+    if req.caption_lang is not None:
+        agent.caption_lang = req.caption_lang
+    if req.currency is not None:
+        agent.currency = req.currency
 
     db.add(agent)
     await db.commit()
@@ -272,9 +278,51 @@ async def get_package(
         "destinations": pack.destinations,
         "themes": pack.themes,
         "gallery_count": len(pack.gallery),
+        "gallery": pack.gallery,
         "departures": pack.departures,
         "flights": pack.flights,
         "hotels": pack.hotels,
+    }
+
+
+@app.get("/debug/package/{package_id}")
+async def debug_package(
+    package_id: str,
+    agent: Agent = Depends(current_agent),
+):
+    """Returns the raw TC API response for a package so image field names can be inspected."""
+    brand = engine.agent_brand(agent)
+    client = sk.TCClient()
+    import re as _re
+    pkg_id = _re.sub(r"\D", "", str(package_id))
+    try:
+        info = client.info(pkg_id, brand.tc_lang)
+    except sk.TCError as e:
+        info = {"error": str(e)}
+    try:
+        detail = client.detail(pkg_id, brand.tc_lang)
+    except sk.TCError as e:
+        detail = {"error": str(e)}
+    try:
+        calendar = client.calendar(pkg_id, brand.tc_lang)
+    except sk.TCError as e:
+        calendar = {"error": str(e)}
+
+    # Also show what normalise extracted
+    try:
+        pack = sk.normalise(pkg_id, info if not isinstance(info, dict) or "error" not in info else {},
+                            detail if not isinstance(detail, dict) or "error" not in detail else {},
+                            calendar if not isinstance(calendar, dict) or "error" not in calendar else {})
+        extracted_gallery = pack.gallery
+    except Exception as ex:
+        extracted_gallery = [f"normalise error: {ex}"]
+
+    return {
+        "extracted_gallery": extracted_gallery,
+        "info_keys": list(info.keys()) if isinstance(info, dict) else type(info).__name__,
+        "detail_keys": list(detail.keys()) if isinstance(detail, dict) else type(detail).__name__,
+        "info": info,
+        "detail": detail,
     }
 
 

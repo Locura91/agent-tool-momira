@@ -46,16 +46,29 @@ def agent_brand(agent: Agent) -> sk.Brand:
 
     wordmark="" suppresses the teal text pill; we paint the logo instead.
     site drives the URL shown at the bottom of photo-first posters.
+    caption_lang / tc_lang / currency come from the agent's settings so each
+    agency can generate captions and posters in their own language and currency.
     """
     site = agent.agency_site or (
         urlparse(agent.agency_url).netloc if agent.agency_url else ""
     )
+    caption_lang = (agent.caption_lang or "en").lower()
+    tc_lang = (agent.tc_lang or "EN").upper()
+    currency = agent.currency or "EUR"
+
+    # Ensure caption_lang and tc_lang stay in sync if only one is set
+    _lang_map = {"en": "EN", "pl": "PL", "de": "DE", "es": "ES", "fr": "FR", "it": "IT", "nl": "NL"}
+    _tc_map = {v: k for k, v in _lang_map.items()}
+    if caption_lang not in sk._COPY:
+        caption_lang = "en"
+    tc_lang = _lang_map.get(caption_lang, "EN")
+
     return sk.Brand(
         key=agent.id,
         name=agent.agency_name or "Travel Agent",
-        lang="en",
-        tc_lang="EN",
-        currency="EUR",
+        lang=caption_lang,
+        tc_lang=tc_lang,
+        currency=currency,
         site=site,
         wordmark="",         # suppressed — logo image drawn separately
         url=agent.agency_url or "https://momira.travel/",
