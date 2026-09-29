@@ -109,7 +109,6 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
     return TokenResponse(access_token=create_access_token(agent.id))
 
 
-
 @app.post("/auth/guest", response_model=TokenResponse)
 async def guest_login(db: AsyncSession = Depends(get_db)):
     """Auto-login as a built-in guest/demo account for testing."""
