@@ -23,7 +23,8 @@ TRANSPORT_ICONS = {
     "buses":     ("🚌", "Bus/Coach"),
     "transfers": ("🚐", "Transfer"),
     "trains":    ("🚆", "Train"),
-    "other":     ("🚗", "Transport"),
+    "cars":      ("🚗", "Private Transfer"),
+    "other":     ("🚙", "Transport"),
 }
 
 DISCLAIMER = (

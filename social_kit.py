@@ -340,6 +340,19 @@ def normalise(package_id: str, info: Dict[str, Any], detail: Dict[str, Any], cal
             image = str(image).strip()
             if image.startswith("http") and image not in pack.gallery:
                 pack.gallery.append(image)
+        # TC API also provides a single imageUrl field on the info object
+        single_img = source.get("imageUrl") if isinstance(source, dict) else None
+        if single_img and str(single_img).startswith("http") and str(single_img) not in pack.gallery:
+            pack.gallery.append(str(single_img))
+
+    # Pull per-destination imageUrls (proper destination photos, not departure city)
+    for dest in _pick(detail, ["destinations"], []) or []:
+        if not isinstance(dest, dict):
+            continue
+        for img_url in dest.get("imageUrls") or []:
+            img_url = str(img_url).strip()
+            if img_url.startswith("http") and img_url not in pack.gallery:
+                pack.gallery.append(img_url)
 
     # Named-field lookup above is a guess (see Package.raw's docstring for why) - when it comes
     # up empty, fall back to finding photographs by shape rather than giving up on a package
@@ -363,9 +376,15 @@ def normalise(package_id: str, info: Dict[str, Any], detail: Dict[str, Any], cal
             key = "transfers"
         elif "TRAIN" in ttype or "RAIL" in ttype:
             key = "trains"
+        elif "VAN" in ttype or "CAR" in ttype or "TAXI" in ttype or "PRIVATE" in ttype:
+            key = "cars"
         else:
             key = "other"
         transport_counts[key] = transport_counts.get(key, 0) + 1
+    # Also count airport transfers from the separate detail.transfers array
+    transfer_list = _pick(detail, ["transfers"], []) or []
+    if transfer_list:
+        transport_counts["transfers"] = transport_counts.get("transfers", 0) + len(transfer_list)
     pack.transport_counts = transport_counts
     pack.flights = transport_counts.get("flights", 0)
 
@@ -374,9 +393,26 @@ def normalise(package_id: str, info: Dict[str, Any], detail: Dict[str, Any], cal
     pack.hotel_names = []
     for h in hotel_list:
         if isinstance(h, dict):
-            name = str(_pick(h, ["name", "hotelName", "title", "accommodationName"], "")).strip()
+            # TC API nests hotel name under hotelData.name
+            hotel_data = h.get("hotelData") or {}
+            if isinstance(hotel_data, dict):
+                name = str(_pick(hotel_data, ["name", "hotelName", "title", "accommodationName"], "")).strip()
+            else:
+                name = ""
+            # Fall back to top-level fields if hotelData had nothing
+            if not name:
+                name = str(_pick(h, ["name", "hotelName", "title", "accommodationName"], "")).strip()
             if name:
                 pack.hotel_names.append(name)
+            # Also harvest hotel images into the gallery
+            hotel_images = hotel_data.get("images") or [] if isinstance(hotel_data, dict) else []
+            for img in hotel_images:
+                if isinstance(img, dict):
+                    img_url = str(_pick(img, ["url", "imageUrl", "src", "fullUrl", "path"], "")).strip()
+                else:
+                    img_url = str(img).strip()
+                if img_url.startswith("http") and img_url not in pack.gallery:
+                    pack.gallery.append(img_url)
         elif isinstance(h, str) and h.strip():
             pack.hotel_names.append(h.strip())
 
