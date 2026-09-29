@@ -10,5 +10,6 @@ requests==2.32.3
 boto3==1.35.74
 python-dotenv==1.0.1
 httpx==0.28.1
+bcrypt==4.0.1
 
 email-validator
