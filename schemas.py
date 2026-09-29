@@ -64,6 +64,8 @@ class AgentProfile(BaseModel):
     agency_name: Optional[str]
     agency_url: Optional[str]
     agency_site: Optional[str]
+    agency_phone: Optional[str]
+    agency_email: Optional[str]
     logo_url: Optional[str]
     ribbon_text: Optional[str]
     ribbon_preset: Optional[str]
@@ -78,6 +80,8 @@ class UpdateProfileRequest(BaseModel):
     agency_name: Optional[str] = None
     agency_url: Optional[str] = None
     agency_site: Optional[str] = None
+    agency_phone: Optional[str] = None
+    agency_email: Optional[str] = None
     ribbon_text: Optional[str] = None
     ribbon_preset: Optional[str] = None
     tc_lang: Optional[str] = None

@@ -19,29 +19,62 @@
     .logo-text { font-weight: 700; font-size: 1rem; }
     .nav-back { font-size: .85rem; color: var(--muted); cursor: pointer; background: none; border: 1px solid var(--border); border-radius: 8px; padding: .4rem .8rem; }
 
-    .page { max-width: 860px; margin: 0 auto; padding: 2rem 1.5rem; }
+    .page { max-width: 900px; margin: 0 auto; padding: 2rem 1.5rem; }
     .page-header { margin-bottom: 1.5rem; }
     .page-header h1 { font-size: 1.4rem; font-weight: 700; }
     .page-header p { color: var(--muted); font-size: .9rem; margin-top: .3rem; }
 
-    .input-row { display: flex; gap: .75rem; align-items: flex-end; margin-bottom: 1.5rem; flex-wrap: wrap; }
-    .field { display: flex; flex-direction: column; gap: .35rem; flex: 1; min-width: 180px; }
-    .field label { font-size: .85rem; font-weight: 600; }
-    .field input { padding: .6rem .9rem; border: 1px solid var(--border); border-radius: 8px; font-size: .9rem; color: var(--ink); outline: none; transition: border-color .15s; }
+    /* ── Controls card ── */
+    .controls-card {
+      background: var(--white); border: 1px solid var(--border); border-radius: 12px;
+      padding: 1.3rem 1.5rem; margin-bottom: 1.5rem;
+      display: flex; flex-direction: column; gap: 1.1rem;
+    }
+    .controls-row { display: flex; gap: .75rem; align-items: flex-end; flex-wrap: wrap; }
+    .field { display: flex; flex-direction: column; gap: .35rem; flex: 1; min-width: 160px; }
+    .field label { font-size: .82rem; font-weight: 600; color: var(--ink); }
+    .field input {
+      padding: .6rem .9rem; border: 1px solid var(--border); border-radius: 8px;
+      font-size: .9rem; color: var(--ink); outline: none; transition: border-color .15s;
+      background: var(--white);
+    }
     .field input:focus { border-color: var(--brand); }
-    .btn-generate { background: var(--brand); color: #fff; border: none; border-radius: 8px; padding: .65rem 1.4rem; font-size: .95rem; font-weight: 700; cursor: pointer; transition: background .15s; white-space: nowrap; }
+
+    /* Style toggle */
+    .style-toggle { display: flex; flex-direction: column; gap: .35rem; }
+    .style-toggle label { font-size: .82rem; font-weight: 600; }
+    .style-btns { display: flex; gap: .45rem; }
+    .style-btn {
+      padding: .55rem 1.1rem; border: 1px solid var(--border); border-radius: 8px;
+      font-size: .82rem; font-weight: 600; cursor: pointer; background: var(--white);
+      color: var(--ink); transition: all .15s;
+    }
+    .style-btn.active { background: var(--brand-light); border-color: var(--brand); color: var(--brand); }
+    .style-btn:hover:not(.active) { border-color: var(--brand); }
+
+    .btn-generate {
+      background: var(--brand); color: #fff; border: none; border-radius: 8px;
+      padding: .65rem 1.4rem; font-size: .95rem; font-weight: 700;
+      cursor: pointer; transition: background .15s; white-space: nowrap; align-self: flex-end;
+    }
     .btn-generate:hover { background: var(--brand-dark); }
     .btn-generate:disabled { opacity: .6; cursor: not-allowed; }
 
     .error { background: #fef2f2; border: 1px solid #fca5a5; color: var(--red); border-radius: 8px; padding: .6rem .9rem; font-size: .85rem; margin-bottom: 1rem; display: none; }
 
-    /* Preview card */
+    /* Preview */
     .preview-wrap { display: none; }
     .preview-actions { display: flex; gap: .75rem; margin-bottom: 1.2rem; align-items: center; flex-wrap: wrap; }
     .preview-actions .info { font-size: .85rem; color: var(--muted); flex: 1; }
     .btn-print { background: var(--brand); color: #fff; border: none; border-radius: 8px; padding: .6rem 1.2rem; font-size: .9rem; font-weight: 700; cursor: pointer; }
     .btn-print:hover { background: var(--brand-dark); }
     .btn-open { background: var(--white); border: 1px solid var(--border); border-radius: 8px; padding: .6rem 1.2rem; font-size: .9rem; font-weight: 600; cursor: pointer; color: var(--ink); }
+    .style-switch-btns { display: flex; gap: .45rem; }
+    .style-switch-btn {
+      padding: .45rem .9rem; border: 1px solid var(--border); border-radius: 7px;
+      font-size: .8rem; font-weight: 600; cursor: pointer; background: var(--white); color: var(--muted);
+    }
+    .style-switch-btn.active { background: var(--brand-light); border-color: var(--brand); color: var(--brand); }
 
     .flyer-preview-box {
       background: var(--white); border: 1px solid var(--border); border-radius: 12px;
@@ -52,29 +85,48 @@
 </head>
 <body>
 <nav>
-  <a class="logo" href="/dashboard"><img src="/static/momira-logo.png" alt="Momira Travel" style="height:36px;width:36px;border-radius:50%;display:block;object-fit:contain"><span class="logo-text">Travel Agent Kit</span></a>
+  <a class="logo" href="/dashboard">
+    <img src="/static/momira-logo.png" alt="Momira Travel" style="height:36px;width:36px;border-radius:50%;display:block;object-fit:contain">
+    <span class="logo-text">Travel Agent Kit</span>
+  </a>
   <button class="nav-back" onclick="history.back()">← Dashboard</button>
 </nav>
 
 <div class="page">
   <div class="page-header">
     <h1>📄 Travel Flyer</h1>
-    <p>Enter a Package ID to generate a print-ready A4 flyer with your agency branding. Print or save as PDF straight from the browser.</p>
+    <p>Enter a Package ID, choose a style, then print or save as PDF straight from the browser.</p>
   </div>
 
   <div class="error" id="error-box"></div>
 
-  <div class="input-row">
-    <div class="field">
-      <label for="pkg-id">Package ID</label>
-      <input type="text" id="pkg-id" placeholder="e.g. HOL-12345" autocomplete="off">
+  <div class="controls-card">
+    <!-- Row 1: Package ID + style + generate -->
+    <div class="controls-row">
+      <div class="field">
+        <label for="pkg-id">Package ID</label>
+        <input type="text" id="pkg-id" placeholder="e.g. 64797496" autocomplete="off">
+      </div>
+
+      <div class="style-toggle">
+        <label>Flyer style</label>
+        <div class="style-btns">
+          <button class="style-btn active" data-style="a" onclick="setStyle('a')">🌊 Style A — Navy</button>
+          <button class="style-btn" data-style="b" onclick="setStyle('b')">📰 Style B — Magazine</button>
+        </div>
+      </div>
+
+      <button class="btn-generate" id="gen-btn">Generate Flyer →</button>
     </div>
-    <button class="btn-generate" id="gen-btn">Generate Flyer →</button>
   </div>
 
   <div class="preview-wrap" id="preview-wrap">
     <div class="preview-actions">
-      <span class="info">✅ Flyer ready — open it and press <strong>Ctrl+P</strong> (or ⌘P on Mac) to print or save as PDF.</span>
+      <span class="info">✅ Flyer ready — press <strong>Ctrl+P</strong> (⌘P on Mac) to print or save as PDF.</span>
+      <div class="style-switch-btns">
+        <button class="style-switch-btn active" id="sw-a" onclick="switchStyle('a')">Style A</button>
+        <button class="style-switch-btn" id="sw-b" onclick="switchStyle('b')">Style B</button>
+      </div>
       <button class="btn-open" id="btn-open-tab">Open in new tab ↗</button>
       <button class="btn-print" id="btn-print">🖨 Print / Save PDF</button>
     </div>
@@ -89,12 +141,21 @@
   if (!token) window.location.href = '/';
   const H = { 'Authorization': 'Bearer ' + token };
 
-  let flyerUrl = '';
+  let currentStyle = 'a';
+  let currentPkgId = '';
 
-  function showError(msg) {
-    const el = document.getElementById('error-box');
-    el.textContent = msg; el.style.display = 'block';
+  function setStyle(s) {
+    currentStyle = s;
+    document.querySelectorAll('.style-btn').forEach(b => b.classList.toggle('active', b.dataset.style === s));
   }
+
+  function switchStyle(s) {
+    currentStyle = s;
+    document.querySelectorAll('.style-switch-btn').forEach(b => b.classList.toggle('active', b.id === 'sw-' + s));
+    if (currentPkgId) loadFlyer(currentPkgId, s);
+  }
+
+  function showError(msg) { const el = document.getElementById('error-box'); el.textContent = msg; el.style.display = 'block'; }
   function hideError() { document.getElementById('error-box').style.display = 'none'; }
 
   document.getElementById('gen-btn').addEventListener('click', generate);
@@ -109,33 +170,34 @@
     btn.disabled = true; btn.textContent = 'Generating…';
 
     try {
-      // The flyer endpoint returns an HTML page directly
-      flyerUrl = `/generate/${pkgId}/flyer?token=${encodeURIComponent(token)}`;
-      const res = await fetch(`/generate/${pkgId}/flyer`, { headers: H });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        showError(d.detail || 'Could not generate flyer.');
-        return;
-      }
-
-      const html = await res.text();
-      const frame = document.getElementById('flyer-frame');
-      frame.srcdoc = html;
-      frame.style.minHeight = '800px';
-
+      await loadFlyer(pkgId, currentStyle);
+      currentPkgId = pkgId;
       document.getElementById('preview-wrap').style.display = 'block';
       document.getElementById('preview-wrap').scrollIntoView({ behavior: 'smooth' });
-
-    } catch {
-      showError('Could not reach the server. Please try again.');
+      // sync switch buttons
+      document.querySelectorAll('.style-switch-btn').forEach(b => b.classList.toggle('active', b.id === 'sw-' + currentStyle));
+    } catch (err) {
+      showError(err.message || 'Could not generate flyer.');
     } finally {
       btn.disabled = false; btn.textContent = 'Generate Flyer →';
     }
   }
 
+  async function loadFlyer(pkgId, style) {
+    const res = await fetch(`/generate/${pkgId}/flyer?style=${style}`, { headers: H });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      throw new Error(d.detail || 'Could not generate flyer.');
+    }
+    const html = await res.text();
+    const frame = document.getElementById('flyer-frame');
+    frame.srcdoc = html;
+    frame.style.minHeight = '860px';
+  }
+
   document.getElementById('btn-open-tab').addEventListener('click', () => {
-    const pkgId = document.getElementById('pkg-id').value.trim();
-    window.open(`/generate/${pkgId}/flyer?token=${encodeURIComponent(token)}`, '_blank');
+    if (!currentPkgId) return;
+    window.open(`/generate/${currentPkgId}/flyer?style=${currentStyle}&token=${encodeURIComponent(token)}`, '_blank');
   });
 
   document.getElementById('btn-print').addEventListener('click', () => {

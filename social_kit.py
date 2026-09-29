@@ -212,6 +212,8 @@ class Package:
     departures: List[str] = field(default_factory=list)
     flights: int = 0
     hotels: int = 0
+    hotel_names: List[str] = field(default_factory=list)          # names of accommodations
+    transport_counts: Dict[str, int] = field(default_factory=dict) # e.g. {"flights":2,"ferries":1}
     # CONFIRMED REAL GAP (2026-09-27): Holiday Package's image/gallery field names were never
     # confirmed against a live response before this module was written (see
     # claude/multiwander-tc-api-briefing-2026-09-05.md: "Images/gallery field names for a
@@ -346,8 +348,37 @@ def normalise(package_id: str, info: Dict[str, Any], detail: Dict[str, Any], cal
         pack.gallery = _find_image_urls(info) or _find_image_urls(detail)
 
     transports = _pick(detail, ["transports"], []) or []
-    pack.flights = sum(1 for t in transports if isinstance(t, dict) and "FLIGHT" in str(_pick(t, ["transportType"], "")).upper())
-    pack.hotels = len(_pick(detail, ["hotels", "accommodations"], []) or [])
+    transport_counts: Dict[str, int] = {}
+    for t in transports:
+        if not isinstance(t, dict):
+            continue
+        ttype = str(_pick(t, ["transportType", "type"], "")).upper()
+        if "FLIGHT" in ttype:
+            key = "flights"
+        elif "FERRY" in ttype or "BOAT" in ttype or "SHIP" in ttype:
+            key = "ferries"
+        elif "BUS" in ttype or "COACH" in ttype:
+            key = "buses"
+        elif "TRANSFER" in ttype:
+            key = "transfers"
+        elif "TRAIN" in ttype or "RAIL" in ttype:
+            key = "trains"
+        else:
+            key = "other"
+        transport_counts[key] = transport_counts.get(key, 0) + 1
+    pack.transport_counts = transport_counts
+    pack.flights = transport_counts.get("flights", 0)
+
+    hotel_list = _pick(detail, ["hotels", "accommodations"], []) or []
+    pack.hotels = len(hotel_list)
+    pack.hotel_names = []
+    for h in hotel_list:
+        if isinstance(h, dict):
+            name = str(_pick(h, ["name", "hotelName", "title", "accommodationName"], "")).strip()
+            if name:
+                pack.hotel_names.append(name)
+        elif isinstance(h, str) and h.strip():
+            pack.hotel_names.append(h.strip())
 
     # Departures: future dates only, so a package last synced months ago never
     # advertises a sailing that has already gone.

@@ -106,6 +106,14 @@
         <input type="text" id="agency-site" placeholder="yoursite.com">
         <span class="hint">Short domain printed on the photo-style images. Leave blank to use the URL above.</span>
       </div>
+      <div>
+        <label for="agency-phone">Phone number (optional — shown on flyers)</label>
+        <input type="text" id="agency-phone" placeholder="+1 234 567 8900">
+      </div>
+      <div>
+        <label for="agency-email">Email address (optional — shown on flyers)</label>
+        <input type="text" id="agency-email" placeholder="hello@yoursite.com">
+      </div>
     </div>
   </div>
 
@@ -182,6 +190,8 @@
       document.getElementById('agency-name').value = agent.agency_name || '';
       document.getElementById('agency-url').value = agent.agency_url || '';
       document.getElementById('agency-site').value = agent.agency_site || '';
+      document.getElementById('agency-phone').value = agent.agency_phone || '';
+      document.getElementById('agency-email').value = agent.agency_email || '';
       document.getElementById('ribbon-text').value = agent.ribbon_text || '';
       selectedPreset = agent.ribbon_preset || '';
       if (agent.caption_lang) document.getElementById('caption-lang').value = agent.caption_lang;
@@ -252,6 +262,8 @@
           agency_name: document.getElementById('agency-name').value.trim() || null,
           agency_url: document.getElementById('agency-url').value.trim() || null,
           agency_site: document.getElementById('agency-site').value.trim() || null,
+          agency_phone: document.getElementById('agency-phone').value.trim() || null,
+          agency_email: document.getElementById('agency-email').value.trim() || null,
           ribbon_text: document.getElementById('ribbon-text').value.trim() || null,
           ribbon_preset: selectedPreset || null,
           caption_lang: document.getElementById('caption-lang').value || null,

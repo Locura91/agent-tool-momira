@@ -41,6 +41,10 @@ class Agent(Base):
     ribbon_text: Mapped[str | None] = mapped_column(String(40))      # free text: "Summer Sale 2026"
     ribbon_preset: Mapped[str | None] = mapped_column(String(20))    # NEW | SALE | BESTSELLER | HOT
 
+    # Agency contact details (optional — shown on flyers if provided)
+    agency_phone: Mapped[str | None] = mapped_column(String(40))
+    agency_email: Mapped[str | None] = mapped_column(String(254))
+
     # Caption / poster language and currency
     # tc_lang: what TC is asked for ("EN" / "PL" / "DE" / "ES" etc.)
     # caption_lang: the language of the generated copy ("en" / "pl" / "de" / "es")
