@@ -269,7 +269,7 @@
         for (let i = 0; i < Math.min(currentPkg.gallery_count, 10); i++) {
           const img = document.createElement('img');
           img.className = 'photo-thumb' + (i === 0 ? ' selected' : '');
-          img.src = `/generate/${pkgId}/image?photo_index=${i}&format=square&style=${currentStyle}&_thumb=1`;
+          img.style.background = '#e5e7eb'; // placeholder while loading
           img.dataset.idx = i;
           img.addEventListener('click', () => {
             document.querySelectorAll('.photo-thumb').forEach(t => t.classList.remove('selected'));
@@ -278,6 +278,15 @@
             renderImages();
           });
           strip.appendChild(img);
+          // Load thumbnail via authenticated fetch
+          const thumbUrl = `/generate/${pkgId}/image?photo_index=${i}&format=square&style=${currentStyle}&_thumb=1`;
+          fetchAuthImage(thumbUrl).then(blobUrl => {
+            _blobUrls.push(blobUrl);
+            img.src = blobUrl;
+          }).catch(() => {
+            img.style.fontSize = '1.2rem';
+            img.alt = '⚠️';
+          });
         }
         document.getElementById('photo-strip-wrap').style.display = 'block';
       }
@@ -302,8 +311,24 @@
     }
   }
 
+  // Fetches an authenticated image URL and returns a blob: URL (for use in img.src)
+  async function fetchAuthImage(url) {
+    const res = await fetch(url, { headers: H });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  }
+
+  // Revoke any previous blob URLs in the grid to avoid memory leaks
+  const _blobUrls = [];
+  function revokeOldBlobs() {
+    _blobUrls.forEach(u => URL.revokeObjectURL(u));
+    _blobUrls.length = 0;
+  }
+
   function renderImages() {
-    const pkgId = document.getElementById('pkg-id').value.trim();
+    revokeOldBlobs();
+    const pkgId = extractPackageId(document.getElementById('pkg-id').value.trim());
     const grid = document.getElementById('formats-grid');
     grid.innerHTML = '';
 
@@ -317,18 +342,58 @@
       const url = `/generate/${pkgId}/image?photo_index=${currentPhotoIdx}&format=${key}&style=${currentStyle}`;
       const card = document.createElement('div');
       card.className = 'format-card';
-      card.innerHTML = `
-        <div class="format-label">${label}</div>
-        <div class="format-img-wrap" style="aspect-ratio:${aspect}">
-          <div class="spinner">⏳</div>
-          <img src="${url}" alt="${key}" style="display:none" onload="this.style.display='block';this.previousElementSibling.style.display='none'" onerror="this.previousElementSibling.textContent='⚠️'">
-        </div>
-        <div class="format-actions">
-          <button class="btn-sm btn-dl" onclick="downloadImage('${url}', '${key}')">⬇ Download</button>
-        </div>
-      `;
+
+      const spinnerEl = document.createElement('div');
+      spinnerEl.className = 'spinner';
+      spinnerEl.textContent = '⏳';
+
+      const imgEl = document.createElement('img');
+      imgEl.alt = key;
+      imgEl.style.display = 'none';
+      imgEl.style.width = '100%';
+
+      const wrap = document.createElement('div');
+      wrap.className = 'format-img-wrap';
+      wrap.style.aspectRatio = aspect;
+      wrap.appendChild(spinnerEl);
+      wrap.appendChild(imgEl);
+
+      const dlBtn = document.createElement('button');
+      dlBtn.className = 'btn-sm btn-dl';
+      dlBtn.textContent = '⬇ Download';
+      dlBtn.onclick = () => downloadImage(url, key);
+
+      const actions = document.createElement('div');
+      actions.className = 'format-actions';
+      actions.appendChild(dlBtn);
+
+      const labelEl = document.createElement('div');
+      labelEl.className = 'format-label';
+      labelEl.textContent = label;
+
+      card.appendChild(labelEl);
+      card.appendChild(wrap);
+      card.appendChild(actions);
       grid.appendChild(card);
+
+      // Load image via authenticated fetch → blob URL
+      fetchAuthImage(url).then(blobUrl => {
+        _blobUrls.push(blobUrl);
+        imgEl.src = blobUrl;
+        imgEl.style.display = 'block';
+        spinnerEl.style.display = 'none';
+      }).catch(() => {
+        spinnerEl.textContent = '⚠️';
+      });
     });
+  }
+
+  function packageTitleSlug() {
+    if (!currentPkg || !currentPkg.title) return 'social-kit';
+    return currentPkg.title
+      .replace(/[^a-zA-Z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 80);
   }
 
   async function downloadImage(url, format) {
@@ -338,7 +403,7 @@
       const blob = await res.blob();
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `social-kit-${format}.jpg`;
+      a.download = `${packageTitleSlug()}-${format}-${currentStyle}.jpg`;
       a.click();
     } catch {
       alert('Download failed. Please try again.');
