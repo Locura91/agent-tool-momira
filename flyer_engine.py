@@ -45,9 +45,9 @@ def _build_shared(pack: sk.Package, agent: Agent):
     """Compute all the shared data fragments used by both templates."""
     d = {}
 
-    # Gallery
+    # Gallery — use up to 6 images
     d["hero"] = pack.gallery[0] if pack.gallery else ""
-    d["gallery_extra"] = pack.gallery[1:4]
+    d["gallery_extra"] = pack.gallery[1:6]
 
     # Logo
     d["logo_html"] = (
@@ -79,16 +79,19 @@ def _build_shared(pack: sk.Package, agent: Agent):
     d["countries_line"] = ", ".join(countries)
 
     # Duration
-    if pack.days and pack.nights:
-        d["duration"] = f"{pack.days} days / {pack.nights} nights"
+    nights = pack.nights or (pack.days - 1 if pack.days > 1 else pack.days)
+    if pack.days and nights:
+        d["duration"] = f"{pack.days} days / {nights} nights"
     elif pack.days:
         d["duration"] = f"{pack.days} days"
+    elif nights:
+        d["duration"] = f"{nights} nights"
     else:
         d["duration"] = ""
 
-    # Description (truncated, clean whitespace)
+    # Description — already HTML-stripped in normalise()
     raw_desc = " ".join(pack.description.split()) if pack.description else ""
-    d["description"] = raw_desc[:440] + ("…" if len(raw_desc) > 440 else "")
+    d["description"] = raw_desc[:500] + ("…" if len(raw_desc) > 500 else "")
 
     # Departures
     d["departures"] = pack.departures[:8]
@@ -96,20 +99,40 @@ def _build_shared(pack: sk.Package, agent: Agent):
     # Price
     d["price_str"] = f"{_esc(pack.currency or 'EUR')} {pack.price:,.0f}" if pack.price else ""
 
-    # Hotels
-    d["hotel_names"] = pack.hotel_names or []
+    # Hotels with nights
+    hotel_names = pack.hotel_names or []
+    hotel_nights = pack.hotel_nights or []
+    hotel_items = []
+    for i, name in enumerate(hotel_names):
+        nights_n = hotel_nights[i] if i < len(hotel_nights) else 0
+        hotel_items.append((name, nights_n))
+    d["hotel_items"] = hotel_items   # list of (name, nights)
+    d["hotel_names"] = hotel_names
     d["hotels_count"] = pack.hotels
 
-    # Transport counts → icon+label list
+    # Transport counts → icon+label list (ordered: flights first, then others)
     transport_items = []
     tc = pack.transport_counts or {}
-    if tc:
-        for key, count in tc.items():
+    order = ["flights", "ferries", "trains", "buses", "cars", "transfers", "other"]
+    for key in order:
+        count = tc.get(key, 0)
+        if count:
             icon, label = TRANSPORT_ICONS.get(key, ("🚗", key.title()))
             transport_items.append((icon, f"{count}× {label}"))
-    elif pack.flights:
+    # Add any unexpected keys not in order
+    for key, count in tc.items():
+        if key not in order and count:
+            icon, label = TRANSPORT_ICONS.get(key, ("🚗", key.title()))
+            transport_items.append((icon, f"{count}× {label}"))
+    if not transport_items and pack.flights:
         transport_items.append(("✈", f"{pack.flights}× Flight"))
     d["transport_items"] = transport_items
+
+    # Round trip indicator
+    d["is_round_trip"] = getattr(pack, "is_round_trip", False)
+
+    # Activities
+    d["activities"] = getattr(pack, "activities", [])
 
     # Agency contact
     d["agency_name"] = agent.agency_name or "Travel Agent"
@@ -136,15 +159,19 @@ def _render_style_a(pack: sk.Package, agent: Agent, d: dict) -> str:
         )
         gallery_html = f'<div class="gallery-strip">{thumbs}</div>'
 
-    # Inclusions bar: transport + hotels + duration
+    # Inclusions bar: transport + hotels + duration + round-trip
     incl_items = []
+    if d["duration"]:
+        incl_items.append(f'<div class="incl-badge"><span class="incl-icon">🕐</span><span class="incl-text">{_esc(d["duration"])}</span></div>')
+    if d["is_round_trip"]:
+        incl_items.append(f'<div class="incl-badge"><span class="incl-icon">🔄</span><span class="incl-text">Round trip</span></div>')
     for icon, txt in d["transport_items"]:
         incl_items.append(f'<div class="incl-badge"><span class="incl-icon">{icon}</span><span class="incl-text">{_esc(txt)}</span></div>')
     if d["hotels_count"]:
         hotels_label = f"{d['hotels_count']} hotel{'s' if d['hotels_count'] != 1 else ''}"
         incl_items.append(f'<div class="incl-badge"><span class="incl-icon">🏨</span><span class="incl-text">{_esc(hotels_label)}</span></div>')
-    if d["duration"]:
-        incl_items.append(f'<div class="incl-badge"><span class="incl-icon">🕐</span><span class="incl-text">{_esc(d["duration"])}</span></div>')
+    if d["activities"]:
+        incl_items.append(f'<div class="incl-badge"><span class="incl-icon">🎫</span><span class="incl-text">{len(d["activities"])} activit{"ies" if len(d["activities"]) != 1 else "y"}</span></div>')
     incl_html = f'<div class="inclusions">{"".join(incl_items)}</div>' if incl_items else ""
 
     # Price
@@ -156,12 +183,24 @@ def _render_style_a(pack: sk.Package, agent: Agent, d: dict) -> str:
         <div class="price-pp">per person</div>
       </div>"""
 
-    # Hotel list
+    # Hotel list with nights
     hotel_html = ""
-    if d["hotel_names"]:
-        items = "".join(f"<li>{_esc(h)}</li>" for h in d["hotel_names"][:6])
+    if d["hotel_items"]:
+        items = "".join(
+            f'<li>{_esc(name)}{f" <span class=\\"hotel-nights\\">({nights} nights)</span>" if nights else ""}</li>'
+            for name, nights in d["hotel_items"][:6]
+        )
         hotel_html = f"""<div class="section">
       <div class="section-heading"><span class="section-icon">🏨</span> Hotels</div>
+      <ul class="hotel-list">{items}</ul>
+    </div>"""
+
+    # Activities
+    activity_html = ""
+    if d["activities"]:
+        items = "".join(f"<li>{_esc(a)}</li>" for a in d["activities"][:5])
+        activity_html = f"""<div class="section">
+      <div class="section-heading"><span class="section-icon">🎫</span> Included Activities</div>
       <ul class="hotel-list">{items}</ul>
     </div>"""
 
@@ -275,6 +314,7 @@ body {{
 .hotel-list {{ list-style: none; display: flex; flex-direction: column; gap: .3rem; }}
 .hotel-list li {{ font-size: .85rem; color: #374151; padding-left: .8rem; position: relative; }}
 .hotel-list li::before {{ content: "⭐"; position: absolute; left: 0; font-size: .7rem; top: .05rem; }}
+.hotel-nights {{ font-size: .75rem; color: #9ca3af; font-style: italic; }}
 /* Disclaimer */
 .disclaimer {{
   font-size: .68rem; color: #9ca3af; line-height: 1.5;
@@ -326,6 +366,7 @@ body {{
     {f'<div class="section"><p class="description-text">{_esc(d["description"])}</p></div>' if d["description"] else ""}
     {gallery_html}
     {hotel_html}
+    {activity_html}
     {dep_html}
     <div class="disclaimer">{_esc(d["disclaimer"])}</div>
   </div>
@@ -377,10 +418,13 @@ def _render_style_b(pack: sk.Package, agent: Agent, d: dict) -> str:
         # fallback if no transport detail
         pass
 
-    # Hotel list
+    # Hotel list with nights
     hotel_html = ""
-    if d["hotel_names"]:
-        items = "".join(f"<li>{_esc(h)}</li>" for h in d["hotel_names"][:5])
+    if d["hotel_items"]:
+        items = "".join(
+            f'<li>{_esc(name)}{f" <span class=\\"hotel-nights\\">({nights_n} nights)</span>" if nights_n else ""}</li>'
+            for name, nights_n in d["hotel_items"][:5]
+        )
         hotel_html = f"""<div class="info-row">
         <span class="info-label">🏨 Hotels</span>
         <ul class="hotel-list">{items}</ul>
@@ -389,6 +433,23 @@ def _render_style_b(pack: sk.Package, agent: Agent, d: dict) -> str:
         hotel_html = f"""<div class="info-row">
         <span class="info-label">🏨 Hotels</span>
         <span class="info-value">{d["hotels_count"]} accommodation{"s" if d["hotels_count"] != 1 else ""}</span>
+      </div>"""
+
+    # Activities
+    activity_html_b = ""
+    if d["activities"]:
+        items = "".join(f"<li>{_esc(a)}</li>" for a in d["activities"][:5])
+        activity_html_b = f"""<div class="info-row">
+        <span class="info-label">🎫 Included Activities</span>
+        <ul class="hotel-list">{items}</ul>
+      </div>"""
+
+    # Round trip
+    roundtrip_html_b = ""
+    if d["is_round_trip"]:
+        roundtrip_html_b = """<div class="info-row">
+        <span class="info-label">🔄 Trip type</span>
+        <span class="info-value">Round trip</span>
       </div>"""
 
     # Duration row
@@ -535,6 +596,7 @@ body {{
   font-size: .83rem; color: #374151; padding-left: 1rem; position: relative; line-height: 1.4;
 }}
 .hotel-list li::before {{ content: "★"; position: absolute; left: 0; color: #f59e0b; font-size: .75rem; top: .1rem; }}
+.hotel-nights {{ font-size: .75rem; color: #9ca3af; font-style: italic; }}
 
 /* Description */
 .desc-text {{ font-size: .84rem; color: #4b5563; line-height: 1.65; }}
@@ -615,8 +677,10 @@ body {{
     <div class="col-left">
       {f'<p class="desc-text">{_esc(d["description"])}</p>' if d["description"] else ""}
       {dur_html}
+      {roundtrip_html_b}
       {trans_html}
       {hotel_html}
+      {activity_html_b}
       {dep_html}
     </div>
 

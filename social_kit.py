@@ -213,7 +213,10 @@ class Package:
     flights: int = 0
     hotels: int = 0
     hotel_names: List[str] = field(default_factory=list)          # names of accommodations
+    hotel_nights: List[int] = field(default_factory=list)         # nights per hotel (parallel to hotel_names)
     transport_counts: Dict[str, int] = field(default_factory=dict) # e.g. {"flights":2,"ferries":1}
+    activities: List[str] = field(default_factory=list)           # ticket/activity names
+    is_round_trip: bool = False                                    # departs and returns to same origin
     # CONFIRMED REAL GAP (2026-09-27): Holiday Package's image/gallery field names were never
     # confirmed against a live response before this module was written (see
     # claude/multiwander-tc-api-briefing-2026-09-05.md: "Images/gallery field names for a
@@ -304,7 +307,11 @@ def normalise(package_id: str, info: Dict[str, Any], detail: Dict[str, Any], cal
     pack.raw = {"info": info, "detail": detail, "calendar": calendar}
 
     pack.title = str(_pick(info, ["title", "name"], "")).strip()
-    pack.description = str(_pick(info, ["description", "shortDescription", "remarks"], "")).strip()
+    raw_desc = str(_pick(info, ["description", "shortDescription", "remarks"], "") or "").strip()
+    # Strip HTML tags from description (TC wraps text in <p>, <strong>, etc.)
+    import re as _re
+    pack.description = _re.sub(r"<[^>]+>", " ", raw_desc).strip()
+    pack.description = " ".join(pack.description.split())  # collapse whitespace
 
     pack.days = int(_pick(info, ["days", "duration"], 0) or 0)
     pack.nights = int(_pick(info, ["nights"], max(0, pack.days - 1)) or 0)
@@ -404,6 +411,7 @@ def normalise(package_id: str, info: Dict[str, Any], detail: Dict[str, Any], cal
                 name = str(_pick(h, ["name", "hotelName", "title", "accommodationName"], "")).strip()
             if name:
                 pack.hotel_names.append(name)
+                pack.hotel_nights.append(int(h.get("nights") or 0))
             # Also harvest hotel images into the gallery
             hotel_images = hotel_data.get("images") or [] if isinstance(hotel_data, dict) else []
             for img in hotel_images:
@@ -415,6 +423,32 @@ def normalise(package_id: str, info: Dict[str, Any], detail: Dict[str, Any], cal
                     pack.gallery.append(img_url)
         elif isinstance(h, str) and h.strip():
             pack.hotel_names.append(h.strip())
+            pack.hotel_nights.append(0)
+
+    # Activities from tickets (day tours, entrance tickets, etc.)
+    for ticket in _pick(detail, ["tickets"], []) or []:
+        if isinstance(ticket, dict):
+            name = str(_pick(ticket, ["name", "title", "description"], "") or "").strip()
+            # Strip HTML from activity names too
+            import re as _re2
+            name = _re2.sub(r"<[^>]+>", " ", name).strip()
+            name = " ".join(name.split())
+            if name and name not in pack.activities:
+                pack.activities.append(name)
+    for tour in _pick(detail, ["closedTours"], []) or []:
+        if isinstance(tour, dict):
+            name = str(_pick(tour, ["name", "title"], "") or "").strip()
+            if name and name not in pack.activities:
+                pack.activities.append(name)
+
+    # Round-trip detection: first and last flight share same origin/destination airport code
+    if transports:
+        first_t = transports[0] if isinstance(transports[0], dict) else {}
+        last_t = transports[-1] if isinstance(transports[-1], dict) else {}
+        first_origin = str(first_t.get("originCode") or first_t.get("origin") or "").upper()
+        last_target = str(last_t.get("targetCode") or last_t.get("target") or "").upper()
+        if first_origin and last_target and first_origin == last_target:
+            pack.is_round_trip = True
 
     # Departures: future dates only, so a package last synced months ago never
     # advertises a sailing that has already gone.
