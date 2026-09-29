@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: agent-tool-momira
+    runtime: python
+    pythonVersion: "3.11.9"
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app.py
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        value: sqlite+aiosqlite:///./agents.db
+      - key: TRAVELC_BASE_URL
+        sync: false
+      - key: TRAVELC_MICROSITE_ID
+        sync: false
+      - key: TRAVELC_USERNAME
+        sync: false
+      - key: TRAVELC_PASSWORD
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET
+        value: social-kit-logos
+      - key: R2_PUBLIC_URL
+        sync: false
