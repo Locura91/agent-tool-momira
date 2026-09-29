@@ -361,6 +361,7 @@ async def generate_image(
     style: str = "photo",
     focus: str = "center",
     zoom: float = 1.0,
+    ribbon: str | None = None,   # per-request ribbon override (empty string = clear ribbon)
     agent: Agent = Depends(current_agent),
 ):
     """
@@ -396,11 +397,19 @@ async def generate_image(
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Could not load photograph: {e}")
 
+    # Apply per-request ribbon override without mutating the DB row
+    render_agent = agent
+    if ribbon is not None:
+        from copy import copy as _copy
+        render_agent = _copy(agent)
+        render_agent.ribbon_text = ribbon or None
+        render_agent.ribbon_preset = None  # per-request text wins over stored preset
+
     # Run Pillow work in a thread pool so it doesn't block the event loop
     loop = asyncio.get_event_loop()
     image = await loop.run_in_executor(
         None,
-        lambda: engine.render_for_agent(pack, agent, format, style, photo, focus, zoom),
+        lambda: engine.render_for_agent(pack, render_agent, format, style, photo, focus, zoom),
     )
 
     jpeg_bytes = sk.to_jpeg(image)
