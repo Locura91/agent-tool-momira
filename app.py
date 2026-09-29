@@ -1,0 +1,368 @@
+"""
+Social Kit SaaS — FastAPI application.
+
+Agents log in, upload their logo, set an optional ribbon, paste a Travel
+Compositor Holiday Package ID, and get captions + poster images back.
+All agents share Momira's TC credentials; each sees only their own account.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import io
+import os
+import tempfile
+from contextlib import asynccontextmanager
+from typing import Optional
+
+from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
+from fastapi.staticfiles import StaticFiles
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+import social_kit as sk
+import kit_engine as engine
+import r2_upload
+import flyer_engine
+from auth import (
+    create_access_token,
+    current_agent,
+    hash_password,
+    verify_password,
+)
+from database import get_db, init_db
+from models import Agent
+from schemas import (
+    AgentProfile,
+    GenerateRequest,
+    LoginRequest,
+    RegisterRequest,
+    TokenResponse,
+    UpdateProfileRequest,
+)
+
+# --------------------------------------------------------------------------
+# App setup
+# --------------------------------------------------------------------------
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await init_db()
+    yield
+
+
+app = FastAPI(
+    title="Social Kit for Travel Agents",
+    description="A Holiday Package ID in — three captions and a finished post image out.",
+    version="1.0.0",
+    lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Serve the static frontend from /static → /
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+# --------------------------------------------------------------------------
+# Health
+# --------------------------------------------------------------------------
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+
+# --------------------------------------------------------------------------
+# Auth
+# --------------------------------------------------------------------------
+
+@app.get("/", response_class=HTMLResponse)
+async def index():
+    with open("static/login.html", encoding="utf-8") as f:
+        return f.read()
+
+
+@app.post("/auth/register", response_model=TokenResponse, status_code=201)
+async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
+    existing = await db.execute(select(Agent).where(Agent.email == req.email))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="An account with that email already exists.")
+
+    agent = Agent(
+        email=req.email,
+        password_hash=hash_password(req.password),
+        agency_name=req.agency_name,
+    )
+    db.add(agent)
+    await db.commit()
+    await db.refresh(agent)
+
+    return TokenResponse(access_token=create_access_token(agent.id))
+
+
+@app.post("/auth/login", response_model=TokenResponse)
+async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Agent).where(Agent.email == req.email, Agent.is_active == True))
+    agent = result.scalar_one_or_none()
+
+    if not agent or not verify_password(req.password, agent.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid email or password.")
+
+    return TokenResponse(access_token=create_access_token(agent.id))
+
+
+# --------------------------------------------------------------------------
+# Agent profile
+# --------------------------------------------------------------------------
+
+@app.get("/me", response_model=AgentProfile)
+async def get_profile(agent: Agent = Depends(current_agent)):
+    return agent
+
+
+@app.patch("/me", response_model=AgentProfile)
+async def update_profile(
+    req: UpdateProfileRequest,
+    agent: Agent = Depends(current_agent),
+    db: AsyncSession = Depends(get_db),
+):
+    if req.agency_name is not None:
+        agent.agency_name = req.agency_name
+    if req.agency_url is not None:
+        agent.agency_url = req.agency_url
+    if req.agency_site is not None:
+        agent.agency_site = req.agency_site
+    if req.ribbon_text is not None:
+        agent.ribbon_text = req.ribbon_text
+    if req.ribbon_preset is not None:
+        agent.ribbon_preset = req.ribbon_preset
+
+    db.add(agent)
+    await db.commit()
+    await db.refresh(agent)
+    return agent
+
+
+@app.post("/me/logo", response_model=AgentProfile)
+async def upload_logo(
+    file: UploadFile = File(...),
+    agent: Agent = Depends(current_agent),
+    db: AsyncSession = Depends(get_db),
+):
+    if file.content_type not in ("image/jpeg", "image/png"):
+        raise HTTPException(status_code=400, detail="Logo must be a JPEG or PNG image.")
+
+    data = await file.read()
+    if len(data) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Logo must be smaller than 5 MB.")
+
+    # Delete old logo from R2 if there is one
+    if agent.logo_r2_key:
+        r2_upload.delete_logo(agent.logo_r2_key)
+
+    key, url = r2_upload.upload_logo(data, file.content_type, agent.id)
+    agent.logo_r2_key = key
+    agent.logo_url = url
+
+    db.add(agent)
+    await db.commit()
+    await db.refresh(agent)
+    return agent
+
+
+@app.delete("/me/logo", response_model=AgentProfile)
+async def delete_logo(
+    agent: Agent = Depends(current_agent),
+    db: AsyncSession = Depends(get_db),
+):
+    if agent.logo_r2_key:
+        r2_upload.delete_logo(agent.logo_r2_key)
+    agent.logo_r2_key = None
+    agent.logo_url = None
+    db.add(agent)
+    await db.commit()
+    await db.refresh(agent)
+    return agent
+
+
+# --------------------------------------------------------------------------
+# Package lookup (info only, no image generation)
+# --------------------------------------------------------------------------
+
+@app.get("/package/{package_id}")
+async def get_package(
+    package_id: str,
+    agent: Agent = Depends(current_agent),
+):
+    brand = engine.agent_brand(agent)
+    try:
+        pack = sk.fetch(sk.TCClient(), package_id, brand)
+    except sk.TCError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    return {
+        "id": pack.id,
+        "title": pack.title,
+        "days": pack.days,
+        "nights": pack.nights,
+        "price": pack.price,
+        "currency": pack.currency,
+        "destinations": pack.destinations,
+        "themes": pack.themes,
+        "gallery_count": len(pack.gallery),
+        "departures": pack.departures,
+        "flights": pack.flights,
+        "hotels": pack.hotels,
+    }
+
+
+# --------------------------------------------------------------------------
+# Caption generation
+# --------------------------------------------------------------------------
+
+@app.get("/generate/{package_id}/captions")
+async def generate_captions(
+    package_id: str,
+    agent: Agent = Depends(current_agent),
+):
+    brand = engine.agent_brand(agent)
+    try:
+        pack = sk.fetch(sk.TCClient(), package_id, brand)
+    except sk.TCError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    texts = sk.captions(pack, brand.url, brand, pln_rate=None)
+    return {
+        "package_id": pack.id,
+        "title": pack.title,
+        "captions": texts,
+    }
+
+
+# --------------------------------------------------------------------------
+# Image generation — returns JPEG directly
+# --------------------------------------------------------------------------
+
+@app.get("/generate/{package_id}/image")
+async def generate_image(
+    package_id: str,
+    photo_index: int = 0,
+    format: str = "square",
+    style: str = "photo",
+    focus: str = "center",
+    zoom: float = 1.0,
+    agent: Agent = Depends(current_agent),
+):
+    """
+    Returns a JPEG binary.  The frontend fetches this once per format/style
+    combination and either shows it inline or triggers a download.
+    """
+    if format not in sk.FORMATS:
+        raise HTTPException(status_code=400, detail=f"format must be one of {list(sk.FORMATS)}")
+    if style not in sk.STYLES:
+        raise HTTPException(status_code=400, detail=f"style must be one of {list(sk.STYLES)}")
+
+    brand = engine.agent_brand(agent)
+
+    try:
+        pack = sk.fetch(sk.TCClient(), package_id, brand)
+    except sk.TCError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    if not pack.gallery:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "No photographs found for this package. "
+                "Check the package ID and try again, or open a raw response via the "
+                "/package/{id} endpoint to locate the image field."
+            ),
+        )
+
+    idx = max(0, min(photo_index, len(pack.gallery) - 1))
+
+    try:
+        photo = sk.load_photo(pack.gallery[idx])
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Could not load photograph: {e}")
+
+    # Run Pillow work in a thread pool so it doesn't block the event loop
+    loop = asyncio.get_event_loop()
+    image = await loop.run_in_executor(
+        None,
+        lambda: engine.render_for_agent(pack, agent, format, style, photo, focus, zoom),
+    )
+
+    jpeg_bytes = sk.to_jpeg(image)
+    filename = f"{(agent.agency_name or 'post').replace(' ', '-').lower()}-{package_id}-{format}-{style}.jpg"
+
+    return Response(
+        content=jpeg_bytes,
+        media_type="image/jpeg",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# --------------------------------------------------------------------------
+# Flyer generation — returns full HTML page
+# --------------------------------------------------------------------------
+
+@app.get("/generate/{package_id}/flyer", response_class=HTMLResponse)
+async def generate_flyer(
+    package_id: str,
+    agent: Agent = Depends(current_agent),
+):
+    """Returns a print-ready A4 HTML page."""
+    brand = engine.agent_brand(agent)
+    try:
+        pack = sk.fetch(sk.TCClient(), package_id, brand)
+    except sk.TCError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    return flyer_engine.render_flyer(pack, agent)
+
+
+# --------------------------------------------------------------------------
+# Dashboard / settings / tool HTML pages
+# --------------------------------------------------------------------------
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def dashboard():
+    with open("static/dashboard.html", encoding="utf-8") as f:
+        return f.read()
+
+
+@app.get("/settings", response_class=HTMLResponse)
+async def settings_page():
+    with open("static/settings.html", encoding="utf-8") as f:
+        return f.read()
+
+
+@app.get("/tool/social-post", response_class=HTMLResponse)
+async def tool_social_post():
+    with open("static/tool-social-post.html", encoding="utf-8") as f:
+        return f.read()
+
+
+@app.get("/tool/flyer", response_class=HTMLResponse)
+async def tool_flyer():
+    with open("static/tool-flyer.html", encoding="utf-8") as f:
+        return f.read()
+
+
+# --------------------------------------------------------------------------
+# Run
+# --------------------------------------------------------------------------
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("app:app", host="0.0.0.0", port=int(os.getenv("PORT", 8000)), reload=True)

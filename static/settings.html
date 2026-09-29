@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Social Kit — Settings</title>
+  <style>
+    :root {
+      --brand: #17a39b; --brand-dark: #128a81; --brand-light: #e6f7f6;
+      --ink: #111827; --muted: #6b7280; --border: #e5e7eb;
+      --bg: #f9fafb; --white: #ffffff; --red: #dc2626; --green: #16a34a;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); min-height: 100vh; }
+
+    nav { background: var(--white); border-bottom: 1px solid var(--border); padding: 0 1.5rem; display: flex; align-items: center; justify-content: space-between; height: 60px; position: sticky; top: 0; z-index: 100; }
+    .logo { display: flex; align-items: center; gap: .5rem; text-decoration: none; color: var(--ink); }
+    .logo-mark { width: 32px; height: 32px; background: var(--brand); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: .9rem; }
+    .logo-text { font-weight: 700; font-size: 1rem; }
+    .nav-back { font-size: .85rem; color: var(--muted); cursor: pointer; background: none; border: 1px solid var(--border); border-radius: 8px; padding: .4rem .8rem; }
+
+    .page { max-width: 640px; margin: 0 auto; padding: 2rem 1.5rem; }
+    h1 { font-size: 1.4rem; font-weight: 700; margin-bottom: 2rem; }
+
+    .section { background: var(--white); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 1.5rem; overflow: hidden; }
+    .section-head { padding: 1.1rem 1.3rem; border-bottom: 1px solid var(--border); font-weight: 700; font-size: .9rem; }
+    .section-body { padding: 1.3rem; display: flex; flex-direction: column; gap: 1rem; }
+
+    label { display: block; font-size: .85rem; font-weight: 600; margin-bottom: .35rem; }
+    input[type=text], input[type=email], input[type=url], select {
+      width: 100%; padding: .6rem .9rem; border: 1px solid var(--border);
+      border-radius: 8px; font-size: .9rem; color: var(--ink); outline: none;
+      transition: border-color .15s; background: var(--white);
+    }
+    input:focus, select:focus { border-color: var(--brand); }
+    .hint { font-size: .8rem; color: var(--muted); margin-top: .3rem; }
+
+    /* Logo upload */
+    .logo-area { display: flex; gap: 1rem; align-items: flex-start; }
+    .logo-preview {
+      width: 80px; height: 80px; border-radius: 10px;
+      border: 2px dashed var(--border); object-fit: contain;
+      background: var(--bg); display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem; flex-shrink: 0;
+    }
+    .logo-preview img { width: 100%; height: 100%; object-fit: contain; border-radius: 8px; }
+    .logo-controls { flex: 1; display: flex; flex-direction: column; gap: .5rem; }
+    .btn-upload { display: inline-block; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: .5rem .9rem; font-size: .85rem; font-weight: 600; cursor: pointer; color: var(--ink); }
+    .btn-upload:hover { background: #f3f4f6; }
+    .btn-danger { background: #fef2f2; border: 1px solid #fca5a5; color: var(--red); border-radius: 8px; padding: .4rem .8rem; font-size: .82rem; font-weight: 600; cursor: pointer; }
+
+    /* Ribbon */
+    .ribbon-row { display: flex; gap: .75rem; flex-wrap: wrap; }
+    .ribbon-preset { padding: .35rem .85rem; border: 2px solid var(--border); border-radius: 99px; font-size: .82rem; font-weight: 700; cursor: pointer; background: var(--white); color: var(--muted); transition: all .15s; }
+    .ribbon-preset.active { border-color: var(--brand); color: var(--brand); background: var(--brand-light); }
+    .ribbon-preset.clear { font-weight: 600; color: var(--muted); }
+
+    /* Save button */
+    .btn-save { background: var(--brand); color: #fff; border: none; border-radius: 8px; padding: .65rem 1.4rem; font-size: .95rem; font-weight: 700; cursor: pointer; transition: background .15s; }
+    .btn-save:hover { background: var(--brand-dark); }
+    .btn-save:disabled { opacity: .6; cursor: not-allowed; }
+
+    .success { background: #dcfce7; border: 1px solid #86efac; color: var(--green); border-radius: 8px; padding: .6rem .9rem; font-size: .85rem; display: none; }
+    .error { background: #fef2f2; border: 1px solid #fca5a5; color: var(--red); border-radius: 8px; padding: .6rem .9rem; font-size: .85rem; display: none; }
+  </style>
+</head>
+<body>
+<nav>
+  <a class="logo" href="/dashboard"><div class="logo-mark">SK</div><span class="logo-text">Social Kit</span></a>
+  <button class="nav-back" onclick="location.href='/dashboard'">← Dashboard</button>
+</nav>
+
+<div class="page">
+  <h1>Settings</h1>
+
+  <div class="success" id="success-msg">Settings saved!</div>
+  <div class="error" id="error-msg"></div>
+
+  <!-- Agency branding -->
+  <div class="section">
+    <div class="section-head">Agency branding</div>
+    <div class="section-body">
+      <div>
+        <label>Agency logo</label>
+        <div class="logo-area">
+          <div class="logo-preview" id="logo-preview">🏢</div>
+          <div class="logo-controls">
+            <label class="btn-upload" for="logo-file">Upload logo…</label>
+            <input type="file" id="logo-file" accept="image/png,image/jpeg" style="display:none">
+            <span class="hint">PNG or JPG · max 5 MB · appears on every post and flyer</span>
+            <button class="btn-danger" id="remove-logo-btn" style="display:none">Remove logo</button>
+          </div>
+        </div>
+      </div>
+      <div>
+        <label for="agency-name">Agency name</label>
+        <input type="text" id="agency-name" placeholder="Sunshine Travels">
+        <span class="hint">Shown when no logo is uploaded.</span>
+      </div>
+      <div>
+        <label for="agency-url">Agency website URL</label>
+        <input type="url" id="agency-url" placeholder="https://yoursite.com">
+      </div>
+      <div>
+        <label for="agency-site">Domain to show on posters (optional)</label>
+        <input type="text" id="agency-site" placeholder="yoursite.com">
+        <span class="hint">Short domain printed on the photo-style images. Leave blank to use the URL above.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ribbon -->
+  <div class="section">
+    <div class="section-head">Post ribbon / badge</div>
+    <div class="section-body">
+      <div>
+        <label>Preset badge</label>
+        <div class="ribbon-row">
+          <button class="ribbon-preset clear active" data-preset="">None</button>
+          <button class="ribbon-preset" data-preset="NEW">NEW</button>
+          <button class="ribbon-preset" data-preset="SALE">SALE</button>
+          <button class="ribbon-preset" data-preset="BESTSELLER">BESTSELLER</button>
+          <button class="ribbon-preset" data-preset="HOT">HOT</button>
+        </div>
+      </div>
+      <div>
+        <label for="ribbon-text">Or custom text (max 40 characters)</label>
+        <input type="text" id="ribbon-text" placeholder="e.g. EARLY BIRD" maxlength="40">
+        <span class="hint">Overrides the preset. Leave blank to use the badge above.</span>
+      </div>
+    </div>
+  </div>
+
+  <button class="btn-save" id="save-btn">Save settings</button>
+</div>
+
+<script>
+  const token = localStorage.getItem('sk_token');
+  if (!token) window.location.href = '/';
+  const H = { 'Authorization': 'Bearer ' + token };
+
+  let selectedPreset = '';
+
+  // Load current profile
+  fetch('/me', { headers: H })
+    .then(r => r.json())
+    .then(agent => {
+      document.getElementById('agency-name').value = agent.agency_name || '';
+      document.getElementById('agency-url').value = agent.agency_url || '';
+      document.getElementById('agency-site').value = agent.agency_site || '';
+      document.getElementById('ribbon-text').value = agent.ribbon_text || '';
+      selectedPreset = agent.ribbon_preset || '';
+
+      // Update preset buttons
+      document.querySelectorAll('.ribbon-preset').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.preset === selectedPreset);
+      });
+
+      // Logo
+      if (agent.logo_url) {
+        const preview = document.getElementById('logo-preview');
+        preview.innerHTML = `<img src="${agent.logo_url}" alt="logo">`;
+        document.getElementById('remove-logo-btn').style.display = 'inline-block';
+      }
+    })
+    .catch(() => { localStorage.removeItem('sk_token'); window.location.href = '/'; });
+
+  // Preset toggle
+  document.querySelectorAll('.ribbon-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.ribbon-preset').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      selectedPreset = btn.dataset.preset;
+    });
+  });
+
+  // Logo upload
+  document.getElementById('logo-file').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const form = new FormData();
+    form.append('file', file);
+    try {
+      const res = await fetch('/me/logo', { method: 'POST', headers: H, body: form });
+      const data = await res.json();
+      if (!res.ok) { showError(data.detail || 'Upload failed.'); return; }
+      const preview = document.getElementById('logo-preview');
+      preview.innerHTML = `<img src="${data.logo_url}" alt="logo">`;
+      document.getElementById('remove-logo-btn').style.display = 'inline-block';
+      showSuccess('Logo uploaded!');
+    } catch { showError('Upload failed.'); }
+  });
+
+  // Remove logo
+  document.getElementById('remove-logo-btn').addEventListener('click', async () => {
+    if (!confirm('Remove your agency logo?')) return;
+    try {
+      const res = await fetch('/me/logo', { method: 'DELETE', headers: H });
+      if (res.ok) {
+        document.getElementById('logo-preview').innerHTML = '🏢';
+        document.getElementById('remove-logo-btn').style.display = 'none';
+        showSuccess('Logo removed.');
+      }
+    } catch { showError('Failed to remove logo.'); }
+  });
+
+  // Save settings
+  document.getElementById('save-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('save-btn');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const res = await fetch('/me', {
+        method: 'PATCH',
+        headers: { ...H, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agency_name: document.getElementById('agency-name').value.trim() || null,
+          agency_url: document.getElementById('agency-url').value.trim() || null,
+          agency_site: document.getElementById('agency-site').value.trim() || null,
+          ribbon_text: document.getElementById('ribbon-text').value.trim() || null,
+          ribbon_preset: selectedPreset || null,
+        }),
+      });
+      if (!res.ok) { const d = await res.json(); showError(d.detail || 'Save failed.'); return; }
+      showSuccess('Settings saved!');
+    } catch { showError('Could not reach the server.'); }
+    finally { btn.disabled = false; btn.textContent = 'Save settings'; }
+  });
+
+  function showSuccess(msg) {
+    const el = document.getElementById('success-msg');
+    el.textContent = msg; el.style.display = 'block';
+    document.getElementById('error-msg').style.display = 'none';
+    setTimeout(() => el.style.display = 'none', 3000);
+  }
+  function showError(msg) {
+    const el = document.getElementById('error-msg');
+    el.textContent = msg; el.style.display = 'block';
+    document.getElementById('success-msg').style.display = 'none';
+  }
+</script>
+</body>
+</html>

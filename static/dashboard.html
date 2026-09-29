@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Social Kit — Dashboard</title>
+  <style>
+    :root {
+      --brand: #17a39b;
+      --brand-dark: #128a81;
+      --brand-light: #e6f7f6;
+      --ink: #111827;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --bg: #f9fafb;
+      --white: #ffffff;
+      --red: #dc2626;
+      --green: #16a34a;
+      --amber: #d97706;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      min-height: 100vh;
+    }
+
+    /* ── Nav ── */
+    nav {
+      background: var(--white);
+      border-bottom: 1px solid var(--border);
+      padding: 0 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 60px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .logo {
+      display: flex; align-items: center; gap: .5rem;
+      text-decoration: none; color: var(--ink);
+    }
+    .logo-mark {
+      width: 32px; height: 32px;
+      background: var(--brand);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-weight: 700; font-size: .9rem;
+    }
+    .logo-text { font-weight: 700; font-size: 1rem; }
+    .nav-right { display: flex; align-items: center; gap: 1rem; }
+    .nav-agent { font-size: .85rem; color: var(--muted); }
+    .nav-agent strong { color: var(--ink); }
+    .btn-ghost {
+      background: none; border: 1px solid var(--border);
+      border-radius: 8px; padding: .4rem .8rem;
+      font-size: .85rem; color: var(--muted); cursor: pointer;
+      transition: background .15s;
+    }
+    .btn-ghost:hover { background: var(--bg); }
+
+    /* ── Page ── */
+    .page { max-width: 900px; margin: 0 auto; padding: 2rem 1.5rem; }
+    .page-header { margin-bottom: 2rem; }
+    .page-header h1 { font-size: 1.6rem; font-weight: 700; margin-bottom: .3rem; }
+    .page-header p { color: var(--muted); font-size: .95rem; }
+
+    /* ── Tool cards ── */
+    .tools-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 1.2rem;
+      margin-bottom: 2.5rem;
+    }
+    .tool-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.6rem;
+      display: flex; flex-direction: column; gap: .8rem;
+      text-decoration: none; color: var(--ink);
+      transition: box-shadow .2s, border-color .2s;
+      cursor: pointer;
+    }
+    .tool-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,.08); border-color: var(--brand); }
+    .tool-card.disabled { opacity: .55; cursor: not-allowed; pointer-events: none; }
+    .tool-icon {
+      width: 48px; height: 48px;
+      background: var(--brand-light);
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem;
+    }
+    .tool-card.disabled .tool-icon { background: #f3f4f6; }
+    .tool-title { font-weight: 700; font-size: 1rem; }
+    .tool-desc { font-size: .85rem; color: var(--muted); line-height: 1.5; }
+    .tool-badge {
+      align-self: flex-start;
+      font-size: .75rem; font-weight: 600;
+      padding: .2rem .6rem;
+      border-radius: 99px;
+    }
+    .badge-ready { background: #dcfce7; color: var(--green); }
+    .badge-soon { background: #f3f4f6; color: var(--muted); }
+
+    /* ── Recent ── */
+    .section-title { font-size: 1rem; font-weight: 700; margin-bottom: 1rem; }
+    .empty-state {
+      background: var(--white); border: 1px solid var(--border);
+      border-radius: 12px; padding: 2.5rem;
+      text-align: center; color: var(--muted); font-size: .9rem;
+    }
+
+    /* ── Onboarding strip ── */
+    .onboarding {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.2rem 1.5rem;
+      display: flex; align-items: center; gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .onboarding-icon { font-size: 1.5rem; flex-shrink: 0; }
+    .onboarding-body { flex: 1; }
+    .onboarding-body strong { display: block; font-size: .95rem; margin-bottom: .2rem; }
+    .onboarding-body span { font-size: .85rem; color: var(--muted); }
+    .btn-brand {
+      display: inline-block;
+      background: var(--brand); color: #fff;
+      border: none; border-radius: 8px;
+      padding: .5rem 1rem;
+      font-size: .85rem; font-weight: 700;
+      cursor: pointer; text-decoration: none;
+      white-space: nowrap;
+      transition: background .15s;
+    }
+    .btn-brand:hover { background: var(--brand-dark); }
+    #onboarding-strip { display: none; }
+  </style>
+</head>
+<body>
+<nav>
+  <a class="logo" href="/dashboard">
+    <div class="logo-mark">SK</div>
+    <span class="logo-text">Social Kit</span>
+  </a>
+  <div class="nav-right">
+    <span class="nav-agent"><strong id="nav-agency">…</strong></span>
+    <button class="btn-ghost" onclick="location.href='/settings'">Settings</button>
+    <button class="btn-ghost" id="logout-btn">Log out</button>
+  </div>
+</nav>
+
+<div class="page">
+  <div class="page-header">
+    <h1>Welcome back 👋</h1>
+    <p>Pick a tool below and paste a Holiday Package ID to get started.</p>
+  </div>
+
+  <!-- Onboarding: shown only if logo is missing -->
+  <div class="onboarding" id="onboarding-strip">
+    <span class="onboarding-icon">🎨</span>
+    <div class="onboarding-body">
+      <strong>Add your agency logo</strong>
+      <span>Your logo appears on every post and flyer you generate.</span>
+    </div>
+    <a class="btn-brand" href="/settings">Add logo →</a>
+  </div>
+
+  <div class="tools-grid">
+    <!-- Social Post -->
+    <a class="tool-card" href="/tool/social-post">
+      <div class="tool-icon">📱</div>
+      <div>
+        <div class="tool-title">Social Media Post</div>
+        <div class="tool-desc">Generate square, story, and Google Business images plus ready-to-copy captions from any package ID.</div>
+      </div>
+      <span class="tool-badge badge-ready">Ready</span>
+    </a>
+
+    <!-- Flyer -->
+    <a class="tool-card" href="/tool/flyer">
+      <div class="tool-icon">📄</div>
+      <div>
+        <div class="tool-title">Travel Flyer</div>
+        <div class="tool-desc">Print-ready A4 flyer with hero image, full itinerary, price, and your agency branding.</div>
+      </div>
+      <span class="tool-badge badge-ready">Ready</span>
+    </a>
+
+    <!-- Catalog (future) -->
+    <div class="tool-card disabled">
+      <div class="tool-icon">🗺️</div>
+      <div>
+        <div class="tool-title">Destination Catalog</div>
+        <div class="tool-desc">Country-by-country catalogs built from live Momira Travel inventory. Coming soon.</div>
+      </div>
+      <span class="tool-badge badge-soon">Coming soon</span>
+    </div>
+  </div>
+
+  <div class="section-title">Recent generations</div>
+  <div class="empty-state" id="recent-empty">
+    No posts yet — generate your first one above.
+  </div>
+</div>
+
+<script>
+  const token = localStorage.getItem('sk_token');
+  if (!token) { window.location.href = '/'; }
+
+  const headers = { 'Authorization': 'Bearer ' + token };
+
+  fetch('/me', { headers })
+    .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+    .then(agent => {
+      document.getElementById('nav-agency').textContent = agent.agency_name || agent.email;
+      if (!agent.logo_url) {
+        document.getElementById('onboarding-strip').style.display = 'flex';
+      }
+    })
+    .catch(() => { localStorage.removeItem('sk_token'); window.location.href = '/'; });
+
+  document.getElementById('logout-btn').addEventListener('click', () => {
+    localStorage.removeItem('sk_token');
+    window.location.href = '/';
+  });
+</script>
+</body>
+</html>

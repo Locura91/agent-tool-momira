@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Social Kit — Travel Flyer</title>
+  <style>
+    :root {
+      --brand: #17a39b; --brand-dark: #128a81; --brand-light: #e6f7f6;
+      --ink: #111827; --muted: #6b7280; --border: #e5e7eb;
+      --bg: #f9fafb; --white: #ffffff; --red: #dc2626;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); min-height: 100vh; }
+
+    nav { background: var(--white); border-bottom: 1px solid var(--border); padding: 0 1.5rem; display: flex; align-items: center; justify-content: space-between; height: 60px; position: sticky; top: 0; z-index: 100; }
+    .logo { display: flex; align-items: center; gap: .5rem; text-decoration: none; color: var(--ink); }
+    .logo-mark { width: 32px; height: 32px; background: var(--brand); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: .9rem; }
+    .logo-text { font-weight: 700; font-size: 1rem; }
+    .nav-back { font-size: .85rem; color: var(--muted); cursor: pointer; background: none; border: 1px solid var(--border); border-radius: 8px; padding: .4rem .8rem; }
+
+    .page { max-width: 860px; margin: 0 auto; padding: 2rem 1.5rem; }
+    .page-header { margin-bottom: 1.5rem; }
+    .page-header h1 { font-size: 1.4rem; font-weight: 700; }
+    .page-header p { color: var(--muted); font-size: .9rem; margin-top: .3rem; }
+
+    .input-row { display: flex; gap: .75rem; align-items: flex-end; margin-bottom: 1.5rem; flex-wrap: wrap; }
+    .field { display: flex; flex-direction: column; gap: .35rem; flex: 1; min-width: 180px; }
+    .field label { font-size: .85rem; font-weight: 600; }
+    .field input { padding: .6rem .9rem; border: 1px solid var(--border); border-radius: 8px; font-size: .9rem; color: var(--ink); outline: none; transition: border-color .15s; }
+    .field input:focus { border-color: var(--brand); }
+    .btn-generate { background: var(--brand); color: #fff; border: none; border-radius: 8px; padding: .65rem 1.4rem; font-size: .95rem; font-weight: 700; cursor: pointer; transition: background .15s; white-space: nowrap; }
+    .btn-generate:hover { background: var(--brand-dark); }
+    .btn-generate:disabled { opacity: .6; cursor: not-allowed; }
+
+    .error { background: #fef2f2; border: 1px solid #fca5a5; color: var(--red); border-radius: 8px; padding: .6rem .9rem; font-size: .85rem; margin-bottom: 1rem; display: none; }
+
+    /* Preview card */
+    .preview-wrap { display: none; }
+    .preview-actions { display: flex; gap: .75rem; margin-bottom: 1.2rem; align-items: center; flex-wrap: wrap; }
+    .preview-actions .info { font-size: .85rem; color: var(--muted); flex: 1; }
+    .btn-print { background: var(--brand); color: #fff; border: none; border-radius: 8px; padding: .6rem 1.2rem; font-size: .9rem; font-weight: 700; cursor: pointer; }
+    .btn-print:hover { background: var(--brand-dark); }
+    .btn-open { background: var(--white); border: 1px solid var(--border); border-radius: 8px; padding: .6rem 1.2rem; font-size: .9rem; font-weight: 600; cursor: pointer; color: var(--ink); }
+
+    .flyer-preview-box {
+      background: var(--white); border: 1px solid var(--border); border-radius: 12px;
+      overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,.06);
+    }
+    .flyer-preview-box iframe { width: 100%; border: none; display: block; min-height: 500px; }
+  </style>
+</head>
+<body>
+<nav>
+  <a class="logo" href="/dashboard"><div class="logo-mark">SK</div><span class="logo-text">Social Kit</span></a>
+  <button class="nav-back" onclick="history.back()">← Dashboard</button>
+</nav>
+
+<div class="page">
+  <div class="page-header">
+    <h1>📄 Travel Flyer</h1>
+    <p>Enter a Package ID to generate a print-ready A4 flyer with your agency branding. Print or save as PDF straight from the browser.</p>
+  </div>
+
+  <div class="error" id="error-box"></div>
+
+  <div class="input-row">
+    <div class="field">
+      <label for="pkg-id">Package ID</label>
+      <input type="text" id="pkg-id" placeholder="e.g. HOL-12345" autocomplete="off">
+    </div>
+    <button class="btn-generate" id="gen-btn">Generate Flyer →</button>
+  </div>
+
+  <div class="preview-wrap" id="preview-wrap">
+    <div class="preview-actions">
+      <span class="info">✅ Flyer ready — open it and press <strong>Ctrl+P</strong> (or ⌘P on Mac) to print or save as PDF.</span>
+      <button class="btn-open" id="btn-open-tab">Open in new tab ↗</button>
+      <button class="btn-print" id="btn-print">🖨 Print / Save PDF</button>
+    </div>
+    <div class="flyer-preview-box">
+      <iframe id="flyer-frame" title="Flyer preview"></iframe>
+    </div>
+  </div>
+</div>
+
+<script>
+  const token = localStorage.getItem('sk_token');
+  if (!token) window.location.href = '/';
+  const H = { 'Authorization': 'Bearer ' + token };
+
+  let flyerUrl = '';
+
+  function showError(msg) {
+    const el = document.getElementById('error-box');
+    el.textContent = msg; el.style.display = 'block';
+  }
+  function hideError() { document.getElementById('error-box').style.display = 'none'; }
+
+  document.getElementById('gen-btn').addEventListener('click', generate);
+  document.getElementById('pkg-id').addEventListener('keydown', e => { if (e.key === 'Enter') generate(); });
+
+  async function generate() {
+    hideError();
+    const pkgId = document.getElementById('pkg-id').value.trim();
+    if (!pkgId) { showError('Please enter a Package ID.'); return; }
+
+    const btn = document.getElementById('gen-btn');
+    btn.disabled = true; btn.textContent = 'Generating…';
+
+    try {
+      // The flyer endpoint returns an HTML page directly
+      flyerUrl = `/generate/${pkgId}/flyer?token=${encodeURIComponent(token)}`;
+      const res = await fetch(`/generate/${pkgId}/flyer`, { headers: H });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        showError(d.detail || 'Could not generate flyer.');
+        return;
+      }
+
+      const html = await res.text();
+      const frame = document.getElementById('flyer-frame');
+      frame.srcdoc = html;
+      frame.style.minHeight = '800px';
+
+      document.getElementById('preview-wrap').style.display = 'block';
+      document.getElementById('preview-wrap').scrollIntoView({ behavior: 'smooth' });
+
+    } catch {
+      showError('Could not reach the server. Please try again.');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Generate Flyer →';
+    }
+  }
+
+  document.getElementById('btn-open-tab').addEventListener('click', () => {
+    const pkgId = document.getElementById('pkg-id').value.trim();
+    window.open(`/generate/${pkgId}/flyer?token=${encodeURIComponent(token)}`, '_blank');
+  });
+
+  document.getElementById('btn-print').addEventListener('click', () => {
+    const frame = document.getElementById('flyer-frame');
+    if (frame.contentWindow) frame.contentWindow.print();
+  });
+</script>
+</body>
+</html>
