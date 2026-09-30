@@ -858,7 +858,7 @@ FORMATS: Dict[str, Tuple[int, int, str]] = {
     "gbp": (1200, 900, "Google Business Profile"),
 }
 
-STYLES = {"photo": "Template 1 — photo-first", "band": "Template 2 — brand band"}
+STYLES = {"photo": "Template 1 — photo-first", "band": "Template 2 — brand band", "collage": "Template 3 — collage with nights"}
 
 BRAND = (23, 163, 152)
 BRAND_DARK = (18, 138, 129)
@@ -985,6 +985,116 @@ def _pill(draw: ImageDraw.ImageDraw, xy: Tuple[int, int], text: str, font: Image
     return w, h
 
 
+def _render_collage(pack: Package, fmt: str, photo: Image.Image, brand: "Brand",
+                    pln_rate: Optional[float]) -> Image.Image:
+    """
+    Style C — collage: two photos side-by-side, teal divider, nights badge,
+    agency wordmark top-left, title + price bottom band.
+    Second photo is fetched from gallery[1] if available, else photo is reused
+    with a warm-tinted crop.
+    """
+    width, height, _ = FORMATS[fmt]
+    unit = width / 1080
+    pad = int(64 * unit)
+
+    # ── Fetch second photo ──────────────────────────────────────────────────
+    photo2 = None
+    if len(pack.gallery) > 1:
+        try:
+            photo2 = load_photo(pack.gallery[1])
+        except Exception:
+            pass
+    if photo2 is None:
+        # Reuse the same photo with a slight warm tint as visual variety
+        photo2 = photo.copy()
+        warm = Image.new("RGB", photo2.size, (255, 210, 150))
+        photo2 = Image.blend(photo2.convert("RGB"), warm, 0.18)
+
+    # ── Layout: two vertical panels ─────────────────────────────────────────
+    divider = int(6 * unit)
+    panel_w = (width - divider) // 2
+    # Bottom band height for title / price
+    band_h = int(height * 0.28)
+    photo_h = height - band_h
+
+    left = _place(photo, panel_w, photo_h, focus="center")
+    right = _place(photo2, panel_w, photo_h, focus="center")
+
+    canvas = Image.new("RGB", (width, height), (255, 255, 255))
+    canvas.paste(left, (0, 0))
+    canvas.paste(right, (panel_w + divider, 0))
+    # Teal divider strip
+    canvas.paste(Image.new("RGB", (divider, photo_h), BRAND), (panel_w, 0))
+
+    # ── Subtle scrim over each photo panel so the badge/wordmark read ───────
+    # Confine the scrim to the photo area so it never greys the white band.
+    _photo_area = canvas.crop((0, 0, width, photo_h))
+    _scrim(_photo_area, 0.45)
+    canvas.paste(_photo_area, (0, 0))
+
+    # ── Nights badge — centred on divider, mid-height ───────────────────────
+    nights = pack.nights or (pack.days - 1 if pack.days and pack.days > 1 else pack.days or 0)
+    if nights:
+        badge_font = _font("bold", int(28 * unit))
+        badge_label_font = _font("regular", int(18 * unit))
+        badge_r = int(54 * unit)
+        bx = width // 2
+        by = int(photo_h * 0.52)
+        # Circle background
+        badge_img = Image.new("RGBA", (badge_r * 2, badge_r * 2), (0, 0, 0, 0))
+        bdraw = ImageDraw.Draw(badge_img)
+        bdraw.ellipse([0, 0, badge_r * 2, badge_r * 2], fill=(*BRAND, 255))
+        canvas.paste(badge_img.convert("RGB"), (bx - badge_r, by - badge_r),
+                     badge_img.split()[3])
+        bdraw2 = ImageDraw.Draw(canvas)
+        # Night number
+        bdraw2.text((bx, by - int(10 * unit)), str(nights),
+                    font=badge_font, fill=(255, 255, 255), anchor="mm")
+        # "nights" label
+        bdraw2.text((bx, by + int(22 * unit)), "nights",
+                    font=badge_label_font, fill=(220, 255, 252), anchor="mm")
+
+    # ── Bottom white band ────────────────────────────────────────────────────
+    by_band = photo_h
+    draw = ImageDraw.Draw(canvas)
+    # Teal top accent line
+    draw.rectangle([0, by_band, width, by_band + int(5 * unit)], fill=BRAND)
+    by_band += int(5 * unit)
+
+    # Kicker / country
+    kicker = next((s.get("country", "") for s in pack.destinations if s.get("country")), "")
+    y = by_band + int(28 * unit)
+    if kicker:
+        draw.text((pad, y), kicker.upper(),
+                  font=_font("bold", int(22 * unit)), fill=BRAND_DARK)
+        y += int(38 * unit)
+
+    # Title
+    title_font = _font("bold", int(44 * unit))
+    for line in _wrap(draw, pack.title, title_font, width - pad * 2, 2):
+        draw.text((pad, y), line, font=title_font, fill=INK)
+        y += int(title_font.size * 1.22)
+
+    # Price + CTA
+    price = format_price(pack, brand, pln_rate)
+    foot = height - pad
+    if price:
+        price_line = _t(brand, "poster_from").format(price=price)
+        draw.text((pad, foot), price_line,
+                  font=_font("bold", int(36 * unit)), fill=INK, anchor="ls")
+    cta_font = _font("bold", int(22 * unit))
+    cta = _t(brand, "poster_cta_short")
+    cta_w = int(draw.textlength(cta, font=cta_font)) + int(48 * unit)
+    _pill(draw, (width - pad - cta_w, foot - int(cta_font.size * 2.1)),
+          cta, cta_font, BRAND, (255, 255, 255), int(24 * unit))
+
+    # Wordmark pill (top-left of left panel)
+    _pill(draw, (pad, pad), brand.wordmark,
+          _font("bold", int(22 * unit)), BRAND, (255, 255, 255), int(24 * unit))
+
+    return canvas
+
+
 def render(pack: Package, fmt: str = "square", style: str = "photo", photo: Optional[Image.Image] = None,
            focus: str = "center", zoom: float = 1.0, brand: "Brand" = None,
            pln_rate: Optional[float] = None) -> Image.Image:
@@ -999,6 +1109,10 @@ def render(pack: Package, fmt: str = "square", style: str = "photo", photo: Opti
 
     if photo is None:
         raise ValueError("A photograph is required.")
+
+    # Style C — collage with nights badge
+    if style == "collage":
+        return _render_collage(pack, fmt, photo, brand, pln_rate)
 
     unit = width / 1080
     pad = int(72 * unit)
