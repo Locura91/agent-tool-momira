@@ -165,8 +165,14 @@ async def guest_login(db: AsyncSession = Depends(get_db)):
         agent = Agent(
             email=GUEST_EMAIL,
             password_hash=hash_password("guest-demo-2026"),
-            agency_name="Momira Demo",
+            agency_name="Momira Travel",
         )
+        db.add(agent)
+        await db.commit()
+        await db.refresh(agent)
+    elif agent.agency_name in (None, "", "Momira Demo"):
+        # Fix up the demo account name for existing rows
+        agent.agency_name = "Momira Travel"
         db.add(agent)
         await db.commit()
         await db.refresh(agent)

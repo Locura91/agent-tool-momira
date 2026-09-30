@@ -309,9 +309,12 @@ def normalise(package_id: str, info: Dict[str, Any], detail: Dict[str, Any], cal
     pack.title = str(_pick(info, ["title", "name"], "")).strip()
     raw_desc = str(_pick(info, ["description", "shortDescription", "remarks"], "") or "").strip()
     # Strip HTML tags from description (TC wraps text in <p>, <strong>, etc.)
+    # then decode HTML entities (&nbsp; &amp; &#243; etc.) so no HTML code leaks into the flyer.
     import re as _re
-    pack.description = _re.sub(r"<[^>]+>", " ", raw_desc).strip()
-    pack.description = " ".join(pack.description.split())  # collapse whitespace
+    import html as _html
+    _desc = _re.sub(r"<[^>]+>", " ", raw_desc)
+    _desc = _html.unescape(_desc)
+    pack.description = " ".join(_desc.split())  # collapse whitespace
 
     pack.days = int(_pick(info, ["days", "duration"], 0) or 0)
     pack.nights = int(_pick(info, ["nights"], max(0, pack.days - 1)) or 0)
@@ -429,9 +432,10 @@ def normalise(package_id: str, info: Dict[str, Any], detail: Dict[str, Any], cal
     for ticket in _pick(detail, ["tickets"], []) or []:
         if isinstance(ticket, dict):
             name = str(_pick(ticket, ["name", "title", "description"], "") or "").strip()
-            # Strip HTML from activity names too
+            # Strip HTML tags + decode entities from activity names too
             import re as _re2
-            name = _re2.sub(r"<[^>]+>", " ", name).strip()
+            import html as _html2
+            name = _html2.unescape(_re2.sub(r"<[^>]+>", " ", name))
             name = " ".join(name.split())
             if name and name not in pack.activities:
                 pack.activities.append(name)
