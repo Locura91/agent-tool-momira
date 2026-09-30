@@ -28,8 +28,13 @@ TRANSPORT_ICONS = {
 }
 
 DISCLAIMER = (
-    "Prices are dynamic and subject to change. Availability cannot be guaranteed. "
-    "This is a travel inspiration — we can fully customise it for each customer individually."
+    "Prices are dynamic and subject to change. Availability cannot be guaranteed."
+)
+
+# Positive selling point — shown as a round seal/ribbon near the bottom.
+CUSTOMISE_TITLE = "Fully customisable"
+CUSTOMISE_MESSAGE = (
+    "This is a travel inspiration — we tailor every trip to each customer individually."
 )
 
 
@@ -466,6 +471,24 @@ body {{
 .benefit {{ display: flex; flex-direction: column; align-items: center; gap: .28rem; text-align: center; }}
 .benefit-icon {{ font-size: 1.3rem; line-height: 1; }}
 .benefit-label {{ font-size: .72rem; font-weight: 700; color: #0e6b66; text-transform: uppercase; letter-spacing: .04em; }}
+/* Customise seal / round ribbon */
+.seal-band {{ display: flex; justify-content: center; align-items: center; padding: 1.3rem 1rem; background: #fff; flex-shrink: 0; }}
+.custom-seal {{
+  width: 178px; height: 178px; border-radius: 50%;
+  background: radial-gradient(circle at 50% 34%, #17a39b, #0e6b66);
+  color: #fff; display: flex; align-items: center; justify-content: center;
+  text-align: center; padding: 1.5rem 1.3rem;
+  box-shadow: 0 6px 22px rgba(13,33,55,.28);
+  border: 3px dashed rgba(255,255,255,.55); position: relative;
+}}
+.custom-seal::after {{
+  content: ""; position: absolute; inset: 9px; border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.35);
+}}
+.custom-seal-inner {{ display: flex; flex-direction: column; align-items: center; gap: .3rem; }}
+.seal-star {{ font-size: 1.15rem; }}
+.seal-title {{ font-size: .78rem; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; }}
+.seal-text {{ font-size: .66rem; line-height: 1.4; font-weight: 500; color: rgba(255,255,255,.94); }}
 /* CTA band */
 .cta-band {{
   background: linear-gradient(120deg, #0d2137 0%, #17a39b 100%);
@@ -526,6 +549,13 @@ body {{
     {two_col_html}
     {dep_html}
     <div class="disclaimer">{_esc(d["disclaimer"])}</div>
+  </div>
+  <div class="seal-band">
+    <div class="custom-seal"><div class="custom-seal-inner">
+      <span class="seal-star">✦</span>
+      <span class="seal-title">{_esc(CUSTOMISE_TITLE)}</span>
+      <span class="seal-text">{_esc(CUSTOMISE_MESSAGE)}</span>
+    </div></div>
   </div>
   {benefits_html}
   {cta_band_html}
@@ -763,6 +793,21 @@ body {{
 .benefit {{ display: flex; flex-direction: column; align-items: center; gap: .28rem; text-align: center; }}
 .benefit-icon {{ font-size: 1.3rem; line-height: 1; }}
 .benefit-label {{ font-size: .72rem; font-weight: 700; color: #0e6b66; text-transform: uppercase; letter-spacing: .04em; }}
+/* Customise seal / round ribbon */
+.seal-band {{ display: flex; justify-content: center; align-items: center; padding: 1.2rem 1rem; background: #fff; flex-shrink: 0; }}
+.custom-seal {{
+  width: 168px; height: 168px; border-radius: 50%;
+  background: radial-gradient(circle at 50% 34%, #17a39b, #0e6b66);
+  color: #fff; display: flex; align-items: center; justify-content: center;
+  text-align: center; padding: 1.4rem 1.2rem;
+  box-shadow: 0 6px 22px rgba(13,33,55,.28);
+  border: 3px dashed rgba(255,255,255,.55); position: relative;
+}}
+.custom-seal::after {{ content: ""; position: absolute; inset: 9px; border-radius: 50%; border: 1px solid rgba(255,255,255,.35); }}
+.custom-seal-inner {{ display: flex; flex-direction: column; align-items: center; gap: .3rem; }}
+.seal-star {{ font-size: 1.1rem; }}
+.seal-title {{ font-size: .76rem; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; }}
+.seal-text {{ font-size: .64rem; line-height: 1.4; font-weight: 500; color: rgba(255,255,255,.94); }}
 /* Footer bar */
 .bottom-bar {{
   background: #0d2137; flex-shrink: 0; padding: .9rem 1.8rem;
@@ -819,6 +864,13 @@ body {{
         {qr_block}
       </div>''' if (contact_rows or qr_block) else f'<div class="contact-card"><div class="contact-card-title">{_esc(d["agency_name"])}</div></div>'}
     </div>
+  </div>
+  <div class="seal-band">
+    <div class="custom-seal"><div class="custom-seal-inner">
+      <span class="seal-star">✦</span>
+      <span class="seal-title">{_esc(CUSTOMISE_TITLE)}</span>
+      <span class="seal-text">{_esc(CUSTOMISE_MESSAGE)}</span>
+    </div></div>
   </div>
   {benefits_html}
   <div class="bottom-bar">
