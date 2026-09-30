@@ -988,16 +988,27 @@ def _pill(draw: ImageDraw.ImageDraw, xy: Tuple[int, int], text: str, font: Image
 def _render_collage(pack: Package, fmt: str, photo: Image.Image, brand: "Brand",
                     pln_rate: Optional[float]) -> Image.Image:
     """
-    Style C — collage: two photos side-by-side, teal divider, nights badge,
-    agency wordmark top-left, title + price bottom band.
-    Second photo is fetched from gallery[1] if available, else photo is reused
-    with a warm-tinted crop.
+    Style C — premium editorial collage.
+    Layout (square):
+      • Full-bleed hero photo top 65%
+      • Inset accent photo (top-right corner, ~30% wide) with teal border
+      • Nights circle badge floats on the hero/panel boundary
+      • Dark ink bottom panel: destination chips row + large title + price/CTA row
+      • Wordmark pill top-left
+    Story format stacks the same elements differently (hero 55%, taller panel).
     """
     width, height, _ = FORMATS[fmt]
     unit = width / 1080
-    pad = int(64 * unit)
+    pad = int(56 * unit)
 
-    # ── Fetch second photo ──────────────────────────────────────────────────
+    INK_DARK = (10, 18, 30)
+    TEAL_LIGHT = (200, 242, 240)
+    WHITE = (255, 255, 255)
+    GOLD = (224, 164, 59)
+
+    is_story = height > width
+
+    # ── Fetch second (accent) photo ─────────────────────────────────────────
     photo2 = None
     if len(pack.gallery) > 1:
         try:
@@ -1005,92 +1016,118 @@ def _render_collage(pack: Package, fmt: str, photo: Image.Image, brand: "Brand",
         except Exception:
             pass
     if photo2 is None:
-        # Reuse the same photo with a slight warm tint as visual variety
         photo2 = photo.copy()
-        warm = Image.new("RGB", photo2.size, (255, 210, 150))
-        photo2 = Image.blend(photo2.convert("RGB"), warm, 0.18)
+        warm = Image.new("RGB", photo2.size, (255, 200, 120))
+        photo2 = Image.blend(photo2.convert("RGB"), warm, 0.22)
 
-    # ── Layout: two vertical panels ─────────────────────────────────────────
-    divider = int(6 * unit)
-    panel_w = (width - divider) // 2
-    # Bottom band height for title / price
-    band_h = int(height * 0.28)
-    photo_h = height - band_h
+    # ── Layout geometry ──────────────────────────────────────────────────────
+    hero_ratio = 0.52 if is_story else 0.62
+    hero_h = int(height * hero_ratio)
+    panel_h = height - hero_h
 
-    left = _place(photo, panel_w, photo_h, focus="center")
-    right = _place(photo2, panel_w, photo_h, focus="center")
+    # Inset photo: top-right of hero, ~30% wide, 40% of hero height
+    inset_w = int(width * 0.30)
+    inset_h = int(hero_h * 0.42)
+    inset_border = int(4 * unit)
+    inset_x = width - pad - inset_w
+    inset_y = pad
 
-    canvas = Image.new("RGB", (width, height), (255, 255, 255))
-    canvas.paste(left, (0, 0))
-    canvas.paste(right, (panel_w + divider, 0))
-    # Teal divider strip
-    canvas.paste(Image.new("RGB", (divider, photo_h), BRAND), (panel_w, 0))
+    # ── Paint hero ───────────────────────────────────────────────────────────
+    hero_img = _place(photo, width, hero_h, focus="center")
+    canvas = Image.new("RGB", (width, height), INK_DARK)
+    canvas.paste(hero_img, (0, 0))
 
-    # ── Subtle scrim over each photo panel so the badge/wordmark read ───────
-    # Confine the scrim to the photo area so it never greys the white band.
-    _photo_area = canvas.crop((0, 0, width, photo_h))
-    _scrim(_photo_area, 0.45)
-    canvas.paste(_photo_area, (0, 0))
+    # gradient scrim over bottom third of hero so text on panel boundary reads
+    _hero_area = canvas.crop((0, 0, width, hero_h))
+    _scrim(_hero_area, 0.55, peak=0.75)
+    canvas.paste(_hero_area, (0, 0))
 
-    # ── Nights badge — centred on divider, mid-height ───────────────────────
+    # ── Inset accent photo ───────────────────────────────────────────────────
+    inset_img = _place(photo2, inset_w - inset_border * 2, inset_h - inset_border * 2, focus="center")
+    # Teal border frame
+    border_layer = Image.new("RGB", (inset_w, inset_h), BRAND)
+    canvas.paste(border_layer, (inset_x, inset_y))
+    canvas.paste(inset_img, (inset_x + inset_border, inset_y + inset_border))
+
+    # ── Dark bottom info panel ───────────────────────────────────────────────
+    panel_y = hero_h
+    panel = Image.new("RGB", (width, panel_h), INK_DARK)
+    canvas.paste(panel, (0, panel_y))
+
+    # Teal accent line at top of panel
+    draw = ImageDraw.Draw(canvas)
+    accent_h = int(5 * unit)
+    draw.rectangle([0, panel_y, width, panel_y + accent_h], fill=BRAND)
+
+    # ── Nights badge — straddles hero/panel border ───────────────────────────
     nights = pack.nights or (pack.days - 1 if pack.days and pack.days > 1 else pack.days or 0)
+    badge_r = int(50 * unit)
+    bx = int(pad + badge_r)
+    by = panel_y  # centre on the boundary
     if nights:
-        badge_font = _font("bold", int(28 * unit))
-        badge_label_font = _font("regular", int(18 * unit))
-        badge_r = int(54 * unit)
-        bx = width // 2
-        by = int(photo_h * 0.52)
-        # Circle background
         badge_img = Image.new("RGBA", (badge_r * 2, badge_r * 2), (0, 0, 0, 0))
         bdraw = ImageDraw.Draw(badge_img)
         bdraw.ellipse([0, 0, badge_r * 2, badge_r * 2], fill=(*BRAND, 255))
-        canvas.paste(badge_img.convert("RGB"), (bx - badge_r, by - badge_r),
-                     badge_img.split()[3])
-        bdraw2 = ImageDraw.Draw(canvas)
-        # Night number
-        bdraw2.text((bx, by - int(10 * unit)), str(nights),
-                    font=badge_font, fill=(255, 255, 255), anchor="mm")
-        # "nights" label
-        bdraw2.text((bx, by + int(22 * unit)), "nights",
-                    font=badge_label_font, fill=(220, 255, 252), anchor="mm")
+        canvas.paste(badge_img.convert("RGB"), (bx - badge_r, by - badge_r), badge_img.split()[3])
+        # White ring
+        draw.ellipse([bx - badge_r, by - badge_r, bx + badge_r, by + badge_r], outline=WHITE, width=int(2 * unit))
+        draw.text((bx, by - int(8 * unit)), str(nights),
+                  font=_font("bold", int(30 * unit)), fill=WHITE, anchor="mm")
+        draw.text((bx, by + int(20 * unit)), "nights",
+                  font=_font("regular", int(16 * unit)), fill=TEAL_LIGHT, anchor="mm")
 
-    # ── Bottom white band ────────────────────────────────────────────────────
-    by_band = photo_h
-    draw = ImageDraw.Draw(canvas)
-    # Teal top accent line
-    draw.rectangle([0, by_band, width, by_band + int(5 * unit)], fill=BRAND)
-    by_band += int(5 * unit)
+    # ── Panel content: destinations row ─────────────────────────────────────
+    dests = [d.get("name", "") for d in (pack.destinations or []) if d.get("name")]
+    y = panel_y + accent_h + int(22 * unit)
+    dest_font = _font("regular", int(22 * unit))
+    sep_x = pad + (badge_r * 2 + int(20 * unit) if nights else 0)
+    dest_text = "  ·  ".join(dests[:4]) if dests else ""
+    if dest_text:
+        draw.text((sep_x, y), dest_text.upper(), font=dest_font, fill=(*BRAND[:3], 255) if False else BRAND, anchor="lt")
+        y += int(dest_font.size * 1.6)
+    else:
+        y += int(28 * unit)
 
-    # Kicker / country
-    kicker = next((s.get("country", "") for s in pack.destinations if s.get("country")), "")
-    y = by_band + int(28 * unit)
-    if kicker:
-        draw.text((pad, y), kicker.upper(),
-                  font=_font("bold", int(22 * unit)), fill=BRAND_DARK)
-        y += int(38 * unit)
+    # ── Title ────────────────────────────────────────────────────────────────
+    title_font_size = int(52 * unit) if not is_story else int(58 * unit)
+    title_font = _font("bold", title_font_size)
+    title_max_w = width - pad * 2
+    title_lines = _wrap(draw, pack.title, title_font, title_max_w, 3)
+    for line in title_lines:
+        draw.text((pad, y), line, font=title_font, fill=WHITE)
+        y += int(title_font.size * 1.20)
 
-    # Title
-    title_font = _font("bold", int(44 * unit))
-    for line in _wrap(draw, pack.title, title_font, width - pad * 2, 2):
-        draw.text((pad, y), line, font=title_font, fill=INK)
-        y += int(title_font.size * 1.22)
+    # ── Days pill + themes ────────────────────────────────────────────────────
+    y += int(8 * unit)
+    meta_parts = []
+    if pack.days:
+        meta_parts.append(f"{pack.days} days")
+    if pack.themes:
+        meta_parts.extend(pack.themes[:2])
+    if meta_parts:
+        meta_text = "  ·  ".join(meta_parts)
+        meta_font = _font("regular", int(24 * unit))
+        draw.text((pad, y), meta_text, font=meta_font, fill=(160, 185, 195))
+        y += int(meta_font.size * 1.8)
 
-    # Price + CTA
+    # ── Price + CTA row at bottom of panel ───────────────────────────────────
+    foot = height - int(40 * unit)
     price = format_price(pack, brand, pln_rate)
-    foot = height - pad
+    cta = _t(brand, "poster_cta_short")
+    cta_font = _font("bold", int(26 * unit))
+    cta_w = int(draw.textlength(cta, font=cta_font)) + int(56 * unit)
+
     if price:
         price_line = _t(brand, "poster_from").format(price=price)
-        draw.text((pad, foot), price_line,
-                  font=_font("bold", int(36 * unit)), fill=INK, anchor="ls")
-    cta_font = _font("bold", int(22 * unit))
-    cta = _t(brand, "poster_cta_short")
-    cta_w = int(draw.textlength(cta, font=cta_font)) + int(48 * unit)
-    _pill(draw, (width - pad - cta_w, foot - int(cta_font.size * 2.1)),
-          cta, cta_font, BRAND, (255, 255, 255), int(24 * unit))
+        price_font = _font("bold", int(38 * unit))
+        draw.text((pad, foot), price_line, font=price_font, fill=GOLD, anchor="ls")
 
-    # Wordmark pill (top-left of left panel)
+    _pill(draw, (width - pad - cta_w, foot - int(cta_font.size * 2.2)),
+          cta, cta_font, BRAND, WHITE, int(28 * unit))
+
+    # ── Wordmark pill — top-left hero ────────────────────────────────────────
     _pill(draw, (pad, pad), brand.wordmark,
-          _font("bold", int(22 * unit)), BRAND, (255, 255, 255), int(24 * unit))
+          _font("bold", int(22 * unit)), INK_DARK, WHITE, int(24 * unit))
 
     return canvas
 

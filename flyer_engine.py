@@ -116,7 +116,9 @@ def _build_shared(pack: sk.Package, agent: Agent):
 
     # Description — already HTML-stripped + entity-decoded in normalise()
     raw_desc = " ".join(pack.description.split()) if pack.description else ""
-    d["description"] = raw_desc[:500] + ("…" if len(raw_desc) > 500 else "")
+    if len(raw_desc) > 500:
+        raw_desc = raw_desc[:500].rsplit(" ", 1)[0].rstrip(",.;:") + "…"
+    d["description"] = raw_desc
 
     # Departures
     d["departures"] = pack.departures[:8]
