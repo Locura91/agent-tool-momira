@@ -165,14 +165,8 @@ async def guest_login(db: AsyncSession = Depends(get_db)):
         agent = Agent(
             email=GUEST_EMAIL,
             password_hash=hash_password("guest-demo-2026"),
-            agency_name="Momira Travel",
+            agency_name="Momira Demo",
         )
-        db.add(agent)
-        await db.commit()
-        await db.refresh(agent)
-    elif agent.agency_name in (None, "", "Momira Demo"):
-        # Fix up the demo account name for existing rows
-        agent.agency_name = "Momira Travel"
         db.add(agent)
         await db.commit()
         await db.refresh(agent)
@@ -210,10 +204,6 @@ async def update_profile(
         agent.caption_lang = req.caption_lang
     if req.currency is not None:
         agent.currency = req.currency
-    if req.agency_phone is not None:
-        agent.agency_phone = req.agency_phone
-    if req.agency_email is not None:
-        agent.agency_email = req.agency_email
 
     db.add(agent)
     await db.commit()
@@ -439,20 +429,16 @@ async def generate_image(
 @app.get("/generate/{package_id}/flyer", response_class=HTMLResponse)
 async def generate_flyer(
     package_id: str,
-    style: str = "a",   # "a" = dark-navy editorial | "b" = white magazine
-    qr: bool = False,   # optional QR code linking to the agency website
     agent: Agent = Depends(current_agent),
 ):
     """Returns a print-ready A4 HTML page."""
-    if style not in ("a", "b"):
-        style = "a"
     brand = engine.agent_brand(agent)
     try:
         pack = sk.fetch(sk.TCClient(), package_id, brand)
     except sk.TCError as e:
         raise HTTPException(status_code=502, detail=str(e))
 
-    return flyer_engine.render_flyer(pack, agent, style=style, show_qr=qr)
+    return flyer_engine.render_flyer(pack, agent)
 
 
 # --------------------------------------------------------------------------

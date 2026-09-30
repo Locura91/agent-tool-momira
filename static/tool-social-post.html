@@ -101,6 +101,24 @@
     .style-help { width: 16px; height: 16px; border-radius: 50%; background: var(--muted); color: #fff; font-size: .7rem; display: inline-flex; align-items: center; justify-content: center; cursor: help; flex-shrink: 0; }
     .style-legend { font-size: .78rem; color: var(--muted); margin-bottom: 1.25rem; line-height: 1.5; }
     .nav-momira-logo { height: 28px; display: block; }
+
+    /* Render controls row (zoom + ribbon) */
+    .render-controls {
+      background: var(--white); border: 1px solid var(--border); border-radius: 12px;
+      padding: 1rem 1.2rem; margin-bottom: 1.5rem; display: none;
+      display: none; flex-wrap: wrap; gap: 1.2rem; align-items: flex-end;
+    }
+    .render-controls.visible { display: flex; }
+    .ctrl-group { display: flex; flex-direction: column; gap: .35rem; }
+    .ctrl-label { font-size: .8rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+    .zoom-btns { display: flex; gap: .4rem; }
+    .zoom-btn { padding: .3rem .65rem; border: 1px solid var(--border); border-radius: 6px; font-size: .82rem; font-weight: 600; cursor: pointer; background: var(--white); color: var(--muted); transition: all .15s; }
+    .zoom-btn.active { background: var(--brand-light); border-color: var(--brand); color: var(--brand); }
+    .ribbon-ctrl { display: flex; gap: .5rem; align-items: center; }
+    .ribbon-ctrl input { padding: .35rem .75rem; border: 1px solid var(--border); border-radius: 6px; font-size: .85rem; color: var(--ink); width: 160px; outline: none; }
+    .ribbon-ctrl input:focus { border-color: var(--brand); }
+    .btn-apply { background: var(--brand); color: #fff; border: none; border-radius: 6px; padding: .35rem .85rem; font-size: .82rem; font-weight: 700; cursor: pointer; }
+    .btn-apply:hover { background: var(--brand-dark); }
   </style>
 </head>
 <body>
@@ -130,13 +148,15 @@
       <div class="style-toggle">
         <button class="style-btn active" data-style="photo" title="Full-bleed photo with text overlay">Photo</button>
         <button class="style-btn" data-style="band" title="Photo top + white branding band below">Band</button>
+        <button class="style-btn" data-style="collage" title="Two-photo collage with nights badge">🖼 Collage</button>
       </div>
     </div>
     <button class="btn-generate" id="gen-btn">Generate →</button>
   </div>
   <div class="style-legend">
     <strong>Photo</strong> — full-bleed photograph with a dark gradient and text overlay. Cinematic, eye-catching. &nbsp;|&nbsp;
-    <strong>Band</strong> — photo on top, white branding band below with title and price. Cleaner, more structured.
+    <strong>Band</strong> — photo on top, white branding band below with title and price. Cleaner, more structured. &nbsp;|&nbsp;
+    <strong>Collage</strong> — two-photo side-by-side layout with nights badge, ideal for showcasing the destination.
   </div>
 
   <!-- Package preview -->
@@ -149,6 +169,26 @@
   <div id="photo-strip-wrap" style="display:none">
     <div style="font-size:.85rem;font-weight:600;margin-bottom:.5rem;">Choose photo</div>
     <div class="photo-strip" id="photo-strip"></div>
+  </div>
+
+  <!-- Render controls: zoom + ribbon override -->
+  <div class="render-controls" id="render-controls">
+    <div class="ctrl-group">
+      <div class="ctrl-label">Zoom</div>
+      <div class="zoom-btns">
+        <button class="zoom-btn active" data-zoom="1.0">100%</button>
+        <button class="zoom-btn" data-zoom="1.25">125%</button>
+        <button class="zoom-btn" data-zoom="1.5">150%</button>
+        <button class="zoom-btn" data-zoom="2.0">200%</button>
+      </div>
+    </div>
+    <div class="ctrl-group">
+      <div class="ctrl-label">Ribbon text <span style="font-weight:400;text-transform:none;">(overrides settings)</span></div>
+      <div class="ribbon-ctrl">
+        <input type="text" id="ribbon-override" placeholder="e.g. LAST MINUTE" maxlength="40">
+        <button class="btn-apply" id="apply-btn">Apply →</button>
+      </div>
+    </div>
   </div>
 
   <!-- Results -->
@@ -178,6 +218,8 @@
   let currentPkg = null;
   let currentStyle = 'photo';
   let currentPhotoIdx = 0;
+  let currentZoom = 1.0;
+  let currentRibbon = '';   // empty = use agent's settings ribbon
 
   // Style toggle
   document.querySelectorAll('.style-btn').forEach(btn => {
@@ -186,6 +228,28 @@
       btn.classList.add('active');
       currentStyle = btn.dataset.style;
     });
+  });
+
+  // Zoom buttons
+  document.querySelectorAll('.zoom-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.zoom-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentZoom = parseFloat(btn.dataset.zoom);
+    });
+  });
+
+  // Apply button (ribbon override + re-render)
+  document.getElementById('apply-btn').addEventListener('click', () => {
+    currentRibbon = document.getElementById('ribbon-override').value.trim();
+    renderImages();
+  });
+  // Also re-render when Enter pressed in ribbon input
+  document.getElementById('ribbon-override').addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      currentRibbon = e.target.value.trim();
+      renderImages();
+    }
   });
 
   // Caption tabs
@@ -300,7 +364,8 @@
         document.getElementById('text-gbp').textContent = capData.captions.gbp || '';
       }
 
-      // 3. Render images
+      // 3. Show render controls + results, then render images
+      document.getElementById('render-controls').classList.add('visible');
       document.getElementById('results').style.display = 'block';
       renderImages();
 
@@ -339,7 +404,8 @@
     ];
 
     formats.forEach(({ key, label, aspect }) => {
-      const url = `/generate/${pkgId}/image?photo_index=${currentPhotoIdx}&format=${key}&style=${currentStyle}`;
+      let url = `/generate/${pkgId}/image?photo_index=${currentPhotoIdx}&format=${key}&style=${currentStyle}&zoom=${currentZoom}`;
+      if (currentRibbon) url += `&ribbon=${encodeURIComponent(currentRibbon)}`;
       const card = document.createElement('div');
       card.className = 'format-card';
 

@@ -115,6 +115,7 @@
         <div class="style-btns">
           <button class="style-btn active" data-style="a" onclick="setStyle('a')">🌊 Style A — Navy</button>
           <button class="style-btn" data-style="b" onclick="setStyle('b')">📰 Style B — Magazine</button>
+          <button class="style-btn" data-style="c" onclick="setStyle('c')">🌅 Style C — Landscape</button>
         </div>
       </div>
 
@@ -133,6 +134,7 @@
       <div class="style-switch-btns">
         <button class="style-switch-btn active" id="sw-a" onclick="switchStyle('a')">Style A</button>
         <button class="style-switch-btn" id="sw-b" onclick="switchStyle('b')">Style B</button>
+        <button class="style-switch-btn" id="sw-c" onclick="switchStyle('c')">Style C</button>
       </div>
       <button class="btn-open" id="btn-open-tab">Open in new tab ↗</button>
       <button class="btn-print" id="btn-print">🖨 Print / Save PDF</button>
@@ -202,7 +204,7 @@
     const html = await res.text();
     const frame = document.getElementById('flyer-frame');
     frame.srcdoc = html;
-    frame.style.minHeight = '860px';
+    frame.style.minHeight = style === 'c' ? '640px' : '860px';
   }
 
   document.getElementById('btn-open-tab').addEventListener('click', () => {
