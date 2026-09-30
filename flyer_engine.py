@@ -28,13 +28,13 @@ TRANSPORT_ICONS = {
 }
 
 DISCLAIMER = (
-    "Prices are dynamic and subject to change. Availability cannot be guaranteed."
+    "Prices are dynamic and subject to availability, so they may change and cannot be guaranteed."
 )
 
 # Positive selling point — shown as a round seal/ribbon near the bottom.
-CUSTOMISE_TITLE = "Fully customisable"
+CUSTOMISE_TITLE = "Fully Customisable"
 CUSTOMISE_MESSAGE = (
-    "This is a travel inspiration — we tailor every trip to each customer individually."
+    "Get inspired, then make it yours. We tailor every journey to your individual travel ideas and preferences."
 )
 
 
@@ -127,11 +127,13 @@ def _build_shared(pack: sk.Package, agent: Agent):
     # Hotels with nights
     hotel_names = pack.hotel_names or []
     hotel_nights = pack.hotel_nights or []
+    hotel_stars = pack.hotel_stars or []
     hotel_items = []
     for i, name in enumerate(hotel_names):
         nights_n = hotel_nights[i] if i < len(hotel_nights) else 0
-        hotel_items.append((name, nights_n))
-    d["hotel_items"] = hotel_items   # list of (name, nights)
+        stars_n = hotel_stars[i] if i < len(hotel_stars) else 0
+        hotel_items.append((name, nights_n, stars_n))
+    d["hotel_items"] = hotel_items   # list of (name, nights, stars)
     d["hotel_names"] = hotel_names
     d["hotels_count"] = pack.hotels
 
@@ -183,11 +185,9 @@ def _build_shared(pack: sk.Package, agent: Agent):
     if d["activities"]:
         an = len(d["activities"])
         included.append(f"{an} guided activit" + ("ies" if an != 1 else "y"))
-    if d["is_round_trip"]:
-        included.append("Round-trip itinerary")
     # Always-on service promises
     included.append("Personal travel expert")
-    included.append("24/7 support during your trip")
+    included.append("Support before, during and after your trip")
     included.append("Fully customisable")
     d["included_items"] = included
 
@@ -195,7 +195,7 @@ def _build_shared(pack: sk.Package, agent: Agent):
     d["benefit_items"] = [
         ("✨", "Tailor-made"),
         ("🔒", "Secure booking"),
-        ("💬", "24/7 support"),
+        ("💬", "Always here for you"),
         ("🧭", "Expert advice"),
     ]
 
@@ -270,9 +270,10 @@ def _render_style_a(pack: sk.Package, agent: Agent, d: dict, qr_uri: str = "") -
     hotel_block = ""
     if d["hotel_items"]:
         _li = []
-        for name, nights in d["hotel_items"][:6]:
-            span = f' <span class="hotel-nights">({nights} nights)</span>' if nights else ""
-            _li.append(f"<li>{_esc(name)}{span}</li>")
+        for name, nights, stars in d["hotel_items"][:6]:
+            stars_html = '<span class="hotel-stars">' + "★" * stars + '</span>' if stars else ""
+            nights_html = f' <span class="hotel-nights">({nights} nights)</span>' if nights else ""
+            _li.append(f"<li>{stars_html}<span class='hotel-name'>{_esc(name)}</span>{nights_html}</li>")
         items = "".join(_li)
         hotel_block = f"""<div class="col-block">
         <div class="section-heading"><span class="section-icon">🏨</span> Hotels</div>
@@ -423,12 +424,12 @@ body {{
   display: flex; align-items: center; gap: .3rem;
 }}
 .section-icon {{ font-size: .9rem; }}
-.description-text {{ font-size: .88rem; color: #374151; line-height: 1.65; }}
+.description-text {{ font-size: .95rem; color: #1f2937; line-height: 1.7; font-weight: 700; }}
 /* Collage */
-.collage {{ display: flex; justify-content: center; align-items: center; padding: .3rem 0; }}
+.collage {{ display: flex; justify-content: center; align-items: center; padding: .4rem 0; }}
 .collage-circle {{
-  width: 130px; height: 130px; border-radius: 50%; border: 4px solid #fff;
-  box-shadow: 0 3px 14px rgba(13,33,55,.22); object-fit: cover; margin-left: -24px;
+  width: 160px; height: 160px; border-radius: 50%; border: 4px solid #fff;
+  box-shadow: 0 3px 14px rgba(13,33,55,.22); object-fit: cover; margin-left: -28px;
 }}
 .collage-circle:first-child {{ margin-left: 0; }}
 .gallery-strip {{ display: flex; gap: .5rem; }}
@@ -450,15 +451,16 @@ body {{
   background: #eef2f7; border-radius: 5px; padding: .28rem .65rem;
   font-size: .8rem; color: #374151; font-weight: 500;
 }}
-.hotel-list, .activity-list {{ list-style: none; display: flex; flex-direction: column; gap: .3rem; }}
-.hotel-list li {{ font-size: .85rem; color: #374151; padding-left: .9rem; position: relative; line-height: 1.4; }}
-.hotel-list li::before {{ content: "⭐"; position: absolute; left: 0; font-size: .7rem; top: .1rem; }}
+.hotel-list, .activity-list {{ list-style: none; display: flex; flex-direction: column; gap: .4rem; }}
+.hotel-list li {{ font-size: .85rem; color: #374151; line-height: 1.45; display: flex; flex-wrap: wrap; align-items: baseline; gap: .25rem; }}
+.hotel-stars {{ color: #f59e0b; font-size: .78rem; letter-spacing: -.02em; flex-shrink: 0; }}
+.hotel-name {{ font-weight: 600; color: #111827; }}
 .activity-list li {{ font-size: .85rem; color: #374151; padding-left: .9rem; position: relative; line-height: 1.4; }}
 .activity-list li::before {{ content: "🎫"; position: absolute; left: 0; font-size: .7rem; top: .1rem; }}
 .hotel-nights {{ font-size: .75rem; color: #9ca3af; font-style: italic; }}
 /* Disclaimer */
 .disclaimer {{
-  font-size: .68rem; color: #9ca3af; line-height: 1.5;
+  font-size: .68rem; color: #9ca3af; line-height: 1.5; text-align: center;
   border-top: 1px solid #e5e7eb; padding-top: .8rem;
   font-style: italic;
 }}
@@ -485,10 +487,10 @@ body {{
   content: ""; position: absolute; inset: 9px; border-radius: 50%;
   border: 1px solid rgba(255,255,255,.35);
 }}
-.custom-seal-inner {{ display: flex; flex-direction: column; align-items: center; gap: .3rem; }}
+.custom-seal-inner {{ display: flex; flex-direction: column; align-items: center; gap: .3rem; padding: 0 24px; text-align: center; }}
 .seal-star {{ font-size: 1.15rem; }}
-.seal-title {{ font-size: .78rem; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; }}
-.seal-text {{ font-size: .66rem; line-height: 1.4; font-weight: 500; color: rgba(255,255,255,.94); }}
+.seal-title {{ font-size: .78rem; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; text-align: center; }}
+.seal-text {{ font-size: .64rem; line-height: 1.4; font-weight: 500; color: rgba(255,255,255,.94); text-align: center; }}
 /* CTA band */
 .cta-band {{
   background: linear-gradient(120deg, #0d2137 0%, #17a39b 100%);
@@ -600,9 +602,10 @@ def _render_style_b(pack: sk.Package, agent: Agent, d: dict, qr_uri: str = "") -
     hotel_html = ""
     if d["hotel_items"]:
         _li = []
-        for name, nights_n in d["hotel_items"][:5]:
+        for name, nights_n, stars_n in d["hotel_items"][:5]:
+            stars_html = '<span class="hotel-stars">' + "★" * stars_n + '</span>' if stars_n else ""
             span = f' <span class="hotel-nights">({nights_n} nights)</span>' if nights_n else ""
-            _li.append(f"<li>{_esc(name)}{span}</li>")
+            _li.append(f"<li>{stars_html}<span class='hotel-name'>{_esc(name)}</span>{span}</li>")
         items = "".join(_li)
         hotel_html = f"""<div class="info-row">
         <span class="info-label">🏨 Hotels</span>
@@ -763,16 +766,17 @@ body {{
 .trans-icon {{ font-size: .95rem; }}
 .trans-txt {{ font-size: .8rem; color: #374151; font-weight: 500; }}
 /* Hotel + activity lists */
-.hotel-list, .activity-list {{ list-style: none; display: flex; flex-direction: column; gap: .3rem; }}
-.hotel-list li {{ font-size: .83rem; color: #374151; padding-left: 1rem; position: relative; line-height: 1.4; }}
-.hotel-list li::before {{ content: "★"; position: absolute; left: 0; color: #f59e0b; font-size: .75rem; top: .1rem; }}
+.hotel-list, .activity-list {{ list-style: none; display: flex; flex-direction: column; gap: .4rem; }}
+.hotel-list li {{ font-size: .83rem; color: #374151; line-height: 1.45; display: flex; flex-wrap: wrap; align-items: baseline; gap: .25rem; }}
+.hotel-stars {{ color: #f59e0b; font-size: .78rem; letter-spacing: -.02em; flex-shrink: 0; }}
+.hotel-name {{ font-weight: 600; color: #111827; }}
 .activity-list li {{ font-size: .83rem; color: #374151; padding-left: 1rem; position: relative; line-height: 1.4; }}
 .activity-list li::before {{ content: "🎫"; position: absolute; left: 0; font-size: .7rem; top: .12rem; }}
 .hotel-nights {{ font-size: .75rem; color: #9ca3af; font-style: italic; }}
 /* Description */
-.desc-text {{ font-size: .84rem; color: #4b5563; line-height: 1.65; }}
+.desc-text {{ font-size: .93rem; color: #1f2937; line-height: 1.7; font-weight: 700; }}
 /* Right column photos */
-.grid-photo {{ width: 100%; border-radius: 8px; object-fit: cover; display: block; aspect-ratio: 4/3; }}
+.grid-photo {{ width: 100%; border-radius: 8px; object-fit: cover; display: block; aspect-ratio: 3/2; }}
 /* Right column contact card */
 .contact-card {{
   background: #f7f9fb; border: 1px solid #e4e8ed; border-radius: 8px;
@@ -804,10 +808,10 @@ body {{
   border: 3px dashed rgba(255,255,255,.55); position: relative;
 }}
 .custom-seal::after {{ content: ""; position: absolute; inset: 9px; border-radius: 50%; border: 1px solid rgba(255,255,255,.35); }}
-.custom-seal-inner {{ display: flex; flex-direction: column; align-items: center; gap: .3rem; }}
+.custom-seal-inner {{ display: flex; flex-direction: column; align-items: center; gap: .3rem; padding: 0 22px; text-align: center; }}
 .seal-star {{ font-size: 1.1rem; }}
-.seal-title {{ font-size: .76rem; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; }}
-.seal-text {{ font-size: .64rem; line-height: 1.4; font-weight: 500; color: rgba(255,255,255,.94); }}
+.seal-title {{ font-size: .76rem; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; text-align: center; }}
+.seal-text {{ font-size: .62rem; line-height: 1.4; font-weight: 500; color: rgba(255,255,255,.94); text-align: center; }}
 /* Footer bar */
 .bottom-bar {{
   background: #0d2137; flex-shrink: 0; padding: .9rem 1.8rem;

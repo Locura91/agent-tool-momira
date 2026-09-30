@@ -214,6 +214,7 @@ class Package:
     hotels: int = 0
     hotel_names: List[str] = field(default_factory=list)          # names of accommodations
     hotel_nights: List[int] = field(default_factory=list)         # nights per hotel (parallel to hotel_names)
+    hotel_stars: List[int] = field(default_factory=list)          # star category per hotel (0 = unknown)
     transport_counts: Dict[str, int] = field(default_factory=dict) # e.g. {"flights":2,"ferries":1}
     activities: List[str] = field(default_factory=list)           # ticket/activity names
     is_round_trip: bool = False                                    # departs and returns to same origin
@@ -401,20 +402,29 @@ def normalise(package_id: str, info: Dict[str, Any], detail: Dict[str, Any], cal
     hotel_list = _pick(detail, ["hotels", "accommodations"], []) or []
     pack.hotels = len(hotel_list)
     pack.hotel_names = []
+    pack.hotel_stars = []
     for h in hotel_list:
         if isinstance(h, dict):
             # TC API nests hotel name under hotelData.name
             hotel_data = h.get("hotelData") or {}
             if isinstance(hotel_data, dict):
                 name = str(_pick(hotel_data, ["name", "hotelName", "title", "accommodationName"], "")).strip()
+                # Star category: "category" field is typically "4" or "5" etc.
+                raw_cat = hotel_data.get("category") or hotel_data.get("stars") or h.get("category") or h.get("stars") or ""
             else:
                 name = ""
+                raw_cat = h.get("category") or h.get("stars") or ""
             # Fall back to top-level fields if hotelData had nothing
             if not name:
                 name = str(_pick(h, ["name", "hotelName", "title", "accommodationName"], "")).strip()
+            try:
+                stars = int(str(raw_cat).strip()) if raw_cat else 0
+            except (ValueError, TypeError):
+                stars = 0
             if name:
                 pack.hotel_names.append(name)
                 pack.hotel_nights.append(int(h.get("nights") or 0))
+                pack.hotel_stars.append(stars)
             # Also harvest hotel images into the gallery
             hotel_images = hotel_data.get("images") or [] if isinstance(hotel_data, dict) else []
             for img in hotel_images:
@@ -427,6 +437,7 @@ def normalise(package_id: str, info: Dict[str, Any], detail: Dict[str, Any], cal
         elif isinstance(h, str) and h.strip():
             pack.hotel_names.append(h.strip())
             pack.hotel_nights.append(0)
+            pack.hotel_stars.append(0)
 
     # Activities from tickets (day tours, entrance tickets, etc.)
     for ticket in _pick(detail, ["tickets"], []) or []:
