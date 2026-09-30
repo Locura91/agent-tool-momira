@@ -51,6 +51,8 @@
     }
     .style-btn.active { background: var(--brand-light); border-color: var(--brand); color: var(--brand); }
     .style-btn:hover:not(.active) { border-color: var(--brand); }
+    .qr-check { display: flex; align-items: center; gap: .45rem; font-size: .85rem; font-weight: 500; color: var(--ink); cursor: pointer; padding: .55rem 0; }
+    .qr-check input { width: 16px; height: 16px; accent-color: var(--brand); cursor: pointer; }
 
     .btn-generate {
       background: var(--brand); color: #fff; border: none; border-radius: 8px;
@@ -116,6 +118,11 @@
         </div>
       </div>
 
+      <div class="style-toggle">
+        <label>QR code</label>
+        <label class="qr-check"><input type="checkbox" id="qr-toggle"> Add QR code to website</label>
+      </div>
+
       <button class="btn-generate" id="gen-btn">Generate Flyer →</button>
     </div>
   </div>
@@ -160,6 +167,7 @@
 
   document.getElementById('gen-btn').addEventListener('click', generate);
   document.getElementById('pkg-id').addEventListener('keydown', e => { if (e.key === 'Enter') generate(); });
+  document.getElementById('qr-toggle').addEventListener('change', () => { if (currentPkgId) loadFlyer(currentPkgId, currentStyle); });
 
   async function generate() {
     hideError();
@@ -183,8 +191,10 @@
     }
   }
 
+  function qrOn() { return document.getElementById('qr-toggle').checked ? '1' : '0'; }
+
   async function loadFlyer(pkgId, style) {
-    const res = await fetch(`/generate/${pkgId}/flyer?style=${style}`, { headers: H });
+    const res = await fetch(`/generate/${pkgId}/flyer?style=${style}&qr=${qrOn()}`, { headers: H });
     if (!res.ok) {
       const d = await res.json().catch(() => ({}));
       throw new Error(d.detail || 'Could not generate flyer.');
@@ -197,7 +207,7 @@
 
   document.getElementById('btn-open-tab').addEventListener('click', () => {
     if (!currentPkgId) return;
-    window.open(`/generate/${currentPkgId}/flyer?style=${currentStyle}&token=${encodeURIComponent(token)}`, '_blank');
+    window.open(`/generate/${currentPkgId}/flyer?style=${currentStyle}&qr=${qrOn()}&token=${encodeURIComponent(token)}`, '_blank');
   });
 
   document.getElementById('btn-print').addEventListener('click', () => {

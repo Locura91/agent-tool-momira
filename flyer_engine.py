@@ -1,17 +1,17 @@
 """
 Travel Flyer generator — two styles.
 
-render_flyer(pack, agent, style="a") returns a self-contained HTML page
-(A4 layout with print CSS) ready for Ctrl+P / ⌘P → PDF.
+render_flyer(pack, agent, style="a", show_qr=False) returns a self-contained
+HTML page (A4 layout with print CSS) ready for Ctrl+P / ⌘P → PDF.
 
   style "a" — Dark-navy + teal, editorial / luxury feel
-  style "b" — White + accent, magazine two-column, close to the
-              reference screenshot (large destination headline, photo grid,
-              hotel list, clean info blocks)
+  style "b" — White + accent, magazine two-column
 """
 from __future__ import annotations
 
 import html
+import base64
+import io
 from typing import Optional
 import social_kit as sk
 from models import Agent
@@ -37,6 +37,23 @@ def _esc(s: object) -> str:
     return html.escape(str(s)) if s is not None else ""
 
 
+def _qr_data_uri(url: str) -> str:
+    """Generate a QR code PNG as a data URI. Returns '' on any failure."""
+    if not url:
+        return ""
+    try:
+        import qrcode
+        qr = qrcode.QRCode(box_size=6, border=1)
+        qr.add_data(url)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="#0d2137", back_color="white")
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+    except Exception:
+        return ""
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Shared helpers
 # ─────────────────────────────────────────────────────────────────────────────
@@ -48,6 +65,7 @@ def _build_shared(pack: sk.Package, agent: Agent):
     # Gallery — use up to 6 images
     d["hero"] = pack.gallery[0] if pack.gallery else ""
     d["gallery_extra"] = pack.gallery[1:6]
+    d["collage"] = pack.gallery[:4]
 
     # Logo
     d["logo_html"] = (
@@ -88,8 +106,10 @@ def _build_shared(pack: sk.Package, agent: Agent):
         d["duration"] = f"{nights} nights"
     else:
         d["duration"] = ""
+    d["days"] = pack.days
+    d["nights"] = nights
 
-    # Description — already HTML-stripped in normalise()
+    # Description — already HTML-stripped + entity-decoded in normalise()
     raw_desc = " ".join(pack.description.split()) if pack.description else ""
     d["description"] = raw_desc[:500] + ("…" if len(raw_desc) > 500 else "")
 
@@ -119,7 +139,6 @@ def _build_shared(pack: sk.Package, agent: Agent):
         if count:
             icon, label = TRANSPORT_ICONS.get(key, ("🚗", key.title()))
             transport_items.append((icon, f"{count}× {label}"))
-    # Add any unexpected keys not in order
     for key, count in tc.items():
         if key not in order and count:
             icon, label = TRANSPORT_ICONS.get(key, ("🚗", key.title()))
@@ -133,6 +152,47 @@ def _build_shared(pack: sk.Package, agent: Agent):
 
     # Activities
     d["activities"] = getattr(pack, "activities", [])
+
+    # ── "What's included" checklist — built from real data + service promises ──
+    total_nights = sum(hotel_nights) if hotel_nights else 0
+    d["total_nights"] = total_nights
+    included = []
+    flights_n = tc.get("flights", 0) or pack.flights
+    if flights_n:
+        if d["is_round_trip"]:
+            included.append("Return flights")
+        else:
+            included.append(f"{flights_n}× flight" + ("s" if flights_n != 1 else ""))
+    if tc.get("transfers"):
+        included.append("Airport transfers")
+    if tc.get("cars"):
+        included.append("Private transfers")
+    if hotel_items:
+        hn = len(hotel_items)
+        label = f"{hn} hotel" + ("s" if hn != 1 else "")
+        if total_nights:
+            label += f" · {total_nights} nights"
+        included.append(label)
+    elif nights:
+        included.append(f"{nights} nights accommodation")
+    if d["activities"]:
+        an = len(d["activities"])
+        included.append(f"{an} guided activit" + ("ies" if an != 1 else "y"))
+    if d["is_round_trip"]:
+        included.append("Round-trip itinerary")
+    # Always-on service promises
+    included.append("Personal travel expert")
+    included.append("24/7 support during your trip")
+    included.append("Fully customisable")
+    d["included_items"] = included
+
+    # ── Benefits / trust strip ──
+    d["benefit_items"] = [
+        ("✨", "Tailor-made"),
+        ("🔒", "Secure booking"),
+        ("💬", "24/7 support"),
+        ("🧭", "Expert advice"),
+    ]
 
     # Agency contact
     d["agency_name"] = agent.agency_name or "Travel Agent"
@@ -148,18 +208,24 @@ def _build_shared(pack: sk.Package, agent: Agent):
 # Style A — Dark-navy + teal, editorial
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _render_style_a(pack: sk.Package, agent: Agent, d: dict) -> str:
+def _render_style_a(pack: sk.Package, agent: Agent, d: dict, qr_uri: str = "") -> str:
 
-    # Gallery strip (extra photos)
-    gallery_html = ""
-    if d["gallery_extra"]:
+    # Overlapping-circle photo collage
+    collage_html = ""
+    if len(d["collage"]) >= 2:
+        circles = "".join(
+            f'<img class="collage-circle" src="{_esc(u)}" alt="photo">'
+            for u in d["collage"][:4]
+        )
+        collage_html = f'<div class="collage">{circles}</div>'
+    elif d["gallery_extra"]:
         thumbs = "".join(
             f'<div class="thumb"><img src="{_esc(u)}" alt="photo"></div>'
             for u in d["gallery_extra"]
         )
-        gallery_html = f'<div class="gallery-strip">{thumbs}</div>'
+        collage_html = f'<div class="gallery-strip">{thumbs}</div>'
 
-    # Inclusions bar: transport + hotels + duration + round-trip
+    # Inclusions bar: duration + round-trip + transport + hotels + activities
     incl_items = []
     if d["duration"]:
         incl_items.append(f'<div class="incl-badge"><span class="incl-icon">🕐</span><span class="incl-text">{_esc(d["duration"])}</span></div>')
@@ -174,7 +240,7 @@ def _render_style_a(pack: sk.Package, agent: Agent, d: dict) -> str:
         incl_items.append(f'<div class="incl-badge"><span class="incl-icon">🎫</span><span class="incl-text">{len(d["activities"])} activit{"ies" if len(d["activities"]) != 1 else "y"}</span></div>')
     incl_html = f'<div class="inclusions">{"".join(incl_items)}</div>' if incl_items else ""
 
-    # Price
+    # Price (top highlights row)
     price_html = ""
     if d["price_str"]:
         price_html = f"""<div class="price-box">
@@ -183,26 +249,42 @@ def _render_style_a(pack: sk.Package, agent: Agent, d: dict) -> str:
         <div class="price-pp">per person</div>
       </div>"""
 
-    # Hotel list with nights
-    hotel_html = ""
-    if d["hotel_items"]:
-        items = "".join(
-            f'<li>{_esc(name)}{f" <span class=\\"hotel-nights\\">({nights} nights)</span>" if nights else ""}</li>'
-            for name, nights in d["hotel_items"][:6]
+    # "What's included" checklist
+    checklist_html = ""
+    if d["included_items"]:
+        checks = "".join(
+            f'<div class="incl-check"><span class="check">✓</span>{_esc(item)}</div>'
+            for item in d["included_items"]
         )
-        hotel_html = f"""<div class="section">
-      <div class="section-heading"><span class="section-icon">🏨</span> Hotels</div>
-      <ul class="hotel-list">{items}</ul>
+        checklist_html = f"""<div class="section">
+      <div class="section-heading"><span class="section-icon">✓</span> What's included</div>
+      <div class="incl-grid">{checks}</div>
     </div>"""
 
-    # Activities
-    activity_html = ""
+    # Hotels + activities side by side (two-col)
+    hotel_block = ""
+    if d["hotel_items"]:
+        _li = []
+        for name, nights in d["hotel_items"][:6]:
+            span = f' <span class="hotel-nights">({nights} nights)</span>' if nights else ""
+            _li.append(f"<li>{_esc(name)}{span}</li>")
+        items = "".join(_li)
+        hotel_block = f"""<div class="col-block">
+        <div class="section-heading"><span class="section-icon">🏨</span> Hotels</div>
+        <ul class="hotel-list">{items}</ul>
+      </div>"""
+
+    activity_block = ""
     if d["activities"]:
-        items = "".join(f"<li>{_esc(a)}</li>" for a in d["activities"][:5])
-        activity_html = f"""<div class="section">
-      <div class="section-heading"><span class="section-icon">🎫</span> Included Activities</div>
-      <ul class="hotel-list">{items}</ul>
-    </div>"""
+        items = "".join(f"<li>{_esc(a)}</li>" for a in d["activities"][:6])
+        activity_block = f"""<div class="col-block">
+        <div class="section-heading"><span class="section-icon">🎫</span> Activities &amp; tours</div>
+        <ul class="activity-list">{items}</ul>
+      </div>"""
+
+    two_col_html = ""
+    if hotel_block or activity_block:
+        two_col_html = f'<div class="two-col">{hotel_block}{activity_block}</div>'
 
     # Departure chips
     dep_html = ""
@@ -213,13 +295,47 @@ def _render_style_a(pack: sk.Package, agent: Agent, d: dict) -> str:
       <div class="dep-chips">{chips}</div>
     </div>"""
 
-    # Contact footer extras
+    # Benefits strip
+    benefits_html = ""
+    if d["benefit_items"]:
+        bits = "".join(
+            f'<div class="benefit"><span class="benefit-icon">{icon}</span><span class="benefit-label">{_esc(label)}</span></div>'
+            for icon, label in d["benefit_items"]
+        )
+        benefits_html = f'<div class="benefits">{bits}</div>'
+
+    # CTA band (bottom) — contact + price badge + optional QR
     contact_parts = []
     if d["agency_phone"]:
-        contact_parts.append(f'<span class="footer-contact">📞 {_esc(d["agency_phone"])}</span>')
+        contact_parts.append(f'<span class="cta-contact">📞 {_esc(d["agency_phone"])}</span>')
     if d["agency_email"]:
-        contact_parts.append(f'<span class="footer-contact">✉ {_esc(d["agency_email"])}</span>')
+        contact_parts.append(f'<span class="cta-contact">✉ {_esc(d["agency_email"])}</span>')
+    if d["site"]:
+        contact_parts.append(f'<span class="cta-contact">🌐 {_esc(d["site"])}</span>')
     contact_html = "".join(contact_parts)
+
+    price_badge_html = ""
+    if d["price_str"]:
+        price_badge_html = f"""<div class="cta-price-badge">
+        <div class="cta-price-from">FROM</div>
+        <div class="cta-price-amount">{d["price_str"]}</div>
+        <div class="cta-price-pp">per person</div>
+      </div>"""
+
+    qr_html = f'<div class="cta-qr"><img src="{qr_uri}" alt="Scan to book"><span>Scan to book</span></div>' if qr_uri else ""
+
+    cta_band_html = f"""<div class="cta-band">
+    <div class="cta-left">
+      <div class="cta-headline">Ready for this trip?</div>
+      <div class="cta-agency">{_esc(d["agency_name"])}</div>
+      <div class="cta-contacts">{contact_html}</div>
+    </div>
+    <div class="cta-right">
+      {qr_html}
+      {price_badge_html}
+      {f'<a class="cta-btn" href="{_esc(d["agency_url"])}">Book now →</a>' if d["agency_url"] and not price_badge_html else ""}
+    </div>
+  </div>"""
 
     return f"""<!doctype html>
 <html lang="en">
@@ -254,7 +370,7 @@ body {{
 }}
 /* Hero */
 .hero {{
-  position: relative; height: 310px; overflow: hidden;
+  position: relative; height: 300px; overflow: hidden;
   background: linear-gradient(135deg, #0d2137 0%, #17a39b 100%); flex-shrink: 0;
 }}
 .hero img {{ width: 100%; height: 100%; object-fit: cover; display: block; }}
@@ -303,17 +419,37 @@ body {{
 }}
 .section-icon {{ font-size: .9rem; }}
 .description-text {{ font-size: .88rem; color: #374151; line-height: 1.65; }}
+/* Collage */
+.collage {{ display: flex; justify-content: center; align-items: center; padding: .3rem 0; }}
+.collage-circle {{
+  width: 130px; height: 130px; border-radius: 50%; border: 4px solid #fff;
+  box-shadow: 0 3px 14px rgba(13,33,55,.22); object-fit: cover; margin-left: -24px;
+}}
+.collage-circle:first-child {{ margin-left: 0; }}
 .gallery-strip {{ display: flex; gap: .5rem; }}
 .thumb {{ flex: 1; border-radius: 6px; overflow: hidden; height: 80px; }}
 .thumb img {{ width: 100%; height: 100%; object-fit: cover; display: block; }}
+/* Checklist */
+.incl-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: .55rem 1.2rem; }}
+.incl-check {{ display: flex; align-items: center; gap: .55rem; font-size: .86rem; color: #374151; font-weight: 500; }}
+.incl-check .check {{
+  width: 19px; height: 19px; border-radius: 50%; background: #16a34a; color: #fff;
+  font-size: .7rem; font-weight: 900; display: inline-flex; align-items: center;
+  justify-content: center; flex-shrink: 0;
+}}
+/* Two-column hotels/activities */
+.two-col {{ display: flex; gap: 1.6rem; }}
+.col-block {{ flex: 1; min-width: 0; }}
 .dep-chips {{ display: flex; flex-wrap: wrap; gap: .4rem; }}
 .dep-chip {{
   background: #eef2f7; border-radius: 5px; padding: .28rem .65rem;
   font-size: .8rem; color: #374151; font-weight: 500;
 }}
-.hotel-list {{ list-style: none; display: flex; flex-direction: column; gap: .3rem; }}
-.hotel-list li {{ font-size: .85rem; color: #374151; padding-left: .8rem; position: relative; }}
-.hotel-list li::before {{ content: "⭐"; position: absolute; left: 0; font-size: .7rem; top: .05rem; }}
+.hotel-list, .activity-list {{ list-style: none; display: flex; flex-direction: column; gap: .3rem; }}
+.hotel-list li {{ font-size: .85rem; color: #374151; padding-left: .9rem; position: relative; line-height: 1.4; }}
+.hotel-list li::before {{ content: "⭐"; position: absolute; left: 0; font-size: .7rem; top: .1rem; }}
+.activity-list li {{ font-size: .85rem; color: #374151; padding-left: .9rem; position: relative; line-height: 1.4; }}
+.activity-list li::before {{ content: "🎫"; position: absolute; left: 0; font-size: .7rem; top: .1rem; }}
 .hotel-nights {{ font-size: .75rem; color: #9ca3af; font-style: italic; }}
 /* Disclaimer */
 .disclaimer {{
@@ -321,19 +457,40 @@ body {{
   border-top: 1px solid #e5e7eb; padding-top: .8rem;
   font-style: italic;
 }}
-/* Footer */
-.flyer-footer {{
-  background: #0d2137; padding: 1rem 1.8rem;
-  display: flex; align-items: center; justify-content: space-between;
-  flex-shrink: 0; gap: 1rem; flex-wrap: wrap;
+/* Benefits strip */
+.benefits {{
+  display: flex; justify-content: space-around; align-items: center; gap: .8rem;
+  padding: .95rem 1.8rem; background: #f0fafa;
+  border-top: 1px solid #d5ebe9; border-bottom: 1px solid #d5ebe9; flex-shrink: 0;
 }}
-.footer-left {{ display: flex; flex-direction: column; gap: .25rem; }}
-.footer-agency {{ font-size: .82rem; font-weight: 700; color: rgba(255,255,255,.9); }}
-.footer-contact {{ font-size: .75rem; color: rgba(255,255,255,.6); }}
-.footer-site {{ font-size: .75rem; color: rgba(255,255,255,.45); }}
+.benefit {{ display: flex; flex-direction: column; align-items: center; gap: .28rem; text-align: center; }}
+.benefit-icon {{ font-size: 1.3rem; line-height: 1; }}
+.benefit-label {{ font-size: .72rem; font-weight: 700; color: #0e6b66; text-transform: uppercase; letter-spacing: .04em; }}
+/* CTA band */
+.cta-band {{
+  background: linear-gradient(120deg, #0d2137 0%, #17a39b 100%);
+  padding: 1.2rem 1.8rem; display: flex; align-items: center; justify-content: space-between;
+  gap: 1.2rem; flex-shrink: 0; color: #fff;
+}}
+.cta-left {{ display: flex; flex-direction: column; gap: .25rem; }}
+.cta-headline {{ font-size: 1.25rem; font-weight: 900; letter-spacing: .01em; }}
+.cta-agency {{ font-size: .9rem; font-weight: 700; color: rgba(255,255,255,.9); }}
+.cta-contacts {{ display: flex; flex-wrap: wrap; gap: .2rem 1rem; margin-top: .2rem; }}
+.cta-contact {{ font-size: .76rem; color: rgba(255,255,255,.72); }}
+.cta-right {{ display: flex; align-items: center; gap: 1rem; flex-shrink: 0; }}
+.cta-qr {{ display: flex; flex-direction: column; align-items: center; gap: .2rem; }}
+.cta-qr img {{ width: 74px; height: 74px; border-radius: 6px; background: #fff; padding: 3px; display: block; }}
+.cta-qr span {{ font-size: .62rem; color: rgba(255,255,255,.7); text-transform: uppercase; letter-spacing: .06em; }}
+.cta-price-badge {{
+  background: #fff; color: #0d2137; border-radius: 10px; padding: .55rem 1.1rem;
+  text-align: center; box-shadow: 0 4px 16px rgba(0,0,0,.25);
+}}
+.cta-price-from {{ font-size: .6rem; font-weight: 700; letter-spacing: .1em; color: #6b7280; }}
+.cta-price-amount {{ font-size: 1.5rem; font-weight: 900; color: #17a39b; line-height: 1.1; }}
+.cta-price-pp {{ font-size: .62rem; color: #6b7280; }}
 .cta-btn {{
-  background: #17a39b; color: #fff; border-radius: 7px;
-  padding: .55rem 1.4rem; font-size: .9rem; font-weight: 800;
+  background: #fff; color: #0d2137; border-radius: 7px;
+  padding: .6rem 1.4rem; font-size: .9rem; font-weight: 800;
   text-decoration: none; white-space: nowrap;
 }}
 @media print {{
@@ -364,35 +521,29 @@ body {{
   </div>
   <div class="flyer-body">
     {f'<div class="section"><p class="description-text">{_esc(d["description"])}</p></div>' if d["description"] else ""}
-    {gallery_html}
-    {hotel_html}
-    {activity_html}
+    {collage_html}
+    {checklist_html}
+    {two_col_html}
     {dep_html}
     <div class="disclaimer">{_esc(d["disclaimer"])}</div>
   </div>
-  <div class="flyer-footer">
-    <div class="footer-left">
-      <span class="footer-agency">{_esc(d["agency_name"])}</span>
-      {contact_html}
-      {f'<span class="footer-site">{_esc(d["site"])}</span>' if d["site"] else ""}
-    </div>
-    {f'<a class="cta-btn" href="{_esc(d["agency_url"])}">Book now →</a>' if d["agency_url"] else ""}
-  </div>
+  {benefits_html}
+  {cta_band_html}
 </div>
 </body>
 </html>"""
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Style B — White magazine, two-column, reference screenshot inspired
+# Style B — White magazine, two-column
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _render_style_b(pack: sk.Package, agent: Agent, d: dict) -> str:
+def _render_style_b(pack: sk.Package, agent: Agent, d: dict, qr_uri: str = "") -> str:
 
-    # Two secondary photos for the right column grid
-    photo2 = d["gallery_extra"][0] if len(d["gallery_extra"]) > 0 else ""
-    photo3 = d["gallery_extra"][1] if len(d["gallery_extra"]) > 1 else ""
-    photo4 = d["gallery_extra"][2] if len(d["gallery_extra"]) > 2 else ""
+    # Right-column photos (rounded stack)
+    right_photos = ""
+    for u in d["gallery_extra"][:3]:
+        right_photos += f'<img class="grid-photo" src="{_esc(u)}" alt="photo">'
 
     # Departure dates (first 6)
     dep_html = ""
@@ -414,17 +565,15 @@ def _render_style_b(pack: sk.Package, agent: Agent, d: dict) -> str:
         <span class="info-label">🗺 Transport</span>
         <div class="trans-grid">{icons_html}</div>
       </div>"""
-    elif d["duration"]:
-        # fallback if no transport detail
-        pass
 
     # Hotel list with nights
     hotel_html = ""
     if d["hotel_items"]:
-        items = "".join(
-            f'<li>{_esc(name)}{f" <span class=\\"hotel-nights\\">({nights_n} nights)</span>" if nights_n else ""}</li>'
-            for name, nights_n in d["hotel_items"][:5]
-        )
+        _li = []
+        for name, nights_n in d["hotel_items"][:5]:
+            span = f' <span class="hotel-nights">({nights_n} nights)</span>' if nights_n else ""
+            _li.append(f"<li>{_esc(name)}{span}</li>")
+        items = "".join(_li)
         hotel_html = f"""<div class="info-row">
         <span class="info-label">🏨 Hotels</span>
         <ul class="hotel-list">{items}</ul>
@@ -441,7 +590,7 @@ def _render_style_b(pack: sk.Package, agent: Agent, d: dict) -> str:
         items = "".join(f"<li>{_esc(a)}</li>" for a in d["activities"][:5])
         activity_html_b = f"""<div class="info-row">
         <span class="info-label">🎫 Included Activities</span>
-        <ul class="hotel-list">{items}</ul>
+        <ul class="activity-list">{items}</ul>
       </div>"""
 
     # Round trip
@@ -460,7 +609,19 @@ def _render_style_b(pack: sk.Package, agent: Agent, d: dict) -> str:
         <span class="info-value">{_esc(d["duration"])}</span>
       </div>"""
 
-    # Agency contact block
+    # "What's included" checklist
+    checklist_html = ""
+    if d["included_items"]:
+        checks = "".join(
+            f'<div class="incl-check"><span class="check">✓</span>{_esc(item)}</div>'
+            for item in d["included_items"]
+        )
+        checklist_html = f"""<div class="info-row">
+        <span class="info-label">✓ What's included</span>
+        <div class="incl-grid">{checks}</div>
+      </div>"""
+
+    # Agency contact block (+ optional QR)
     contact_rows = ""
     if d["agency_phone"]:
         contact_rows += f'<div class="contact-item"><span class="contact-icon">📞</span><span>{_esc(d["agency_phone"])}</span></div>'
@@ -468,15 +629,16 @@ def _render_style_b(pack: sk.Package, agent: Agent, d: dict) -> str:
         contact_rows += f'<div class="contact-item"><span class="contact-icon">✉</span><span>{_esc(d["agency_email"])}</span></div>'
     if d["site"]:
         contact_rows += f'<div class="contact-item"><span class="contact-icon">🌐</span><span>{_esc(d["site"])}</span></div>'
+    qr_block = f'<div class="contact-qr"><img src="{qr_uri}" alt="Scan to book"><span>Scan to book</span></div>' if qr_uri else ""
 
-    # Right-column photo grid
-    right_photos = ""
-    if photo2:
-        right_photos += f'<img class="grid-photo" src="{_esc(photo2)}" alt="photo">'
-    if photo3:
-        right_photos += f'<img class="grid-photo" src="{_esc(photo3)}" alt="photo">'
-    if photo4:
-        right_photos += f'<img class="grid-photo" src="{_esc(photo4)}" alt="photo">'
+    # Benefits strip
+    benefits_html = ""
+    if d["benefit_items"]:
+        bits = "".join(
+            f'<div class="benefit"><span class="benefit-icon">{icon}</span><span class="benefit-label">{_esc(label)}</span></div>'
+            for icon, label in d["benefit_items"]
+        )
+        benefits_html = f'<div class="benefits">{bits}</div>'
 
     # Countries/destinations headline
     dest_headline = d["destinations_line"] or pack.title
@@ -499,8 +661,7 @@ body {{
   box-shadow: 0 8px 48px rgba(0,0,0,.22); border-radius: 6px;
   overflow: hidden; display: flex; flex-direction: column;
 }}
-
-/* ── Top header bar ── */
+/* Top header bar */
 .top-bar {{
   display: flex; align-items: center; justify-content: space-between;
   padding: .65rem 1.8rem; border-bottom: 3px solid #17a39b; flex-shrink: 0;
@@ -510,8 +671,7 @@ body {{
 .top-bar-right {{ text-align: right; }}
 .top-tagline {{ font-size: .72rem; color: #6b7280; }}
 .top-site {{ font-size: .78rem; font-weight: 600; color: #17a39b; }}
-
-/* ── Hero strip ── */
+/* Hero strip */
 .hero-strip {{
   position: relative; height: 240px; overflow: hidden; flex-shrink: 0;
   background: linear-gradient(120deg, #0d2137, #17a39b);
@@ -530,116 +690,90 @@ body {{
   font-size: .75rem; font-weight: 800; text-transform: uppercase;
   letter-spacing: .12em; color: #5eddd7; margin-bottom: .3rem;
 }}
-.strip-dest {{
-  font-size: 2rem; font-weight: 900; line-height: 1.15;
-  text-shadow: 0 2px 8px rgba(0,0,0,.5);
-}}
-.strip-title {{
-  font-size: .9rem; color: rgba(255,255,255,.78); margin-top: .35rem;
-  font-weight: 400; font-style: italic;
-}}
-
-/* ── Price badge on hero ── */
+.strip-dest {{ font-size: 2rem; font-weight: 900; line-height: 1.15; text-shadow: 0 2px 8px rgba(0,0,0,.5); }}
+.strip-title {{ font-size: .9rem; color: rgba(255,255,255,.78); margin-top: .35rem; font-weight: 400; font-style: italic; }}
+/* Price badge on hero */
 .price-badge {{
   position: absolute; top: 1.2rem; right: 1.6rem;
   background: #e8163c; color: #fff; border-radius: 8px;
-  padding: .6rem 1.1rem; text-align: center;
-  box-shadow: 0 3px 14px rgba(0,0,0,.3);
+  padding: .6rem 1.1rem; text-align: center; box-shadow: 0 3px 14px rgba(0,0,0,.3);
 }}
 .price-badge-from {{ font-size: .62rem; text-transform: uppercase; letter-spacing: .08em; opacity: .85; }}
 .price-badge-amount {{ font-size: 1.35rem; font-weight: 900; line-height: 1.1; }}
 .price-badge-pp {{ font-size: .62rem; opacity: .85; }}
-
-/* ── Two-column body ── */
-.body-cols {{
-  display: flex; flex: 1; overflow: hidden;
-}}
+/* Two-column body */
+.body-cols {{ display: flex; flex: 1; overflow: hidden; }}
 .col-left {{
   flex: 1; padding: 1.4rem 1.4rem 1.4rem 1.8rem;
-  display: flex; flex-direction: column; gap: 1rem;
-  border-right: 1px solid #e5e7eb;
+  display: flex; flex-direction: column; gap: 1rem; border-right: 1px solid #e5e7eb; min-width: 0;
 }}
 .col-right {{
   width: 240px; flex-shrink: 0;
   padding: 1.4rem 1.8rem 1.4rem 1.2rem;
   display: flex; flex-direction: column; gap: .8rem;
 }}
-
 /* Info rows */
 .info-row {{ display: flex; flex-direction: column; gap: .4rem; }}
-.info-label {{
-  font-size: .68rem; font-weight: 800; text-transform: uppercase;
-  letter-spacing: .09em; color: #9ca3af;
-}}
+.info-label {{ font-size: .68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .09em; color: #9ca3af; }}
 .info-value {{ font-size: .88rem; color: #374151; font-weight: 500; }}
-
+/* Checklist */
+.incl-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: .45rem 1rem; }}
+.incl-check {{ display: flex; align-items: center; gap: .5rem; font-size: .82rem; color: #374151; font-weight: 500; }}
+.incl-check .check {{
+  width: 18px; height: 18px; border-radius: 50%; background: #16a34a; color: #fff;
+  font-size: .68rem; font-weight: 900; display: inline-flex; align-items: center;
+  justify-content: center; flex-shrink: 0;
+}}
 /* Departure pills */
 .dep-pills {{ display: flex; flex-wrap: wrap; gap: .35rem; }}
-.dep-pill {{
-  background: #f0fafa; border: 1px solid #b2e5e2; color: #0e6b66;
-  border-radius: 5px; padding: .2rem .55rem; font-size: .78rem; font-weight: 600;
-}}
-
+.dep-pill {{ background: #f0fafa; border: 1px solid #b2e5e2; color: #0e6b66; border-radius: 5px; padding: .2rem .55rem; font-size: .78rem; font-weight: 600; }}
 /* Transport grid */
 .trans-grid {{ display: flex; flex-wrap: wrap; gap: .5rem; }}
-.trans-item {{
-  display: flex; align-items: center; gap: .3rem;
-  background: #f7f9fb; border: 1px solid #e4e8ed;
-  border-radius: 5px; padding: .22rem .6rem;
-}}
+.trans-item {{ display: flex; align-items: center; gap: .3rem; background: #f7f9fb; border: 1px solid #e4e8ed; border-radius: 5px; padding: .22rem .6rem; }}
 .trans-icon {{ font-size: .95rem; }}
 .trans-txt {{ font-size: .8rem; color: #374151; font-weight: 500; }}
-
-/* Hotel list */
-.hotel-list {{ list-style: none; display: flex; flex-direction: column; gap: .3rem; }}
-.hotel-list li {{
-  font-size: .83rem; color: #374151; padding-left: 1rem; position: relative; line-height: 1.4;
-}}
+/* Hotel + activity lists */
+.hotel-list, .activity-list {{ list-style: none; display: flex; flex-direction: column; gap: .3rem; }}
+.hotel-list li {{ font-size: .83rem; color: #374151; padding-left: 1rem; position: relative; line-height: 1.4; }}
 .hotel-list li::before {{ content: "★"; position: absolute; left: 0; color: #f59e0b; font-size: .75rem; top: .1rem; }}
+.activity-list li {{ font-size: .83rem; color: #374151; padding-left: 1rem; position: relative; line-height: 1.4; }}
+.activity-list li::before {{ content: "🎫"; position: absolute; left: 0; font-size: .7rem; top: .12rem; }}
 .hotel-nights {{ font-size: .75rem; color: #9ca3af; font-style: italic; }}
-
 /* Description */
 .desc-text {{ font-size: .84rem; color: #4b5563; line-height: 1.65; }}
-
-/* Right column photo grid */
-.grid-photo {{
-  width: 100%; border-radius: 6px; object-fit: cover;
-  display: block; aspect-ratio: 4/3;
-}}
-
+/* Right column photos */
+.grid-photo {{ width: 100%; border-radius: 8px; object-fit: cover; display: block; aspect-ratio: 4/3; }}
 /* Right column contact card */
 .contact-card {{
   background: #f7f9fb; border: 1px solid #e4e8ed; border-radius: 8px;
-  padding: .9rem; display: flex; flex-direction: column; gap: .45rem;
-  margin-top: auto;
+  padding: .9rem; display: flex; flex-direction: column; gap: .45rem; margin-top: auto;
 }}
-.contact-card-title {{
-  font-size: .72rem; font-weight: 800; text-transform: uppercase;
-  letter-spacing: .08em; color: #17a39b; margin-bottom: .1rem;
-}}
-.contact-item {{
-  display: flex; align-items: flex-start; gap: .45rem;
-  font-size: .8rem; color: #374151;
-}}
+.contact-card-title {{ font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: #17a39b; margin-bottom: .1rem; }}
+.contact-item {{ display: flex; align-items: flex-start; gap: .45rem; font-size: .8rem; color: #374151; }}
 .contact-icon {{ font-size: .9rem; flex-shrink: 0; margin-top: .05rem; }}
-
-/* Disclaimer + footer */
+.contact-qr {{ display: flex; flex-direction: column; align-items: center; gap: .25rem; margin-top: .5rem; padding-top: .6rem; border-top: 1px solid #e4e8ed; }}
+.contact-qr img {{ width: 96px; height: 96px; display: block; }}
+.contact-qr span {{ font-size: .64rem; color: #6b7280; text-transform: uppercase; letter-spacing: .05em; }}
+/* Benefits strip */
+.benefits {{
+  display: flex; justify-content: space-around; align-items: center; gap: .8rem;
+  padding: .9rem 1.8rem; background: #f0fafa;
+  border-top: 1px solid #d5ebe9; border-bottom: 1px solid #d5ebe9; flex-shrink: 0;
+}}
+.benefit {{ display: flex; flex-direction: column; align-items: center; gap: .28rem; text-align: center; }}
+.benefit-icon {{ font-size: 1.3rem; line-height: 1; }}
+.benefit-label {{ font-size: .72rem; font-weight: 700; color: #0e6b66; text-transform: uppercase; letter-spacing: .04em; }}
+/* Footer bar */
 .bottom-bar {{
-  background: #0d2137; flex-shrink: 0;
-  padding: .8rem 1.8rem;
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 1rem;
+  background: #0d2137; flex-shrink: 0; padding: .9rem 1.8rem;
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
 }}
-.disclaimer-text {{
-  font-size: .65rem; color: rgba(255,255,255,.45); line-height: 1.5; flex: 1;
-  font-style: italic;
-}}
+.disclaimer-text {{ font-size: .65rem; color: rgba(255,255,255,.45); line-height: 1.5; flex: 1; font-style: italic; }}
 .cta-btn {{
   background: #17a39b; color: #fff; border-radius: 7px;
-  padding: .5rem 1.2rem; font-size: .85rem; font-weight: 800;
+  padding: .55rem 1.3rem; font-size: .88rem; font-weight: 800;
   text-decoration: none; white-space: nowrap; flex-shrink: 0;
 }}
-
 @media print {{
   body {{ background: #fff; padding: 0; }}
   .a4 {{ box-shadow: none; border-radius: 0; width: 100%; min-height: 0; }}
@@ -648,14 +782,10 @@ body {{
 </head>
 <body>
 <div class="a4">
-
-  <!-- Top bar with logo -->
   <div class="top-bar">
     {d["logo_html"]}
     {f'<div class="top-bar-right"><div class="top-tagline">Holiday Package</div><div class="top-site">{_esc(d["site"])}</div></div>' if d["site"] else '<div class="top-bar-right"><div class="top-tagline">Holiday Package</div></div>'}
   </div>
-
-  <!-- Hero strip -->
   <div class="hero-strip">
     {f'<img src="{_esc(d["hero"])}" alt="Package photo">' if d["hero"] else ""}
     <div class="hero-strip-scrim"></div>
@@ -670,10 +800,7 @@ body {{
       <div class="price-badge-pp">per person</div>
     </div>''' if d["price_str"] else ""}
   </div>
-
-  <!-- Two-column body -->
   <div class="body-cols">
-    <!-- Left: info + description -->
     <div class="col-left">
       {f'<p class="desc-text">{_esc(d["description"])}</p>' if d["description"] else ""}
       {dur_html}
@@ -681,25 +808,23 @@ body {{
       {trans_html}
       {hotel_html}
       {activity_html_b}
+      {checklist_html}
       {dep_html}
     </div>
-
-    <!-- Right: photos + contact -->
     <div class="col-right">
       {right_photos}
       {f'''<div class="contact-card">
         <div class="contact-card-title">{_esc(d["agency_name"])}</div>
         {contact_rows}
-      </div>''' if contact_rows else f'<div class="contact-card"><div class="contact-card-title">{_esc(d["agency_name"])}</div></div>'}
+        {qr_block}
+      </div>''' if (contact_rows or qr_block) else f'<div class="contact-card"><div class="contact-card-title">{_esc(d["agency_name"])}</div></div>'}
     </div>
   </div>
-
-  <!-- Footer bar -->
+  {benefits_html}
   <div class="bottom-bar">
     <span class="disclaimer-text">{_esc(d["disclaimer"])}</span>
     {f'<a class="cta-btn" href="{_esc(d["agency_url"])}">Book now →</a>' if d["agency_url"] else ""}
   </div>
-
 </div>
 </body>
 </html>"""
@@ -709,13 +834,15 @@ body {{
 # Public entry point
 # ─────────────────────────────────────────────────────────────────────────────
 
-def render_flyer(pack: sk.Package, agent: Agent, style: str = "a") -> str:
+def render_flyer(pack: sk.Package, agent: Agent, style: str = "a", show_qr: bool = False) -> str:
     """
     Render a print-ready A4 HTML flyer.
     style "a" = dark-navy editorial
     style "b" = white magazine two-column
+    show_qr   = embed an optional QR code linking to the agency website
     """
     d = _build_shared(pack, agent)
+    qr_uri = _qr_data_uri(d["agency_url"]) if (show_qr and d["agency_url"]) else ""
     if style == "b":
-        return _render_style_b(pack, agent, d)
-    return _render_style_a(pack, agent, d)
+        return _render_style_b(pack, agent, d, qr_uri)
+    return _render_style_a(pack, agent, d, qr_uri)

@@ -440,6 +440,7 @@ async def generate_image(
 async def generate_flyer(
     package_id: str,
     style: str = "a",   # "a" = dark-navy editorial | "b" = white magazine
+    qr: bool = False,   # optional QR code linking to the agency website
     agent: Agent = Depends(current_agent),
 ):
     """Returns a print-ready A4 HTML page."""
@@ -451,7 +452,7 @@ async def generate_flyer(
     except sk.TCError as e:
         raise HTTPException(status_code=502, detail=str(e))
 
-    return flyer_engine.render_flyer(pack, agent, style=style)
+    return flyer_engine.render_flyer(pack, agent, style=style, show_qr=qr)
 
 
 # --------------------------------------------------------------------------
