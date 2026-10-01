@@ -208,6 +208,16 @@ def _build_shared(pack: sk.Package, agent: Agent):
     d["agency_email"] = getattr(agent, "agency_email", None) or ""
     d["disclaimer"] = DISCLAIMER
 
+    # Package reference: show full URL if agency_url set, else just the ID
+    if pack.id:
+        if d["agency_url"]:
+            base = d["agency_url"].rstrip("/")
+            d["pack_ref"] = f"{base}/package/{pack.id}"
+        else:
+            d["pack_ref"] = f"Ref: {pack.id}"
+    else:
+        d["pack_ref"] = ""
+
     return d
 
 
@@ -348,6 +358,12 @@ def _contacts(d: dict) -> str:
         parts.append(f'<span class="ct"><span class="ct-i">✉</span>{_esc(d["agency_email"])}</span>')
     if d["site"]:
         parts.append(f'<span class="ct"><span class="ct-i">◐</span>{_esc(d["site"])}</span>')
+    if d.get("pack_ref"):
+        ref = d["pack_ref"]
+        if ref.startswith("http"):
+            parts.append(f'<span class="ct ct-ref"><span class="ct-i">⊞</span><a href="{_esc(ref)}" style="color:inherit;text-decoration:none;">{_esc(ref)}</a></span>')
+        else:
+            parts.append(f'<span class="ct ct-ref"><span class="ct-i">⊞</span>{_esc(ref)}</span>')
     return "".join(parts)
 
 
