@@ -827,12 +827,12 @@ def _render_style_c(pack: sk.Package, agent: Agent, d: dict, qr_uri: str = "") -
     acts = ""
     if d["activities"]:
         li = "".join(f"<li>{_esc(a)}</li>" for a in d["activities"][:5])
-        acts = f'<ul class="act-list">{li}</ul>'
+        acts = f'<div class="h2">Experiences</div><ul class="act-list">{li}</ul>'
     dep = ""
     if d["departures"]:
         chips = "".join(f'<span class="dep-chip">{_esc(x)}</span>' for x in d["departures"][:5])
         dep = f'<div style="margin-top:.5rem"><div class="h2">Departures</div><div class="dep-chips">{chips}</div></div>'
-    col3 = f'<div class="c-col"><div class="h2">Experiences</div>{acts}{dep}</div>'
+    col3 = f'<div class="c-col">{acts}{dep}</div>'
 
     # CTA
     price = ""
