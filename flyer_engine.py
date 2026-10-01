@@ -63,6 +63,54 @@ def _qr_data_uri(url: str) -> str:
 # Shared helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _meaningful_departures(dates: list[str]) -> list[str]:
+    """Return display-formatted departures only when they follow a meaningful pattern.
+
+    Meaningful patterns (all from the user's spec):
+      - Daily   : ≥3 dates and consecutive dates span ≤ 2× count (i.e. roughly every day)
+      - Weekly  : all dates share the same weekday (and ≥2 dates exist)
+      - Monthly : all dates share the same day-of-month (and ≥2 dates exist)
+
+    Any other scattered list returns [] so the flyer hides the section.
+    Display format: "12 Apr 2026"
+    """
+    if not dates:
+        return []
+    from datetime import datetime, timedelta
+    parsed = []
+    for s in dates:
+        try:
+            parsed.append(datetime.strptime(s, "%Y-%m-%d"))
+        except ValueError:
+            pass
+    if not parsed:
+        return []
+    parsed.sort()
+
+    n = len(parsed)
+
+    # Daily: at least 3 dates, and the span (days) ≤ 2× count
+    if n >= 3:
+        span = (parsed[-1] - parsed[0]).days + 1
+        if span <= n * 2:
+            return [dt.strftime("%-d %b %Y") for dt in parsed[:8]]
+
+    if n < 2:
+        return []
+
+    # Weekly: all dates on the same weekday
+    weekdays = {dt.weekday() for dt in parsed}
+    if len(weekdays) == 1:
+        return [dt.strftime("%-d %b %Y") for dt in parsed[:8]]
+
+    # Monthly: all dates on the same day-of-month
+    days_of_month = {dt.day for dt in parsed}
+    if len(days_of_month) == 1:
+        return [dt.strftime("%-d %b %Y") for dt in parsed[:8]]
+
+    return []
+
+
 def _build_shared(pack: sk.Package, agent: Agent):
     """Compute all the shared data fragments used by both templates."""
     d = {}
@@ -120,8 +168,8 @@ def _build_shared(pack: sk.Package, agent: Agent):
         raw_desc = raw_desc[:500].rsplit(" ", 1)[0].rstrip(",.;:") + "…"
     d["description"] = raw_desc
 
-    # Departures
-    d["departures"] = pack.departures[:8]
+    # Departures — only show when pattern is meaningful (weekly, same day-of-month, or daily)
+    d["departures"] = _meaningful_departures(pack.departures)
 
     # Price
     d["price_str"] = f"{_esc(pack.currency or 'EUR')} {pack.price:,.0f}" if pack.price else ""
