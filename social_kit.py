@@ -606,7 +606,7 @@ _COPY = {
         "gbp_trip": "podróż",
         "gbp_route": "Trasa: {route}.",
         "gbp_link": "Program, terminy i wycena: {url}",
-        "poster_from": "od {price}",
+        "poster_from": "od {price} / os.",
         "poster_cta": "Wybierz swój termin →",
         "poster_cta_short": "Wybierz termin →",
         "poster_days": "{days} dni",
@@ -639,7 +639,7 @@ _COPY = {
         "gbp_trip": "trip",
         "gbp_route": "Route: {route}.",
         "gbp_link": "Itinerary, dates and a quote: {url}",
-        "poster_from": "from {price}",
+        "poster_from": "from {price} p.p.",
         "poster_cta": "Choose your dates →",
         "poster_cta_short": "Choose dates →",
         "poster_days": "{days} days",
@@ -1008,29 +1008,10 @@ def _render_collage(pack: Package, fmt: str, photo: Image.Image, brand: "Brand",
 
     is_story = height > width
 
-    # ── Fetch second (accent) photo ─────────────────────────────────────────
-    photo2 = None
-    if len(pack.gallery) > 1:
-        try:
-            photo2 = load_photo(pack.gallery[1])
-        except Exception:
-            pass
-    if photo2 is None:
-        photo2 = photo.copy()
-        warm = Image.new("RGB", photo2.size, (255, 200, 120))
-        photo2 = Image.blend(photo2.convert("RGB"), warm, 0.22)
-
     # ── Layout geometry ──────────────────────────────────────────────────────
     hero_ratio = 0.52 if is_story else 0.62
     hero_h = int(height * hero_ratio)
     panel_h = height - hero_h
-
-    # Inset photo: top-right of hero, ~30% wide, 40% of hero height
-    inset_w = int(width * 0.30)
-    inset_h = int(hero_h * 0.42)
-    inset_border = int(4 * unit)
-    inset_x = width - pad - inset_w
-    inset_y = pad
 
     # ── Paint hero ───────────────────────────────────────────────────────────
     hero_img = _place(photo, width, hero_h, focus="center")
@@ -1041,13 +1022,6 @@ def _render_collage(pack: Package, fmt: str, photo: Image.Image, brand: "Brand",
     _hero_area = canvas.crop((0, 0, width, hero_h))
     _scrim(_hero_area, 0.55, peak=0.75)
     canvas.paste(_hero_area, (0, 0))
-
-    # ── Inset accent photo ───────────────────────────────────────────────────
-    inset_img = _place(photo2, inset_w - inset_border * 2, inset_h - inset_border * 2, focus="center")
-    # Teal border frame
-    border_layer = Image.new("RGB", (inset_w, inset_h), BRAND)
-    canvas.paste(border_layer, (inset_x, inset_y))
-    canvas.paste(inset_img, (inset_x + inset_border, inset_y + inset_border))
 
     # ── Dark bottom info panel ───────────────────────────────────────────────
     panel_y = hero_h
