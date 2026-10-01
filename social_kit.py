@@ -1004,7 +1004,7 @@ def _render_collage(pack: Package, fmt: str, photo: Image.Image, brand: "Brand",
     INK_DARK = (10, 18, 30)
     TEAL_LIGHT = (200, 242, 240)
     WHITE = (255, 255, 255)
-    GOLD = (224, 164, 59)
+    GOLD = (255, 196, 60)  # brighter amber for visibility
 
     is_story = height > width
 
@@ -1089,13 +1089,15 @@ def _render_collage(pack: Package, fmt: str, photo: Image.Image, brand: "Brand",
         y += int(28 * unit)
 
     # ── Title ────────────────────────────────────────────────────────────────
-    title_font_size = int(52 * unit) if not is_story else int(58 * unit)
+    title_font_size = int(64 * unit) if not is_story else int(72 * unit)
     title_font = _font("bold", title_font_size)
     title_max_w = width - pad * 2
     title_lines = _wrap(draw, pack.title, title_font, title_max_w, 3)
     for line in title_lines:
+        # Dark drop-shadow offset for extra punch
+        draw.text((pad + int(2 * unit), y + int(2 * unit)), line, font=title_font, fill=(0, 0, 0))
         draw.text((pad, y), line, font=title_font, fill=WHITE)
-        y += int(title_font.size * 1.20)
+        y += int(title_font.size * 1.18)
 
     # ── Days pill + themes ────────────────────────────────────────────────────
     y += int(8 * unit)
@@ -1119,7 +1121,9 @@ def _render_collage(pack: Package, fmt: str, photo: Image.Image, brand: "Brand",
 
     if price:
         price_line = _t(brand, "poster_from").format(price=price)
-        price_font = _font("bold", int(38 * unit))
+        price_font = _font("bold", int(50 * unit))
+        # Shadow then text
+        draw.text((pad + int(2 * unit), foot + int(2 * unit)), price_line, font=price_font, fill=(0, 0, 0), anchor="ls")
         draw.text((pad, foot), price_line, font=price_font, fill=GOLD, anchor="ls")
 
     _pill(draw, (width - pad - cta_w, foot - int(cta_font.size * 2.2)),
