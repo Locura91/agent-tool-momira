@@ -119,6 +119,26 @@
     .ribbon-ctrl input:focus { border-color: var(--brand); }
     .btn-apply { background: var(--brand); color: #fff; border: none; border-radius: 6px; padding: .35rem .85rem; font-size: .82rem; font-weight: 700; cursor: pointer; }
     .btn-apply:hover { background: var(--brand-dark); }
+
+    /* Video section */
+    .video-section { margin-top: 2.5rem; padding-top: 2rem; border-top: 1px solid var(--border); }
+    .vid-intro { font-size: .85rem; color: var(--muted); line-height: 1.5; margin-bottom: 1.2rem; max-width: 620px; }
+    .vid-controls { display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: flex-end; margin-bottom: 1.2rem; }
+    .vid-fmt-btns { display: flex; gap: .5rem; }
+    .vid-fmt-btn { padding: .4rem .85rem; border: 1px solid var(--border); border-radius: 7px; font-size: .82rem; font-weight: 600; cursor: pointer; background: var(--white); color: var(--muted); }
+    .vid-fmt-btn.active { background: var(--brand-light); border-color: var(--brand); color: var(--brand); }
+    .vid-search-row { display: flex; gap: .5rem; }
+    .vid-search-row input { flex: 1; min-width: 180px; padding: .5rem .75rem; border: 1px solid var(--border); border-radius: 7px; font-size: .88rem; outline: none; }
+    .vid-search-row input:focus { border-color: var(--brand); }
+    .vid-clips { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: .75rem; margin-bottom: 1.2rem; }
+    .vid-clip { position: relative; border: 2px solid var(--border); border-radius: 10px; overflow: hidden; cursor: pointer; aspect-ratio: 9/16; background: #e5e7eb; }
+    .vid-clip img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .vid-clip.selected { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand-light); }
+    .vid-clip .vid-dur { position: absolute; bottom: 4px; right: 4px; background: rgba(0,0,0,.7); color: #fff; font-size: .7rem; padding: 1px 5px; border-radius: 4px; }
+    .vid-clip .vid-play { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,.6); pointer-events: none; opacity: .85; }
+    .vid-credit { position: absolute; top: 4px; left: 4px; background: rgba(0,0,0,.55); color: #fff; font-size: .62rem; padding: 1px 5px; border-radius: 4px; max-width: 90%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .vid-render { display: flex; flex-direction: column; gap: .5rem; }
+    .vid-note { font-size: .78rem; color: var(--muted); }
   </style>
 </head>
 <body>
@@ -206,6 +226,39 @@
       <div class="cap-panel active" id="cap-inspiracja"><div class="cap-text" id="text-inspiracja"></div><button class="cap-copy" data-target="text-inspiracja">Copy</button></div>
       <div class="cap-panel" id="cap-konkret"><div class="cap-text" id="text-konkret"></div><button class="cap-copy" data-target="text-konkret">Copy</button></div>
       <div class="cap-panel" id="cap-gbp"><div class="cap-text" id="text-gbp"></div><button class="cap-copy" data-target="text-gbp">Copy</button></div>
+    </div>
+  </div>
+
+  <!-- Video post (optional) -->
+  <div class="video-section" id="video-section" style="display:none">
+    <div class="results-title">🎬 Video post <span style="font-weight:400;color:var(--muted);font-size:.85rem;">— optional, a 7-second branded clip</span></div>
+    <p class="vid-intro">Prefer a moving post for Reels, Stories or TikTok? Pick a free stock clip of the destination and we'll add your branding. The image above stays the default — this is an extra option.</p>
+
+    <div class="vid-controls">
+      <div class="ctrl-group">
+        <div class="ctrl-label">Format</div>
+        <div class="vid-fmt-btns">
+          <button class="vid-fmt-btn active" data-vfmt="story">Story / Reel  9:16</button>
+          <button class="vid-fmt-btn" data-vfmt="square">Square  1:1</button>
+        </div>
+      </div>
+      <div class="ctrl-group" style="flex:1">
+        <div class="ctrl-label">Search clips for</div>
+        <div class="vid-search-row">
+          <input type="text" id="vid-query" placeholder="e.g. Santorini Greece">
+          <button class="btn-apply" id="vid-search-btn">Find clips →</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="vid-clips" id="vid-clips"></div>
+
+    <div class="vid-render" id="vid-render" style="display:none">
+      <button class="btn-generate" id="vid-create-btn" style="align-self:flex-start">Create 7-sec video →</button>
+      <div class="vid-result" id="vid-result" style="display:none">
+        <video id="vid-player" controls playsinline style="width:100%;max-width:380px;border-radius:12px;background:#000;display:block;margin:1rem 0;"></video>
+        <button class="btn-sm btn-dl" id="vid-dl-btn">⬇ Download video</button>
+      </div>
     </div>
   </div>
 </div>
@@ -369,6 +422,16 @@
       document.getElementById('results').style.display = 'block';
       renderImages();
 
+      // 4. Prepare the optional video section (prefill a sensible search term,
+      //    but don't search yet — image stays the default, video is opt-in).
+      const destGuess = (currentPkg.destinations || [])
+        .map(d => (d.name || d)).filter(Boolean).slice(0, 2).join(' ');
+      document.getElementById('vid-query').value = destGuess || currentPkg.title || '';
+      document.getElementById('vid-clips').innerHTML = '';
+      document.getElementById('vid-render').style.display = 'none';
+      resetVideoResult();
+      document.getElementById('video-section').style.display = 'block';
+
     } catch (e) {
       showError('Could not reach the server. Please try again.');
     } finally {
@@ -473,6 +536,147 @@
       a.click();
     } catch {
       alert('Download failed. Please try again.');
+    }
+  }
+
+  // ───────────────────────────── Video post ─────────────────────────────
+  let vidFormat = 'story';
+  let vidSelectedClip = null;      // selected clip id
+  let vidSelectedDur = 0;
+  let vidQueryUsed = '';
+  let _vidBlobUrl = null;
+
+  // Format toggle
+  document.querySelectorAll('.vid-fmt-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.vid-fmt-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      vidFormat = btn.dataset.vfmt;
+      // orientation changed → previous clips no longer match; clear them
+      resetVideoResult();
+      document.getElementById('vid-clips').innerHTML = '';
+      document.getElementById('vid-render').style.display = 'none';
+    });
+  });
+
+  document.getElementById('vid-search-btn').addEventListener('click', searchClips);
+  document.getElementById('vid-query').addEventListener('keydown', e => { if (e.key === 'Enter') searchClips(); });
+  document.getElementById('vid-create-btn').addEventListener('click', createVideo);
+
+  function resetVideoResult() {
+    const res = document.getElementById('vid-result');
+    res.style.display = 'none';
+    const player = document.getElementById('vid-player');
+    player.removeAttribute('src'); player.load();
+    if (_vidBlobUrl) { URL.revokeObjectURL(_vidBlobUrl); _vidBlobUrl = null; }
+  }
+
+  async function searchClips() {
+    if (!currentPkg) return;
+    hideError();
+    const pkgId = extractPackageId(document.getElementById('pkg-id').value.trim());
+    const q = document.getElementById('vid-query').value.trim();
+    const grid = document.getElementById('vid-clips');
+    grid.innerHTML = '<div style="color:var(--muted);font-size:.85rem;padding:.5rem 0;">Searching…</div>';
+    vidSelectedClip = null;
+    document.getElementById('vid-render').style.display = 'none';
+    resetVideoResult();
+
+    const btn = document.getElementById('vid-search-btn');
+    btn.disabled = true; btn.textContent = 'Searching…';
+    try {
+      let url = `/generate/${pkgId}/video/search?format=${vidFormat}`;
+      if (q) url += `&query=${encodeURIComponent(q)}`;
+      const res = await fetch(url, { headers: H });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.detail || 'Clip search failed.');
+      }
+      const data = await res.json();
+      vidQueryUsed = data.query;
+      document.getElementById('vid-query').value = data.query;
+      renderClipGrid(data.clips);
+    } catch (e) {
+      grid.innerHTML = '';
+      showError(e.message || 'Could not search for clips.');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Find clips →';
+    }
+  }
+
+  function renderClipGrid(clips) {
+    const grid = document.getElementById('vid-clips');
+    grid.innerHTML = '';
+    if (!clips || !clips.length) {
+      grid.innerHTML = '<div style="color:var(--muted);font-size:.85rem;padding:.5rem 0;">No clips found — try a different search term (e.g. just the city or country).</div>';
+      return;
+    }
+    clips.forEach(clip => {
+      const el = document.createElement('div');
+      el.className = 'vid-clip';
+      el.style.aspectRatio = vidFormat === 'square' ? '1/1' : '9/16';
+
+      const img = document.createElement('img');
+      img.src = clip.preview; img.alt = 'clip preview'; img.loading = 'lazy';
+      el.appendChild(img);
+
+      const play = document.createElement('div');
+      play.className = 'vid-play'; play.textContent = '▶';
+      el.appendChild(play);
+
+      if (clip.user) {
+        const credit = document.createElement('div');
+        credit.className = 'vid-credit'; credit.textContent = '© ' + clip.user;
+        el.appendChild(credit);
+      }
+
+      const dur = document.createElement('div');
+      dur.className = 'vid-dur'; dur.textContent = clip.duration + 's';
+      el.appendChild(dur);
+
+      el.addEventListener('click', () => {
+        document.querySelectorAll('.vid-clip').forEach(c => c.classList.remove('selected'));
+        el.classList.add('selected');
+        vidSelectedClip = clip.id;
+        vidSelectedDur = clip.duration;
+        document.getElementById('vid-render').style.display = 'flex';
+        resetVideoResult();
+      });
+
+      grid.appendChild(el);
+    });
+  }
+
+  async function createVideo() {
+    if (!vidSelectedClip) { showError('Pick a clip first.'); return; }
+    hideError();
+    const pkgId = extractPackageId(document.getElementById('pkg-id').value.trim());
+    const btn = document.getElementById('vid-create-btn');
+    btn.disabled = true; btn.textContent = 'Rendering… (this can take ~20s)';
+    resetVideoResult();
+    try {
+      let url = `/generate/${pkgId}/video?clip_id=${vidSelectedClip}&format=${vidFormat}`;
+      if (vidQueryUsed) url += `&query=${encodeURIComponent(vidQueryUsed)}`;
+      const res = await fetch(url, { headers: H });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.detail || 'Video rendering failed.');
+      }
+      const blob = await res.blob();
+      _vidBlobUrl = URL.createObjectURL(blob);
+      const player = document.getElementById('vid-player');
+      player.src = _vidBlobUrl;
+      document.getElementById('vid-result').style.display = 'block';
+      document.getElementById('vid-dl-btn').onclick = () => {
+        const a = document.createElement('a');
+        a.href = _vidBlobUrl;
+        a.download = `${packageTitleSlug()}-${vidFormat}.mp4`;
+        a.click();
+      };
+    } catch (e) {
+      showError(e.message || 'Could not create the video.');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Create 7-sec video →';
     }
   }
 </script>

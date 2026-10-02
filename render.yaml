@@ -30,3 +30,5 @@ services:
         value: social-kit-logos
       - key: R2_PUBLIC_URL
         sync: false
+      - key: PEXELS_API_KEY
+        sync: false

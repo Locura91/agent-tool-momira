@@ -26,6 +26,7 @@ import social_kit as sk
 import kit_engine as engine
 import r2_upload
 import flyer_engine
+import video_kit as vk
 from auth import (
     create_access_token,
     current_agent,
@@ -453,6 +454,108 @@ async def generate_flyer(
         raise HTTPException(status_code=502, detail=str(e))
 
     return flyer_engine.render_flyer(pack, agent, style=style, show_qr=qr)
+
+
+# --------------------------------------------------------------------------
+# Video generation — optional branded short clip (Pexels + FFmpeg)
+# --------------------------------------------------------------------------
+
+def _video_portrait(fmt: str) -> bool:
+    w, h, _ = sk.FORMATS[fmt]
+    return h > w
+
+
+@app.get("/generate/{package_id}/video/search")
+async def video_search(
+    package_id: str,
+    format: str = "story",
+    query: str | None = None,       # optional agent-edited search term
+    agent: Agent = Depends(current_agent),
+):
+    """
+    Find free stock clips for this package's destination.
+
+    Returns the search query used (so the UI can show / let the agent refine it)
+    and up to a handful of clip previews to choose from. No rendering happens
+    here — this is the cheap, free-tier-safe step.
+    """
+    if format not in sk.FORMATS:
+        raise HTTPException(status_code=400, detail=f"format must be one of {list(sk.FORMATS)}")
+
+    brand = engine.agent_brand(agent)
+    try:
+        pack = sk.fetch(sk.TCClient(), package_id, brand)
+    except sk.TCError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    q = (query or "").strip() or vk.search_query(pack)
+    want_portrait = _video_portrait(format)
+    try:
+        clips = vk.search_clips(q, want_portrait)
+    except vk.VideoError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    return {
+        "package_id": pack.id,
+        "query": q,
+        "format": format,
+        "clips": [c.as_dict() for c in clips],
+    }
+
+
+@app.get("/generate/{package_id}/video")
+async def generate_video(
+    package_id: str,
+    clip_id: int,
+    format: str = "story",
+    query: str | None = None,       # the UI echoes back the query it searched with
+    agent: Agent = Depends(current_agent),
+):
+    """
+    Render the branded MP4 for a chosen clip and return it as a download.
+
+    Heavy step (FFmpeg): kept short by a 7-second cap and a 720p source, and
+    run in a thread pool so it doesn't block the event loop.
+    """
+    if format not in sk.FORMATS:
+        raise HTTPException(status_code=400, detail=f"format must be one of {list(sk.FORMATS)}")
+    if not vk.ffmpeg_available():
+        raise HTTPException(status_code=503, detail="Video rendering is unavailable (FFmpeg not installed).")
+
+    brand = engine.agent_brand(agent)
+    try:
+        pack = sk.fetch(sk.TCClient(), package_id, brand)
+    except sk.TCError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    want_portrait = _video_portrait(format)
+    q = query or vk.search_query(pack)
+
+    try:
+        clip = vk.clip_by_id(q, want_portrait, clip_id)
+    except vk.VideoError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    if clip is None:
+        raise HTTPException(status_code=404, detail="That clip could not be found — search again and pick another.")
+
+    loop = asyncio.get_event_loop()
+
+    def _work() -> bytes:
+        overlay = sk.render_video_overlay(pack, format, brand)
+        overlay_png = sk.overlay_to_png_bytes(overlay)
+        return vk.render_video(clip, overlay_png, format)
+
+    try:
+        mp4_bytes = await loop.run_in_executor(None, _work)
+    except vk.VideoError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    filename = f"{(agent.agency_name or 'post').replace(' ', '-').lower()}-{package_id}-{format}.mp4"
+    return Response(
+        content=mp4_bytes,
+        media_type="video/mp4",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 # --------------------------------------------------------------------------

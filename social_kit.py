@@ -1110,6 +1110,132 @@ def _render_collage(pack: Package, fmt: str, photo: Image.Image, brand: "Brand",
     return canvas
 
 
+def render_video_overlay(pack: Package, fmt: str, brand: "Brand",
+                         pln_rate: Optional[float] = None) -> Image.Image:
+    """
+    A transparent-topped branded overlay (RGBA) for burning onto a video clip.
+
+    This is the collage design with the hero photograph removed: the top is
+    fully transparent so the moving clip shows through, a soft gradient fades
+    into a solid dark info panel at the bottom, and the panel carries the same
+    destinations row, title, meta, price, CTA and wordmark pill as the still
+    collage. FFmpeg then only has to scale the clip and composite this PNG on
+    top — the brand design lives here in Pillow, where the fonts, Polish
+    diacritics and wrapping already work, not in FFmpeg's drawtext.
+    """
+    width, height, _ = FORMATS[fmt]
+    unit = width / 1080
+    pad = int(56 * unit)
+
+    INK_DARK = (10, 18, 30)
+    TEAL_LIGHT = (200, 242, 240)
+    WHITE = (255, 255, 255)
+    GOLD = (255, 196, 60)
+
+    is_story = height > width
+
+    hero_ratio = 0.52 if is_story else 0.62
+    hero_h = int(height * hero_ratio)
+    panel_h = height - hero_h
+    panel_y = hero_h
+
+    # Fully transparent canvas — the video plays through the hero region.
+    canvas = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+
+    # Soft gradient band above the panel so the clip fades into the dark panel
+    # rather than meeting a hard edge (last ~16% of the hero).
+    band_h = int(hero_h * 0.16)
+    if band_h > 0:
+        band = Image.new("RGBA", (width, band_h), (*INK_DARK, 0))
+        bmask = Image.new("L", (1, band_h))
+        for yy in range(band_h):
+            t = yy / max(1, band_h - 1)
+            bmask.putpixel((0, yy), int(255 * (t ** 2)))
+        band.putalpha(bmask.resize((width, band_h)))
+        canvas.alpha_composite(band, (0, panel_y - band_h))
+
+    # Solid dark info panel (opaque).
+    panel = Image.new("RGBA", (width, panel_h), (*INK_DARK, 255))
+    canvas.alpha_composite(panel, (0, panel_y))
+
+    draw = ImageDraw.Draw(canvas)
+
+    # Teal accent line at top of panel.
+    accent_h = int(5 * unit)
+    draw.rectangle([0, panel_y, width, panel_y + accent_h], fill=(*BRAND, 255))
+
+    # Nights badge — straddles the hero/panel boundary.
+    nights = pack.nights or (pack.days - 1 if pack.days and pack.days > 1 else pack.days or 0)
+    badge_r = int(50 * unit)
+    bx = int(pad + badge_r)
+    by = panel_y
+    if nights:
+        draw.ellipse([bx - badge_r, by - badge_r, bx + badge_r, by + badge_r], fill=(*BRAND, 255))
+        draw.ellipse([bx - badge_r, by - badge_r, bx + badge_r, by + badge_r], outline=(*WHITE, 255), width=int(2 * unit))
+        draw.text((bx, by - int(8 * unit)), str(nights),
+                  font=_font("bold", int(30 * unit)), fill=WHITE, anchor="mm")
+        draw.text((bx, by + int(20 * unit)), "nights",
+                  font=_font("regular", int(16 * unit)), fill=TEAL_LIGHT, anchor="mm")
+
+    # Destinations row.
+    dests = [d.get("name", "") for d in (pack.destinations or []) if d.get("name")]
+    y = panel_y + accent_h + int(22 * unit)
+    dest_font = _font("regular", int(22 * unit))
+    sep_x = pad + (badge_r * 2 + int(20 * unit) if nights else 0)
+    dest_text = "  ·  ".join(dests[:4]) if dests else ""
+    if dest_text:
+        draw.text((sep_x, y), dest_text.upper(), font=dest_font, fill=BRAND, anchor="lt")
+        y += int(dest_font.size * 1.6)
+    else:
+        y += int(28 * unit)
+
+    # Title.
+    title_font_size = int(64 * unit) if not is_story else int(72 * unit)
+    title_font = _font("bold", title_font_size)
+    for line in _wrap(draw, pack.title, title_font, width - pad * 2, 3):
+        draw.text((pad + int(2 * unit), y + int(2 * unit)), line, font=title_font, fill=(0, 0, 0))
+        draw.text((pad, y), line, font=title_font, fill=WHITE)
+        y += int(title_font.size * 1.18)
+
+    # Days + themes.
+    y += int(8 * unit)
+    meta_parts = []
+    if pack.days:
+        meta_parts.append(f"{pack.days} days")
+    if pack.themes:
+        meta_parts.extend(pack.themes[:2])
+    if meta_parts:
+        meta_font = _font("regular", int(24 * unit))
+        draw.text((pad, y), "  ·  ".join(meta_parts), font=meta_font, fill=(160, 185, 195))
+
+    # Price + CTA row.
+    foot = height - int(40 * unit)
+    price = format_price(pack, brand, pln_rate)
+    cta = _t(brand, "poster_cta_short")
+    cta_font = _font("bold", int(26 * unit))
+    cta_w = int(draw.textlength(cta, font=cta_font)) + int(56 * unit)
+    if price:
+        price_line = _t(brand, "poster_from").format(price=price)
+        price_font = _font("bold", int(50 * unit))
+        draw.text((pad + int(2 * unit), foot + int(2 * unit)), price_line, font=price_font, fill=(0, 0, 0), anchor="ls")
+        draw.text((pad, foot), price_line, font=price_font, fill=GOLD, anchor="ls")
+    _pill(draw, (width - pad - cta_w, foot - int(cta_font.size * 2.2)),
+          cta, cta_font, BRAND, WHITE, int(28 * unit))
+
+    # Wordmark pill — top-left.
+    _pill(draw, (pad, pad), brand.wordmark,
+          _font("bold", int(22 * unit)), INK_DARK, WHITE, int(24 * unit))
+
+    return canvas
+
+
+def overlay_to_png_bytes(image: Image.Image) -> bytes:
+    """Serialise an RGBA overlay to PNG bytes for FFmpeg."""
+    buf = io.BytesIO()
+    image.convert("RGBA").save(buf, format="PNG")
+    return buf.getvalue()
+
+
 def render(pack: Package, fmt: str = "square", style: str = "photo", photo: Optional[Image.Image] = None,
            focus: str = "center", zoom: float = 1.0, brand: "Brand" = None,
            pln_rate: Optional[float] = None) -> Image.Image:
