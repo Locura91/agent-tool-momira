@@ -237,13 +237,16 @@ def _download(url: str, dest_path: str) -> None:
 
 
 def render_video(clip: Clip, overlay_png: bytes, fmt: str,
-                 seconds: int = MAX_VIDEO_SECONDS, with_audio: bool = False) -> bytes:
+                 seconds: int = MAX_VIDEO_SECONDS) -> bytes:
     """
-    Produce the branded MP4.
+    Produce the branded MP4 — silent by design.
 
     Scales/crops the clip to the exact output size (cover), trims to `seconds`,
-    composites the overlay PNG, and encodes a web-friendly H.264 MP4. Returns
-    the MP4 bytes. Raises VideoError on any failure.
+    composites the overlay PNG, and encodes a web-friendly H.264 MP4 with the
+    audio track dropped (-an). The output is deliberately soundless: agents add
+    their own music or voiceover in the posting app, where they can pick a
+    trending track that the platform licenses. Returns the MP4 bytes. Raises
+    VideoError on any failure.
     """
     ffmpeg = ffmpeg_bin()
     if not ffmpeg:
@@ -282,12 +285,9 @@ def render_video(clip: Clip, overlay_png: bytes, fmt: str,
             "-crf", str(X264_CRF),
             "-pix_fmt", "yuv420p",
             "-movflags", "+faststart",
+            "-an",                      # no audio — agents add their own track when posting
+            out,
         ]
-        if with_audio:
-            cmd += ["-map", "0:a?", "-c:a", "aac", "-b:a", "128k", "-shortest"]
-        else:
-            cmd += ["-an"]
-        cmd += [out]
 
         try:
             proc = subprocess.run(
