@@ -344,6 +344,7 @@ async def debug_package(
 @app.get("/generate/{package_id}/captions")
 async def generate_captions(
     package_id: str,
+    link: str | None = None,   # the exact URL the agent pasted, so captions link straight to the package
     agent: Agent = Depends(current_agent),
 ):
     brand = engine.agent_brand(agent)
@@ -352,7 +353,13 @@ async def generate_captions(
     except sk.TCError as e:
         raise HTTPException(status_code=502, detail=str(e))
 
-    texts = sk.captions(pack, brand.url, brand, pln_rate=None)
+    # If the agent pasted a full package link, the captions should carry that
+    # exact link so a reader lands on the package — not the bare homepage.
+    caption_url = brand.url
+    if link and link.strip().lower().startswith(("http://", "https://")):
+        caption_url = link.strip()
+
+    texts = sk.captions(pack, caption_url, brand, pln_rate=None)
     return {
         "package_id": pack.id,
         "title": pack.title,

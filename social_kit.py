@@ -687,6 +687,13 @@ def format_price(pack: Package, brand: Brand, pln_rate: Optional[float] = None) 
     if brand.converts_to_pln and pack.currency == "EUR" and pln_rate:
         amount, symbol = amount * pln_rate, "zł"
 
+    # Euro uses the continental style the agencies asked for: a dot as the
+    # thousands separator and the symbol attached with no space — 2.940€, 940€.
+    if symbol == "€":
+        return f"{round(amount):,}".replace(",", ".") + "€"
+
+    # Other currencies keep a space-separated amount with the symbol after it
+    # (2 940 zł) — the Polish convention MultiWander already relies on.
     return f"{round(amount):,}".replace(",", " ") + f" {symbol}"
 
 

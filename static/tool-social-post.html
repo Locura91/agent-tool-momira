@@ -408,8 +408,11 @@
         document.getElementById('photo-strip-wrap').style.display = 'block';
       }
 
-      // 2. Fetch captions
-      const capRes = await fetch('/generate/' + pkgId + '/captions', { headers: H });
+      // 2. Fetch captions — if the agent pasted a full package URL, pass it so
+      //    the captions link straight to that package rather than the homepage.
+      let capUrl = '/generate/' + pkgId + '/captions';
+      if (/^https?:\/\//i.test(rawInput)) capUrl += '?link=' + encodeURIComponent(rawInput.trim());
+      const capRes = await fetch(capUrl, { headers: H });
       if (capRes.ok) {
         const capData = await capRes.json();
         document.getElementById('text-inspiracja').textContent = capData.captions.inspiracja || '';
