@@ -42,6 +42,8 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 import requests
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
+import fx
+
 # --------------------------------------------------------------------------
 # Travel Compositor
 # --------------------------------------------------------------------------
@@ -955,31 +957,54 @@ def _hook(pack: Package, brand: Brand) -> str:
     )
 
 
+def _format_amount(amount: float, currency: str) -> str:
+    """Format a number in a currency the way that currency is usually written."""
+    n = round(amount)
+    cur = (currency or "").upper()
+    if cur == "EUR":
+        # Continental style the agencies asked for: dot thousands, € attached.
+        return f"{n:,}".replace(",", ".") + "€"
+    if cur == "USD":
+        return "$" + f"{n:,}"
+    if cur == "GBP":
+        return "£" + f"{n:,}"
+    if cur == "PLN":
+        return f"{n:,}".replace(",", " ") + " zł"
+    # Everything else: amount, a space, the ISO code (e.g. 2 940 CHF).
+    return f"{n:,}".replace(",", " ") + f" {cur}"
+
+
 def format_price(pack: Package, brand: Brand, pln_rate: Optional[float] = None) -> str:
     """
-    What the post quotes.
+    What the post quotes, in the agent's chosen currency.
 
-    Momira Travel sells in euro and says so. MultiWander quotes złoty, which
-    means converting — and a rate that is wrong is worse than no price at all,
-    so without one the euro figure is shown rather than a guess.
+    The package price comes from Travel Compositor in its own currency. If the
+    agent has picked a different currency, we convert with a live daily rate
+    (fx.convert) and show that. A rate that is wrong is worse than no price at
+    all, so if conversion isn't available we fall back to the original currency
+    untouched rather than guessing. `pln_rate`, if given, still overrides for the
+    EUR→PLN case (legacy callers); otherwise the live rate is used.
     """
     if not pack.price:
         return ""
 
     amount = pack.price
-    symbol = {"EUR": "€", "PLN": "zł", "USD": "$", "GBP": "£"}.get(pack.currency, pack.currency)
+    src = (pack.currency or "EUR").upper()
+    target = (brand.currency or src).upper()
 
-    if brand.converts_to_pln and pack.currency == "EUR" and pln_rate:
-        amount, symbol = amount * pln_rate, "zł"
+    if target == src:
+        return _format_amount(amount, src)
 
-    # Euro uses the continental style the agencies asked for: a dot as the
-    # thousands separator and the symbol attached with no space — 2.940€, 940€.
-    if symbol == "€":
-        return f"{round(amount):,}".replace(",", ".") + "€"
+    # Legacy explicit override for EUR→PLN.
+    if pln_rate and src == "EUR" and target == "PLN":
+        return _format_amount(amount * pln_rate, "PLN")
 
-    # Other currencies keep a space-separated amount with the symbol after it
-    # (2 940 zł) — the Polish convention MultiWander already relies on.
-    return f"{round(amount):,}".replace(",", " ") + f" {symbol}"
+    converted = fx.convert(amount, src, target)
+    if converted is not None:
+        return _format_amount(converted, target)
+
+    # No reliable rate — show the real package price, never a guess.
+    return _format_amount(amount, src)
 
 
 def route(pack: Package, limit: int = 5) -> str:

@@ -171,8 +171,12 @@ def _build_shared(pack: sk.Package, agent: Agent):
     # Departures — only show when pattern is meaningful (weekly, same day-of-month, or daily)
     d["departures"] = _meaningful_departures(pack.departures)
 
-    # Price
-    d["price_str"] = f"{_esc(pack.currency or 'EUR')} {pack.price:,.0f}" if pack.price else ""
+    # Price — converted to the agent's currency and styled via social_kit so the
+    # flyer matches the posts (2.940€, $3,180, …). Falls back to the package's
+    # own currency when no live rate is available.
+    import kit_engine as _engine
+    _brand = _engine.agent_brand(agent)
+    d["price_str"] = sk.format_price(pack, _brand) if pack.price else ""
 
     # Hotels with nights
     hotel_names = pack.hotel_names or []
