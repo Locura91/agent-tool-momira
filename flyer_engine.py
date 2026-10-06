@@ -178,12 +178,14 @@ def _build_shared(pack: sk.Package, agent: Agent):
     hotel_names = pack.hotel_names or []
     hotel_nights = pack.hotel_nights or []
     hotel_stars = pack.hotel_stars or []
+    hotel_boards = pack.hotel_boards or []
     hotel_items = []
     for i, name in enumerate(hotel_names):
         nights_n = hotel_nights[i] if i < len(hotel_nights) else 0
         stars_n = hotel_stars[i] if i < len(hotel_stars) else 0
-        hotel_items.append((name, nights_n, stars_n))
-    d["hotel_items"] = hotel_items   # list of (name, nights, stars)
+        board_s = hotel_boards[i] if i < len(hotel_boards) else ""
+        hotel_items.append((name, nights_n, stars_n, board_s))
+    d["hotel_items"] = hotel_items   # list of (name, nights, stars, board)
     d["hotel_names"] = hotel_names
     d["hotels_count"] = pack.hotels
 
@@ -324,6 +326,7 @@ _COMPONENTS = """
 .hotel-list li:last-child{border-bottom:none;}
 .h-main{display:flex;align-items:baseline;gap:.5rem;min-width:0;}
 .h-name{font-weight:600;color:var(--ink);}
+.h-board{font-size:.6rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--teal-d);background:var(--teal-l);border-radius:4px;padding:.1rem .4rem;white-space:nowrap;align-self:center;}
 .h-nights{font-size:.76rem;color:var(--muted);font-style:italic;flex-shrink:0;}
 .act-list{list-style:none;display:flex;flex-direction:column;gap:.45rem;}
 .act-list li{font-size:.88rem;color:var(--text);padding-left:1rem;position:relative;line-height:1.4;}
@@ -370,10 +373,15 @@ def _hotels_list(d: dict, limit: int = 6) -> str:
     if not d["hotel_items"]:
         return ""
     rows = []
-    for name, nights, stars in d["hotel_items"][:limit]:
+    for item in d["hotel_items"][:limit]:
+        name, nights, stars = item[0], item[1], item[2]
+        board = item[3] if len(item) > 3 else ""
         st = f'<span class="stars">{"★" * stars}</span>' if stars else ""
         ni = f'<span class="h-nights">{nights} nights</span>' if nights else ""
-        rows.append(f'<li><span class="h-main">{st}<span class="h-name">{_esc(name)}</span></span>{ni}</li>')
+        bd = f'<span class="h-board">{_esc(board)}</span>' if board else ""
+        rows.append(
+            f'<li><span class="h-main">{st}<span class="h-name">{_esc(name)}</span>{bd}</span>{ni}</li>'
+        )
     return f'<ul class="hotel-list">{"".join(rows)}</ul>'
 
 
@@ -481,6 +489,7 @@ _CSS_A = """
 .h-main{display:flex;align-items:baseline;gap:.5rem;min-width:0;}
 .stars{font-size:.82rem;flex-shrink:0;}
 .h-name{font-weight:600;color:var(--ink);}
+.h-board{font-size:.6rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--teal-d);background:var(--teal-l);border-radius:4px;padding:.1rem .4rem;white-space:nowrap;align-self:center;}
 .h-nights{font-size:.76rem;color:var(--muted);font-style:italic;flex-shrink:0;}
 .act-list{list-style:none;display:flex;flex-direction:column;gap:.45rem;}
 .act-list li{font-size:.88rem;color:var(--text);padding-left:1rem;position:relative;line-height:1.4;}
@@ -800,6 +809,7 @@ _CSS_C = """
 .c-col .hotel-list li:last-child{border-bottom:none;}
 .c-col .h-main{display:flex;align-items:baseline;gap:.45rem;min-width:0;}
 .c-col .h-name{font-weight:600;color:var(--ink);}
+.c-col .h-board{font-size:.58rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--teal-d);background:var(--teal-l);border-radius:4px;padding:.08rem .36rem;white-space:nowrap;align-self:center;}
 .c-col .h-nights{font-size:.72rem;color:var(--muted);font-style:italic;flex-shrink:0;}
 .c-col .act-list{list-style:none;display:flex;flex-direction:column;gap:.35rem;}
 .c-col .act-list li{font-size:.82rem;color:var(--text);padding-left:.9rem;position:relative;line-height:1.35;}

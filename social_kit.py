@@ -215,6 +215,7 @@ class Package:
     hotel_names: List[str] = field(default_factory=list)          # names of accommodations
     hotel_nights: List[int] = field(default_factory=list)         # nights per hotel (parallel to hotel_names)
     hotel_stars: List[int] = field(default_factory=list)          # star category per hotel (0 = unknown)
+    hotel_boards: List[str] = field(default_factory=list)         # board basis per hotel ("" = unknown)
     transport_counts: Dict[str, int] = field(default_factory=dict) # e.g. {"flights":2,"ferries":1}
     activities: List[str] = field(default_factory=list)           # ticket/activity names
     is_round_trip: bool = False                                    # departs and returns to same origin
@@ -301,6 +302,108 @@ def fetch(client: TCClient, package_id: str, brand: "Brand" = None, lang: Option
         calendar = {}
 
     return normalise(package_id, info, detail, calendar)
+
+
+# --------------------------------------------------------------------------
+# Board basis (meal plan) — normalised to five labels
+# --------------------------------------------------------------------------
+#
+# Travel Compositor's exact field name for a hotel's board is not confirmed
+# against a live Holiday Package response, and it varies (board / boardType /
+# mealPlan / regime …), sometimes a two-letter industry code, sometimes a
+# translated phrase. So rather than trust one key, _extract_board scans the
+# board-ish keys on the hotel-stay object (and any nested room) and maps
+# whatever it finds — a code or a phrase in several languages — to one of the
+# five labels the agencies use. Anything unrecognised returns "" and simply
+# isn't shown, so a wrong guess can never put a false meal plan on the flyer.
+
+BOARD_LABELS = ("Only Room", "With Breakfast", "Half Board", "Full Board", "All Inclusive")
+
+_BOARD_CODES = {
+    "ro": "Only Room", "ob": "Only Room", "so": "Only Room", "sa": "Only Room",
+    "oa": "Only Room", "nb": "Only Room", "rr": "Only Room",
+    "bb": "With Breakfast", "ad": "With Breakfast", "ci": "With Breakfast", "br": "With Breakfast",
+    "hb": "Half Board", "mp": "Half Board", "map": "Half Board", "dp": "Half Board",
+    "fb": "Full Board", "pc": "Full Board", "ap": "Full Board", "fap": "Full Board",
+    "ai": "All Inclusive", "ti": "All Inclusive", "uai": "All Inclusive", "ri": "All Inclusive",
+    "todo": "All Inclusive",
+}
+
+# Checked in this order so the richer board wins (all-inclusive before full,
+# full before half, half before breakfast, breakfast before room-only).
+_BOARD_TEXT = [
+    ("All Inclusive", ["all inclusive", "all-inclusive", "all in", "todo incluido", "alles inklusive",
+                        "tutto incluso", "wszystko w cenie", "ultra all"]),
+    ("Full Board", ["full board", "pension completa", "pensión completa", "vollpension", "voll pension",
+                    "pensione completa", "volpension", "volledig pension", "pension complete",
+                    "pension complète", "pelne wyzywienie", "pełne wyżywienie"]),
+    ("Half Board", ["half board", "media pension", "media pensión", "halbpension", "halb pension",
+                    "mezza pensione", "halfpension", "half pension", "demi pension", "demi-pension",
+                    "niepelne wyzywienie", "niepełne wyżywienie", "2 posilki", "2 posiłki"]),
+    ("With Breakfast", ["bed and breakfast", "bed & breakfast", "breakfast", "desayuno", "fruhstuck",
+                        "frühstück", "colazione", "ontbijt", "petit dejeuner", "petit-déjeuner",
+                        "ze sniadaniem", "ze śniadaniem", "sniadanie", "śniadanie"]),
+    ("Only Room", ["room only", "only room", "no meals", "without meals", "solo alojamiento",
+                   "sin comidas", "nur ubernachtung", "nur übernachtung", "nur zimmer", "senza pasti",
+                   "solo pernottamento", "alleen kamer", "bez wyzywienia", "bez wyżywienia", "tylko nocleg"]),
+]
+
+
+def _board_label(raw: Any) -> str:
+    """Map a raw board value (code or phrase, any of several languages) to a label."""
+    s = str(raw or "").strip().lower()
+    if not s:
+        return ""
+    token = re.sub(r"[^a-z]", "", s)
+    # Short alpha token → treat as an industry code (HB, FB, AI, …).
+    if 1 < len(token) <= 4 and token in _BOARD_CODES:
+        return _BOARD_CODES[token]
+    for label, needles in _BOARD_TEXT:
+        if any(n in s for n in needles):
+            return label
+    if token in _BOARD_CODES:
+        return _BOARD_CODES[token]
+    return ""
+
+
+def _extract_board(h: Dict[str, Any]) -> str:
+    """Find a hotel stay's board basis without relying on one field name."""
+    if not isinstance(h, dict):
+        return ""
+
+    def scan(d: Any) -> str:
+        if not isinstance(d, dict):
+            return ""
+        for k, v in d.items():
+            kl = str(k).lower()
+            if any(t in kl for t in ("board", "meal", "pension", "regime", "basis")):
+                if isinstance(v, dict):
+                    cand = _pick(v, ["name", "description", "code", "value", "type", "text"], "")
+                    lab = _board_label(cand)
+                elif isinstance(v, list):
+                    lab = next((x for x in (_board_label(i) for i in v) if x), "")
+                else:
+                    lab = _board_label(v)
+                if lab:
+                    return lab
+        return ""
+
+    label = scan(h)
+    if not label and isinstance(h.get("hotelData"), dict):
+        label = scan(h["hotelData"])
+    if not label:
+        for rk in ("room", "rooms", "roomList", "roomOptions"):
+            rooms = h.get(rk)
+            if isinstance(rooms, dict):
+                label = scan(rooms)
+            elif isinstance(rooms, list):
+                for r in rooms:
+                    label = scan(r)
+                    if label:
+                        break
+            if label:
+                break
+    return label
 
 
 def normalise(package_id: str, info: Dict[str, Any], detail: Dict[str, Any], calendar: Dict[str, Any]) -> Package:
@@ -425,6 +528,7 @@ def normalise(package_id: str, info: Dict[str, Any], detail: Dict[str, Any], cal
                 pack.hotel_names.append(name)
                 pack.hotel_nights.append(int(h.get("nights") or 0))
                 pack.hotel_stars.append(stars)
+                pack.hotel_boards.append(_extract_board(h))
             # Also harvest hotel images into the gallery
             hotel_images = hotel_data.get("images") or [] if isinstance(hotel_data, dict) else []
             for img in hotel_images:
@@ -438,6 +542,7 @@ def normalise(package_id: str, info: Dict[str, Any], detail: Dict[str, Any], cal
             pack.hotel_names.append(h.strip())
             pack.hotel_nights.append(0)
             pack.hotel_stars.append(0)
+            pack.hotel_boards.append("")
 
     # Activities from tickets (day tours, entrance tickets, etc.)
     for ticket in _pick(detail, ["tickets"], []) or []:
@@ -552,6 +657,16 @@ _MONTHS = {
            "lipca", "sierpnia", "września", "października", "listopada", "grudnia"],
     "en": ["January", "February", "March", "April", "May", "June",
            "July", "August", "September", "October", "November", "December"],
+    "de": ["Januar", "Februar", "März", "April", "Mai", "Juni",
+           "Juli", "August", "September", "Oktober", "November", "Dezember"],
+    "es": ["enero", "febrero", "marzo", "abril", "mayo", "junio",
+           "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"],
+    "fr": ["janvier", "février", "mars", "avril", "mai", "juin",
+           "juillet", "août", "septembre", "octobre", "novembre", "décembre"],
+    "it": ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno",
+           "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"],
+    "nl": ["januari", "februari", "maart", "april", "mei", "juni",
+           "juli", "augustus", "september", "oktober", "november", "december"],
 }
 
 # The opening line, chosen by theme. It is the only part of a caption most
@@ -644,6 +759,176 @@ _COPY = {
         "poster_cta_short": "Choose dates →",
         "poster_days": "{days} days",
     },
+    "de": {
+        "hook_place": "{place} — und noch ein paar Orte, die in keinem Katalog stehen.",
+        "hook_none": "Eine von Anfang bis Ende geplante Reise — und trotzdem ganz Ihre.",
+        "days": "{days} Tage",
+        "nights": " / {nights} Nächte",
+        "any_date": "Abflug an jedem Tag Ihrer Wahl.",
+        "next_date": "Nächster Abflug: {date}. Begrenzte Termine ({count} im Kalender).",
+        "per_person": "ab {price} pro Person",
+        "per_person_short": "ab {price} p.P.",
+        "flights": "✈️ Flüge inklusive ({count})",
+        "hotels": "🏨 Hotels: {count}",
+        "customisable": [
+            "✏️ Ein Ausgangspunkt, kein festes Paket:",
+            "• ändern Sie die Reisedauer",
+            "• wählen Sie Ihren Abflughafen",
+            "• wählen Sie Hotels und die Reihenfolge der Orte",
+        ],
+        "customisable_plain": (
+            "Wir gestalten jede Reise nach Ihren Wünschen: Dauer, Abflughafen, Hotels "
+            "und die Reihenfolge der Orte lassen sich anpassen. Schreiben Sie uns, und "
+            "wir stellen Ihre Version zusammen."
+        ),
+        "cta_inspiracja": "Sehen Sie das komplette Programm und senden Sie eine Anfrage 👇",
+        "cta_konkret": "Gestalten Sie die Reise nach Ihren Wünschen und senden Sie eine Anfrage 👇",
+        "gbp_head": "{title} — {duration}{price}.",
+        "gbp_price": ", ab {price} pro Person",
+        "gbp_trip": "Reise",
+        "gbp_route": "Route: {route}.",
+        "gbp_link": "Programm, Termine und Angebot: {url}",
+        "poster_from": "ab {price} p.P.",
+        "poster_cta": "Wählen Sie Ihren Termin →",
+        "poster_cta_short": "Termin wählen →",
+        "poster_days": "{days} Tage",
+    },
+    "es": {
+        "hook_place": "{place} — y algunos lugares más que los folletos nunca mencionan.",
+        "hook_none": "Un viaje planificado de principio a fin — y aun así totalmente tuyo.",
+        "days": "{days} días",
+        "nights": " / {nights} noches",
+        "any_date": "Salida cualquier día que elijas.",
+        "next_date": "Próxima salida: {date}. Fechas limitadas ({count} en el calendario).",
+        "per_person": "desde {price} por persona",
+        "per_person_short": "desde {price} p.p.",
+        "flights": "✈️ Vuelos incluidos ({count})",
+        "hotels": "🏨 Hoteles: {count}",
+        "customisable": [
+            "✏️ Un punto de partida, no un paquete cerrado:",
+            "• cambia la duración de la estancia",
+            "• elige tu aeropuerto de salida",
+            "• elige los hoteles y el orden de los destinos",
+        ],
+        "customisable_plain": (
+            "Diseñamos cada viaje a tu medida: la duración, el aeropuerto de salida, los "
+            "hoteles y el orden de los destinos se pueden cambiar. Escríbenos y "
+            "prepararemos tu versión."
+        ),
+        "cta_inspiracja": "Mira el itinerario completo y envía tu consulta 👇",
+        "cta_konkret": "Hazlo a tu medida y envía tu consulta 👇",
+        "gbp_head": "{title} — {duration}{price}.",
+        "gbp_price": ", desde {price} por persona",
+        "gbp_trip": "viaje",
+        "gbp_route": "Ruta: {route}.",
+        "gbp_link": "Itinerario, fechas y presupuesto: {url}",
+        "poster_from": "desde {price} p.p.",
+        "poster_cta": "Elige tu fecha →",
+        "poster_cta_short": "Elegir fecha →",
+        "poster_days": "{days} días",
+    },
+    "fr": {
+        "hook_place": "{place} — et quelques endroits que les brochures ne mentionnent jamais.",
+        "hook_none": "Un voyage organisé de A à Z — et pourtant entièrement le vôtre.",
+        "days": "{days} jours",
+        "nights": " / {nights} nuits",
+        "any_date": "Départ le jour de votre choix.",
+        "next_date": "Prochain départ : {date}. Dates limitées ({count} au calendrier).",
+        "per_person": "à partir de {price} par personne",
+        "per_person_short": "dès {price}/pers.",
+        "flights": "✈️ Vols inclus ({count})",
+        "hotels": "🏨 Hôtels : {count}",
+        "customisable": [
+            "✏️ Un point de départ, pas un forfait figé :",
+            "• modifiez la durée du séjour",
+            "• choisissez votre aéroport de départ",
+            "• choisissez les hôtels et l'ordre des étapes",
+        ],
+        "customisable_plain": (
+            "Nous construisons chaque voyage sur mesure : la durée, l'aéroport de départ, "
+            "les hôtels et l'ordre des étapes peuvent changer. Écrivez-nous et nous "
+            "préparerons votre version."
+        ),
+        "cta_inspiracja": "Découvrez l'itinéraire complet et envoyez une demande 👇",
+        "cta_konkret": "Personnalisez-le et envoyez une demande 👇",
+        "gbp_head": "{title} — {duration}{price}.",
+        "gbp_price": ", à partir de {price} par personne",
+        "gbp_trip": "voyage",
+        "gbp_route": "Itinéraire : {route}.",
+        "gbp_link": "Programme, dates et devis : {url}",
+        "poster_from": "dès {price}/pers.",
+        "poster_cta": "Choisissez votre date →",
+        "poster_cta_short": "Choisir la date →",
+        "poster_days": "{days} jours",
+    },
+    "it": {
+        "hook_place": "{place} — e qualche altro luogo che le brochure non menzionano mai.",
+        "hook_none": "Un viaggio organizzato dall'inizio alla fine — e comunque tutto tuo.",
+        "days": "{days} giorni",
+        "nights": " / {nights} notti",
+        "any_date": "Partenza nel giorno che preferisci.",
+        "next_date": "Prossima partenza: {date}. Date limitate ({count} nel calendario).",
+        "per_person": "da {price} a persona",
+        "per_person_short": "da {price} p.p.",
+        "flights": "✈️ Voli inclusi ({count})",
+        "hotels": "🏨 Hotel: {count}",
+        "customisable": [
+            "✏️ Un punto di partenza, non un pacchetto fisso:",
+            "• cambia la durata del soggiorno",
+            "• scegli il tuo aeroporto di partenza",
+            "• scegli gli hotel e l'ordine delle tappe",
+        ],
+        "customisable_plain": (
+            "Costruiamo ogni viaggio su misura per te: durata, aeroporto di partenza, "
+            "hotel e ordine delle tappe si possono cambiare. Scrivici e prepareremo "
+            "la tua versione."
+        ),
+        "cta_inspiracja": "Guarda l'itinerario completo e invia una richiesta 👇",
+        "cta_konkret": "Personalizzalo e invia una richiesta 👇",
+        "gbp_head": "{title} — {duration}{price}.",
+        "gbp_price": ", da {price} a persona",
+        "gbp_trip": "viaggio",
+        "gbp_route": "Itinerario: {route}.",
+        "gbp_link": "Programma, date e preventivo: {url}",
+        "poster_from": "da {price} p.p.",
+        "poster_cta": "Scegli la tua data →",
+        "poster_cta_short": "Scegli la data →",
+        "poster_days": "{days} giorni",
+    },
+    "nl": {
+        "hook_place": "{place} — en nog een paar plekken die de brochures nooit noemen.",
+        "hook_none": "Een reis van begin tot eind gepland — en toch helemaal van jou.",
+        "days": "{days} dagen",
+        "nights": " / {nights} nachten",
+        "any_date": "Vertrek op elke dag die je kiest.",
+        "next_date": "Eerstvolgende vertrek: {date}. Beperkte data ({count} in de kalender).",
+        "per_person": "vanaf {price} per persoon",
+        "per_person_short": "vanaf {price} p.p.",
+        "flights": "✈️ Vluchten inbegrepen ({count})",
+        "hotels": "🏨 Hotels: {count}",
+        "customisable": [
+            "✏️ Een startpunt, geen vast pakket:",
+            "• pas de duur van je verblijf aan",
+            "• kies je vertrekluchthaven",
+            "• kies de hotels en de volgorde van de bestemmingen",
+        ],
+        "customisable_plain": (
+            "We stellen elke reis op maat samen: de duur, de vertrekluchthaven, de "
+            "hotels en de volgorde van de bestemmingen kunnen allemaal worden aangepast. "
+            "Schrijf ons en we stellen jouw versie samen."
+        ),
+        "cta_inspiracja": "Bekijk de volledige reisroute en stuur een aanvraag 👇",
+        "cta_konkret": "Maak het van jou en stuur een aanvraag 👇",
+        "gbp_head": "{title} — {duration}{price}.",
+        "gbp_price": ", vanaf {price} per persoon",
+        "gbp_trip": "reis",
+        "gbp_route": "Route: {route}.",
+        "gbp_link": "Programma, data en offerte: {url}",
+        "poster_from": "vanaf {price} p.p.",
+        "poster_cta": "Kies je datum →",
+        "poster_cta_short": "Kies datum →",
+        "poster_days": "{days} dagen",
+    },
 }
 
 
@@ -659,7 +944,7 @@ def _fold(text: str) -> str:
 def _hook(pack: Package, brand: Brand) -> str:
     themes = " ".join(_fold(t) for t in pack.themes)
 
-    for needle, line in _HOOKS[brand.lang].items():
+    for needle, line in _HOOKS.get(brand.lang, {}).items():
         if _fold(needle) in themes:
             return line
 
@@ -725,8 +1010,9 @@ def departures_line(pack: Package, brand: Brand) -> str:
         return _t(brand, "any_date")
 
     first = datetime.strptime(pack.departures[0], "%Y-%m-%d")
-    month = _MONTHS[brand.lang][first.month - 1]
-    date = f"{first.day} {month} {first.year}" if brand.lang == "pl" else f"{month} {first.day}, {first.year}"
+    month = _MONTHS.get(brand.lang, _MONTHS["en"])[first.month - 1]
+    # English writes "Month day, year"; every other language here is day-first.
+    date = f"{month} {first.day}, {first.year}" if brand.lang == "en" else f"{first.day} {month} {first.year}"
 
     return _t(brand, "next_date").format(date=date, count=len(pack.departures))
 
