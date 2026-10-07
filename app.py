@@ -460,7 +460,13 @@ async def generate_flyer(
     except sk.TCError as e:
         raise HTTPException(status_code=502, detail=str(e))
 
-    return flyer_engine.render_flyer(pack, agent, style=style, show_qr=qr)
+    # render_flyer now embeds images (several blocking fetches), so run it off
+    # the event loop.
+    loop = asyncio.get_event_loop()
+    html = await loop.run_in_executor(
+        None, lambda: flyer_engine.render_flyer(pack, agent, style=style, show_qr=qr)
+    )
+    return html
 
 
 # --------------------------------------------------------------------------

@@ -13,6 +13,7 @@ import html
 import base64
 import io
 from typing import Optional
+from PIL import Image
 import social_kit as sk
 from models import Agent
 
@@ -57,6 +58,44 @@ def _qr_data_uri(url: str) -> str:
         return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
     except Exception:
         return ""
+
+
+# Images are embedded as base64 data URIs rather than referenced by remote URL.
+# A flyer is printed / saved as PDF from the browser, and the print context
+# often doesn't wait for (or is blocked from loading) remote images, so the
+# hero came out broken on download. Embedding makes every picture part of the
+# document, so it always renders. Fetched once per URL per process.
+_IMG_CACHE: dict[str, str] = {}
+
+
+def _img_data_uri(url: str, max_px: int = 1500) -> str:
+    """Fetch an image URL and return a bounded base64 JPEG data URI.
+
+    Falls back to the original URL if the fetch/encode fails, so a flyer is
+    never worse off than before — at worst it behaves like the old remote link.
+    """
+    if not url or url.startswith("data:"):
+        return url or ""
+    if url in _IMG_CACHE:
+        return _IMG_CACHE[url]
+    try:
+        img = sk.load_photo(url)
+        has_alpha = img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info)
+        w, h = img.size
+        scale = min(1.0, max_px / max(w, h)) if max(w, h) else 1.0
+        if scale < 1.0:
+            img = img.resize((max(1, int(w * scale)), max(1, int(h * scale))), Image.LANCZOS)
+        if has_alpha:
+            # Keep transparency (logos) — flattening to JPEG would add a box.
+            buf = io.BytesIO()
+            img.convert("RGBA").save(buf, format="PNG", optimize=True)
+            uri = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+        else:
+            uri = "data:image/jpeg;base64," + base64.b64encode(sk.to_jpeg(img.convert("RGB"), quality=85)).decode()
+    except Exception:
+        uri = url
+    _IMG_CACHE[url] = uri
+    return uri
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -115,15 +154,18 @@ def _build_shared(pack: sk.Package, agent: Agent):
     """Compute all the shared data fragments used by both templates."""
     d = {}
 
-    # Gallery — use up to 6 images
-    d["hero"] = pack.gallery[0] if pack.gallery else ""
-    d["gallery_extra"] = pack.gallery[1:6]
+    # Gallery — embedded as base64 so the flyer prints / downloads reliably.
+    # Hero bigger (full-width); the three strip photos smaller. Only the first
+    # three of gallery_extra are ever rendered, so only those are fetched.
+    d["hero"] = _img_data_uri(pack.gallery[0], max_px=1600) if pack.gallery else ""
+    d["gallery_extra"] = [_img_data_uri(u, max_px=800) for u in pack.gallery[1:4]]
     d["collage"] = pack.gallery[:4]
 
-    # Logo
+    # Logo — embedded too, so it survives printing (R2 URL or already a data: URL)
+    logo_src = _img_data_uri(agent.logo_url, max_px=600) if agent.logo_url else ""
     d["logo_html"] = (
-        f'<img class="agency-logo" src="{_esc(agent.logo_url)}" alt="{_esc(agent.agency_name)}">'
-        if agent.logo_url
+        f'<img class="agency-logo" src="{_esc(logo_src)}" alt="{_esc(agent.agency_name)}">'
+        if logo_src
         else f'<span class="agency-name-text">{_esc(agent.agency_name or "Travel Agent")}</span>'
     )
 
