@@ -155,10 +155,26 @@ def _build_shared(pack: sk.Package, agent: Agent):
     d = {}
 
     # Gallery — embedded as base64 so the flyer prints / downloads reliably.
-    # Hero bigger (full-width); the three strip photos smaller. Only the first
-    # three of gallery_extra are ever rendered, so only those are fetched.
-    d["hero"] = _img_data_uri(pack.gallery[0], max_px=1600) if pack.gallery else ""
-    d["gallery_extra"] = [_img_data_uri(u, max_px=800) for u in pack.gallery[1:4]]
+    # The hero is the FIRST gallery image that actually embeds (some packages
+    # have a broken first URL — that was the "broken header image" bug); the
+    # next images that embed become the photo strip. Anything that can't be
+    # fetched is skipped entirely, so a broken URL never reaches the page.
+    hero = ""
+    strip: list[str] = []
+    for u in pack.gallery[:7]:
+        if not hero:
+            cand = _img_data_uri(u, max_px=1600)
+            if cand.startswith("data:"):
+                hero = cand
+                continue
+            # couldn't embed this one — don't use it as a (broken) hero, skip it
+            continue
+        if len(strip) < 3:
+            s = _img_data_uri(u, max_px=800)
+            if s.startswith("data:"):
+                strip.append(s)
+    d["hero"] = hero
+    d["gallery_extra"] = strip
     d["collage"] = pack.gallery[:4]
 
     # Logo — embedded too, so it survives printing (R2 URL or already a data: URL)
@@ -283,10 +299,15 @@ def _build_shared(pack: sk.Package, agent: Agent):
     if d["activities"]:
         an = len(d["activities"])
         included.append(f"{an} guided activit" + ("ies" if an != 1 else "y"))
+    # Customisable only when it's NOT a fixed closed tour. A tour with a fixed
+    # departure calendar can't have its itinerary rearranged, so we must not
+    # claim it's customisable; flexible packages (no fixed departures) can be.
+    d["is_customizable"] = not bool(getattr(pack, "fixed_departures", False))
     # Always-on service promises
     included.append("Personal travel expert")
     included.append("Support before, during and after your trip")
-    included.append("Fully customisable")
+    if d["is_customizable"]:
+        included.append("Fully customisable")
     d["included_items"] = included
 
     # ── Benefits / trust strip ──
@@ -341,7 +362,8 @@ _TOKENS = """
   --serif:'Fraunces',Georgia,'Times New Roman',serif;
   --sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',sans-serif;
 }
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;
+  -webkit-print-color-adjust:exact;print-color-adjust:exact;}
 body{font-family:var(--sans);background:#c9cdd3;color:var(--text);
   padding:2.5rem 1rem;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
 .sheet{background:var(--paper);margin:0 auto;box-shadow:0 10px 50px rgba(14,42,59,.22);
@@ -349,7 +371,13 @@ body{font-family:var(--sans);background:#c9cdd3;color:var(--text);
 .eyebrow{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.22em;}
 .stars{color:var(--gold);letter-spacing:.04em;}
 img{display:block;}
-@media print{ body{background:#fff;padding:0;} .sheet{box-shadow:none;border-radius:0;} }
+/* Print: no browser header/footer (margin:0 removes date/url), backgrounds on,
+   sheet fills the A4 and is scaled to a single page by fit-to-page JS. */
+@media print{
+  @page{size:A4 portrait;margin:0;}
+  html,body{background:#fff;padding:0;margin:0;}
+  .sheet{box-shadow:none;border-radius:0;width:210mm;}
+}
 """
 
 # Shared components used by every style (a style may override with a more specific selector).
@@ -383,13 +411,41 @@ _COMPONENTS = """
 """
 
 
+# Scales the sheet down to a single A4 page at print time (and only at print
+# time — the on-screen preview is untouched), so a content-heavy flyer never
+# spills onto a second page. If it already fits, nothing changes.
+_FIT_SCRIPT = """
+<script>
+(function(){
+  function px(mm){ return mm/25.4*96; }
+  function fit(){
+    var s=document.querySelector('.sheet'); if(!s) return;
+    s.style.zoom=''; s.style.width=px(210)+'px';
+    var pageH=px(297)-2, h=s.offsetHeight;   // -2px guard against rounding
+    // CSS `zoom` (unlike transform) shrinks the layout box, so pagination
+    // follows and the whole flyer lands on a single A4 page.
+    if(h>pageH){ s.style.zoom = pageH/h; }
+  }
+  function reset(){
+    var s=document.querySelector('.sheet'); if(s){ s.style.zoom=''; s.style.width=''; }
+  }
+  window.addEventListener('beforeprint', fit);
+  window.addEventListener('afterprint', reset);
+  if(window.matchMedia){
+    try{ window.matchMedia('print').addEventListener('change', function(e){ e.matches?fit():reset(); }); }catch(_){}
+  }
+})();
+</script>
+"""
+
+
 def _page(title_html: str, css: str, body_html: str) -> str:
     return (
         "<!doctype html>\n<html lang=\"en\">\n<head>\n"
         "<meta charset=\"utf-8\">\n"
         "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
         f"<title>{title_html}</title>\n{_FONTS}\n<style>{_TOKENS}{_COMPONENTS}{css}</style>\n"
-        f"</head>\n<body>\n{body_html}\n</body>\n</html>"
+        f"</head>\n<body>\n{body_html}\n{_FIT_SCRIPT}\n</body>\n</html>"
     )
 
 
@@ -610,9 +666,11 @@ def _render_style_a(pack: sk.Package, agent: Agent, d: dict, qr_uri: str = "") -
         chips = "".join(f'<span class="dep-chip">{_esc(x)}</span>' for x in d["departures"])
         dep = f'<div><div class="h2">Departure dates</div><div class="dep-chips">{chips}</div></div>'
 
-    promise = (f'<div class="promise"><div class="promise-mark">✦</div>'
-               f'<div><div class="promise-title">{_esc(CUSTOMISE_TITLE)}</div>'
-               f'<div class="promise-text">{_esc(CUSTOMISE_MESSAGE)}</div></div></div>')
+    promise = ""
+    if d["is_customizable"]:
+        promise = (f'<div class="promise"><div class="promise-mark">✦</div>'
+                   f'<div><div class="promise-title">{_esc(CUSTOMISE_TITLE)}</div>'
+                   f'<div class="promise-text">{_esc(CUSTOMISE_MESSAGE)}</div></div></div>')
 
     benefits = "".join(
         f'<div class="benefit"><span class="benefit-i">{icon}</span><span class="benefit-l">{_esc(l)}</span></div>'
@@ -673,7 +731,7 @@ def _render_style_a(pack: sk.Package, agent: Agent, d: dict, qr_uri: str = "") -
     </div>
   </div>
 </div>"""
-    return _page(f"{_esc(pack.title)} — Travel Flyer", _CSS_A, body)
+    return _page(f"{_esc(pack.title)} — {_esc(d['agency_name'])}", _CSS_A, body)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -773,6 +831,11 @@ def _render_style_b(pack: sk.Package, agent: Agent, d: dict, qr_uri: str = "") -
     if qr_uri:
         qr = f'<div class="b-qr"><img src="{qr_uri}" alt="Scan to book"><span>Scan to book</span></div>'
 
+    promise_inline = (
+        f'<div class="promise-inline">✦ {_esc(CUSTOMISE_TITLE)} — {_esc(CUSTOMISE_MESSAGE)}</div>'
+        if d["is_customizable"] else ""
+    )
+
     body = f"""<div class="sheet sheet-b">
   <section class="b-hero">
     {hero_img}
@@ -806,10 +869,10 @@ def _render_style_b(pack: sk.Package, agent: Agent, d: dict, qr_uri: str = "") -
   <div class="b-disc">{_esc(d["disclaimer"])}</div>
   <div class="b-foot">
     <div class="b-foot-agency">{_esc(d["agency_name"])}</div>
-    <div class="promise-inline">✦ {_esc(CUSTOMISE_TITLE)} — {_esc(CUSTOMISE_MESSAGE)}</div>
+    {promise_inline}
   </div>
 </div>"""
-    return _page(f"{_esc(pack.title)} — Travel Flyer", _CSS_B, body)
+    return _page(f"{_esc(pack.title)} — {_esc(d['agency_name'])}", _CSS_B, body)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -946,9 +1009,11 @@ def _render_style_c(pack: sk.Package, agent: Agent, d: dict, qr_uri: str = "") -
                  f'<div class="sep"></div>')
     agency = (f'<div class="agency"><div class="nm">{_esc(d["agency_name"])}</div>'
               f'<div class="cts">{_contacts(d)}</div></div><div class="sep"></div>')
-    promise = (f'<div class="promise"><div class="promise-mark">✦</div>'
-               f'<div><div class="promise-title">{_esc(CUSTOMISE_TITLE)}</div>'
-               f'<div class="promise-text">{_esc(CUSTOMISE_MESSAGE)}</div></div></div>')
+    promise = ""
+    if d["is_customizable"]:
+        promise = (f'<div class="promise"><div class="promise-mark">✦</div>'
+                   f'<div><div class="promise-title">{_esc(CUSTOMISE_TITLE)}</div>'
+                   f'<div class="promise-text">{_esc(CUSTOMISE_MESSAGE)}</div></div></div>')
     qr = _qr_block(qr_uri)
     btn = f'<a class="btn" href="{_esc(d["agency_url"])}">Book now →</a>' if d["agency_url"] else ""
 
@@ -979,7 +1044,7 @@ def _render_style_c(pack: sk.Package, agent: Agent, d: dict, qr_uri: str = "") -
     {btn}
   </div>
 </div>"""
-    return _page(f"{_esc(pack.title)} — Travel Flyer", _CSS_C, body)
+    return _page(f"{_esc(pack.title)} — {_esc(d['agency_name'])}", _CSS_C, body)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

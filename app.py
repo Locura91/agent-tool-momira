@@ -27,6 +27,21 @@ import kit_engine as engine
 import r2_upload
 import flyer_engine
 import video_kit as vk
+import re as _re
+
+
+def _dl_slug(s: str, fallback: str = "momira-travel") -> str:
+    """A filesystem-friendly slug for download filenames."""
+    s = _re.sub(r"[^A-Za-z0-9]+", "-", (s or "")).strip("-").lower()
+    return s or fallback
+
+
+def _download_name(pack, agent, ext: str) -> str:
+    """Every download is named with the tour and the agency, e.g.
+    8-days-zante-cruise-momira-travel.jpg"""
+    return f"{_dl_slug(getattr(pack, 'title', ''), 'tour')}-{_dl_slug(agent.agency_name)}.{ext}"
+
+
 from auth import (
     create_access_token,
     current_agent,
@@ -431,7 +446,7 @@ async def generate_image(
     )
 
     jpeg_bytes = sk.to_jpeg(image)
-    filename = f"{(agent.agency_name or 'post').replace(' ', '-').lower()}-{package_id}-{format}-{style}.jpg"
+    filename = _download_name(pack, agent, "jpg")
 
     return Response(
         content=jpeg_bytes,
@@ -563,7 +578,7 @@ async def generate_video(
     except vk.VideoError as e:
         raise HTTPException(status_code=502, detail=str(e))
 
-    filename = f"{(agent.agency_name or 'post').replace(' ', '-').lower()}-{package_id}-{format}.mp4"
+    filename = _download_name(pack, agent, "mp4")
     return Response(
         content=mp4_bytes,
         media_type="video/mp4",

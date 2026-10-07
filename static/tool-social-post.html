@@ -273,6 +273,14 @@
   let currentPhotoIdx = 0;
   let currentZoom = 1.0;
   let currentRibbon = '';   // empty = use agent's settings ribbon
+  let agencySlug = 'momira-travel';   // used in download filenames (tour + agency)
+
+  // Fetch the agency name once so every download is named "<tour>-<agency>".
+  fetch('/me', { headers: H }).then(r => r.ok ? r.json() : null).then(a => {
+    if (a && a.agency_name) {
+      agencySlug = a.agency_name.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'momira-travel';
+    }
+  }).catch(() => {});
 
   // Style toggle
   document.querySelectorAll('.style-btn').forEach(btn => {
@@ -535,7 +543,7 @@
       const blob = await res.blob();
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `${packageTitleSlug()}-${format}-${currentStyle}.jpg`;
+      a.download = `${packageTitleSlug()}-${agencySlug}.jpg`;
       a.click();
     } catch {
       alert('Download failed. Please try again.');
@@ -673,7 +681,7 @@
       document.getElementById('vid-dl-btn').onclick = () => {
         const a = document.createElement('a');
         a.href = _vidBlobUrl;
-        a.download = `${packageTitleSlug()}-${vidFormat}.mp4`;
+        a.download = `${packageTitleSlug()}-${agencySlug}.mp4`;
         a.click();
       };
     } catch (e) {

@@ -112,8 +112,8 @@
     <!-- Row 1: Package ID + style + generate -->
     <div class="controls-row">
       <div class="field">
-        <label for="pkg-id">Package ID</label>
-        <input type="text" id="pkg-id" placeholder="e.g. 64797496" autocomplete="off">
+        <label for="pkg-id">Package ID or URL</label>
+        <input type="text" id="pkg-id" placeholder="e.g. 64797496 or https://momira.travel/…" autocomplete="off">
       </div>
 
       <div class="style-toggle">
@@ -211,10 +211,20 @@
   document.getElementById('pkg-id').addEventListener('keydown', e => { if (e.key === 'Enter') generate(); });
   document.getElementById('qr-toggle').addEventListener('change', () => { if (currentPkgId) loadFlyer(currentPkgId, currentStyle); });
 
+  function extractPackageId(raw) {
+    // Accept a bare ID like "64800076" or a full URL like
+    // https://momira.travel/es/idea/64800076/3-days-bush-camp-safari
+    const urlMatch = raw.match(/\/idea\/(\d+)/);
+    if (urlMatch) return urlMatch[1];
+    const digitsOnly = raw.replace(/\D/g, '');
+    return digitsOnly || raw.trim();
+  }
+
   async function generate() {
     hideError();
-    const pkgId = document.getElementById('pkg-id').value.trim();
-    if (!pkgId) { showError('Please enter a Package ID.'); return; }
+    const rawInput = document.getElementById('pkg-id').value.trim();
+    if (!rawInput) { showError('Please enter a Package ID or URL.'); return; }
+    const pkgId = extractPackageId(rawInput);
 
     const btn = document.getElementById('gen-btn');
     btn.disabled = true; btn.textContent = 'Generating…';
