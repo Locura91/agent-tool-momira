@@ -342,13 +342,17 @@
   document.getElementById('pkg-id').addEventListener('keydown', e => { if (e.key === 'Enter') generate(); });
 
   function extractPackageId(raw) {
-    // Accept a bare ID like "64800076" or a full URL like:
-    // https://momira.travel/es/idea/64800076/3-days-bush-camp-safari
-    const urlMatch = raw.match(/\/idea\/(\d+)/);
-    if (urlMatch) return urlMatch[1];
-    // Extract first run of digits (works for plain IDs and variations)
+    // Accept a bare ID or a full package URL from any site (momira.travel,
+    // book.multiwander.com, …).
+    raw = (raw || '').trim();
+    let m = raw.match(/\/(?:idea|package|paquete|pacchetto|reise|holiday|tour)\/(\d{4,})/i);
+    if (m) return m[1];
+    m = raw.match(/[?&](?:id|pkg|package|idea)=(\d{4,})/i);
+    if (m) return m[1];
+    const runs = raw.match(/\d{5,}/g);
+    if (runs) return runs.sort((a, b) => b.length - a.length)[0];
     const digitsOnly = raw.replace(/\D/g, '');
-    return digitsOnly || raw.trim();
+    return digitsOnly || raw;
   }
 
   async function generate() {

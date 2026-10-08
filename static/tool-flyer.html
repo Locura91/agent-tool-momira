@@ -212,12 +212,21 @@
   document.getElementById('qr-toggle').addEventListener('change', () => { if (currentPkgId) loadFlyer(currentPkgId, currentStyle); });
 
   function extractPackageId(raw) {
-    // Accept a bare ID like "64800076" or a full URL like
-    // https://momira.travel/es/idea/64800076/3-days-bush-camp-safari
-    const urlMatch = raw.match(/\/idea\/(\d+)/);
-    if (urlMatch) return urlMatch[1];
+    // Accept a bare ID like "64800076" or a full package URL from any site:
+    //   https://momira.travel/es/idea/64800076/3-days-bush-camp-safari
+    //   https://book.multiwander.com/en/package/64800076/...
+    //   ...?id=64800076 / ?pkg=64800076
+    raw = (raw || '').trim();
+    let m = raw.match(/\/(?:idea|package|paquete|pacchetto|reise|holiday|tour)\/(\d{4,})/i);
+    if (m) return m[1];
+    m = raw.match(/[?&](?:id|pkg|package|idea)=(\d{4,})/i);
+    if (m) return m[1];
+    // Otherwise take the longest run of >=5 digits (TC IDs are ~8 digits),
+    // so slug numbers like "3-days" don't get picked up.
+    const runs = raw.match(/\d{5,}/g);
+    if (runs) return runs.sort((a, b) => b.length - a.length)[0];
     const digitsOnly = raw.replace(/\D/g, '');
-    return digitsOnly || raw.trim();
+    return digitsOnly || raw;
   }
 
   async function generate() {
