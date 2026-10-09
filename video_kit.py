@@ -32,6 +32,7 @@ import shutil
 import subprocess
 import tempfile
 from dataclasses import dataclass
+from itertools import zip_longest
 from typing import List, Optional
 
 import requests
@@ -49,6 +50,7 @@ X264_PRESET = "veryfast"
 FFMPEG_TIMEOUT = 90          # hard ceiling so a stuck render can't hang a worker
 
 PEXELS_SEARCH_URL = "https://api.pexels.com/videos/search"
+PIXABAY_SEARCH_URL = "https://pixabay.com/api/videos/"
 _HTTP_TIMEOUT = 30
 
 
@@ -119,12 +121,13 @@ def search_query(pack: sk.Package) -> str:
 @dataclass
 class Clip:
     id: int
-    duration: int                 # seconds, as reported by Pexels
+    duration: int                 # seconds, as reported by the source
     width: int
     height: int
     preview: str                  # poster image URL (for the picker thumbnail)
     download_url: str             # the chosen video file URL (≤ SOURCE_HEIGHT_CAP tall)
     user: str                     # videographer name (shown as a courtesy credit)
+    source: str = "pexels"        # "pexels" or "pixabay" (needed to re-find the clip)
 
     def as_dict(self) -> dict:
         return {
@@ -135,6 +138,7 @@ class Clip:
             "preview": self.preview,
             "download_url": self.download_url,
             "user": self.user,
+            "source": self.source,
         }
 
 
@@ -173,9 +177,11 @@ def _pick_file(video_files: list, want_portrait: bool) -> Optional[dict]:
     return best[0]
 
 
-def search_clips(query: str, want_portrait: bool, per_page: int = 6) -> List[Clip]:
-    """Search Pexels and return up to `per_page` usable clips."""
-    headers = {"Authorization": _api_key()}
+def _search_pexels(query: str, want_portrait: bool, per_page: int) -> List[Clip]:
+    """Search Pexels. Returns [] (not an error) if no Pexels key is set."""
+    key = os.environ.get("PEXELS_API_KEY")
+    if not key:
+        return []
     params = {
         "query": query,
         "per_page": max(1, min(per_page, 15)),
@@ -183,41 +189,87 @@ def search_clips(query: str, want_portrait: bool, per_page: int = 6) -> List[Cli
         "size": "medium",
     }
     try:
-        resp = requests.get(PEXELS_SEARCH_URL, headers=headers, params=params, timeout=_HTTP_TIMEOUT)
-    except requests.RequestException as e:
-        raise VideoError(f"Could not reach Pexels: {e}")
-
-    if resp.status_code == 401:
-        raise VideoError("Pexels rejected the API key (401). Check PEXELS_API_KEY.")
-    if resp.status_code == 429:
-        raise VideoError("Pexels rate limit reached — try again in a little while.")
+        resp = requests.get(PEXELS_SEARCH_URL, headers={"Authorization": key},
+                            params=params, timeout=_HTTP_TIMEOUT)
+    except requests.RequestException:
+        return []
     if not resp.ok:
-        raise VideoError(f"Pexels search failed (HTTP {resp.status_code}).")
-
-    data = resp.json()
+        return []
     clips: List[Clip] = []
-    for v in data.get("videos", []):
+    for v in resp.json().get("videos", []):
         chosen = _pick_file(v.get("video_files", []), want_portrait)
         if not chosen:
             continue
-        clips.append(
-            Clip(
-                id=v.get("id", 0),
-                duration=v.get("duration", 0),
-                width=chosen.get("width", 0),
-                height=chosen.get("height", 0),
-                preview=v.get("image", ""),
-                download_url=chosen.get("link", ""),
-                user=(v.get("user") or {}).get("name", ""),
-            )
-        )
+        clips.append(Clip(
+            id=v.get("id", 0), duration=v.get("duration", 0),
+            width=chosen.get("width", 0), height=chosen.get("height", 0),
+            preview=v.get("image", ""), download_url=chosen.get("link", ""),
+            user=(v.get("user") or {}).get("name", ""), source="pexels",
+        ))
     return clips
 
 
-def clip_by_id(query: str, want_portrait: bool, clip_id: int) -> Optional[Clip]:
-    """Re-find a specific clip (the picker sends back only its id)."""
-    for c in search_clips(query, want_portrait, per_page=15):
-        if c.id == clip_id:
+def _search_pixabay(query: str, want_portrait: bool, per_page: int) -> List[Clip]:
+    """Search Pixabay videos. Returns [] (not an error) if no Pixabay key is set."""
+    key = os.environ.get("PIXABAY_API_KEY")
+    if not key:
+        return []
+    params = {
+        "key": key, "q": query, "video_type": "film",
+        "per_page": max(3, min(per_page, 20)), "safesearch": "true",
+    }
+    try:
+        resp = requests.get(PIXABAY_SEARCH_URL, params=params, timeout=_HTTP_TIMEOUT)
+    except requests.RequestException:
+        return []
+    if not resp.ok:
+        return []
+    clips: List[Clip] = []
+    for h in resp.json().get("hits", []):
+        # Pixabay returns a dict of sizes; reshape to the list _pick_file wants.
+        files = []
+        for size in (h.get("videos") or {}).values():
+            if isinstance(size, dict) and size.get("url"):
+                files.append({"link": size["url"], "width": size.get("width", 0),
+                              "height": size.get("height", 0), "file_type": "mp4"})
+        chosen = _pick_file(files, want_portrait)
+        if not chosen:
+            continue
+        # thumbnail: prefer a size's thumbnail, else Pixabay's picture_id poster
+        thumb = ""
+        for size in (h.get("videos") or {}).values():
+            if isinstance(size, dict) and size.get("thumbnail"):
+                thumb = size["thumbnail"]; break
+        clips.append(Clip(
+            id=h.get("id", 0), duration=h.get("duration", 0),
+            width=chosen.get("width", 0), height=chosen.get("height", 0),
+            preview=thumb, download_url=chosen.get("link", ""),
+            user=h.get("user", ""), source="pixabay",
+        ))
+    return clips
+
+
+def search_clips(query: str, want_portrait: bool, per_page: int = 6) -> List[Clip]:
+    """Search both Pexels and Pixabay and return up to `per_page` clips,
+    interleaved so the agent sees a mix from both sources."""
+    px = _search_pexels(query, want_portrait, per_page)
+    pb = _search_pixabay(query, want_portrait, per_page)
+    if not px and not pb and not (os.environ.get("PEXELS_API_KEY") or os.environ.get("PIXABAY_API_KEY")):
+        raise VideoError("Video posts are not configured — set PEXELS_API_KEY and/or PIXABAY_API_KEY on the server.")
+    merged: List[Clip] = []
+    for a, b in zip_longest(px, pb):
+        if a:
+            merged.append(a)
+        if b:
+            merged.append(b)
+    return merged[:per_page]
+
+
+def clip_by_id(query: str, want_portrait: bool, clip_id: int,
+               source: Optional[str] = None) -> Optional[Clip]:
+    """Re-find a chosen clip. `source` disambiguates when both providers are on."""
+    for c in search_clips(query, want_portrait, per_page=20):
+        if c.id == clip_id and (source is None or c.source == source):
             return c
     return None
 

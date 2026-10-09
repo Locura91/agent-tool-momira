@@ -537,6 +537,7 @@ async def generate_video(
     clip_id: int,
     format: str = "story",
     query: str | None = None,       # the UI echoes back the query it searched with
+    source: str | None = None,      # "pexels" or "pixabay" — which provider the clip came from
     agent: Agent = Depends(current_agent),
 ):
     """
@@ -560,7 +561,7 @@ async def generate_video(
     q = query or vk.search_query(pack)
 
     try:
-        clip = vk.clip_by_id(q, want_portrait, clip_id)
+        clip = vk.clip_by_id(q, want_portrait, clip_id, source=source)
     except vk.VideoError as e:
         raise HTTPException(status_code=502, detail=str(e))
     if clip is None:

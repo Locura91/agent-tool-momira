@@ -32,3 +32,5 @@ services:
         sync: false
       - key: PEXELS_API_KEY
         sync: false
+      - key: PIXABAY_API_KEY
+        sync: false

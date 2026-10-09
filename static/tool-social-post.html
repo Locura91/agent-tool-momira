@@ -557,6 +557,7 @@
   // ───────────────────────────── Video post ─────────────────────────────
   let vidFormat = 'story';
   let vidSelectedClip = null;      // selected clip id
+  let vidSelectedSource = '';      // 'pexels' or 'pixabay'
   let vidSelectedDur = 0;
   let vidQueryUsed = '';
   let _vidBlobUrl = null;
@@ -653,6 +654,7 @@
         document.querySelectorAll('.vid-clip').forEach(c => c.classList.remove('selected'));
         el.classList.add('selected');
         vidSelectedClip = clip.id;
+        vidSelectedSource = clip.source || '';
         vidSelectedDur = clip.duration;
         document.getElementById('vid-render').style.display = 'flex';
         resetVideoResult();
@@ -671,6 +673,7 @@
     resetVideoResult();
     try {
       let url = `/generate/${pkgId}/video?clip_id=${vidSelectedClip}&format=${vidFormat}`;
+      if (vidSelectedSource) url += `&source=${vidSelectedSource}`;
       if (vidQueryUsed) url += `&query=${encodeURIComponent(vidQueryUsed)}`;
       const res = await fetch(url, { headers: H });
       if (!res.ok) {
