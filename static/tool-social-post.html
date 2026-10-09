@@ -133,6 +133,7 @@
     .vid-clips { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: .75rem; margin-bottom: 1.2rem; }
     .vid-clip { position: relative; border: 2px solid var(--border); border-radius: 10px; overflow: hidden; cursor: pointer; aspect-ratio: 9/16; background: #e5e7eb; }
     .vid-clip img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .vid-clip video.vid-prev { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; background:#000; }
     .vid-clip.selected { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand-light); }
     .vid-clip .vid-dur { position: absolute; bottom: 4px; right: 4px; background: rgba(0,0,0,.7); color: #fff; font-size: .7rem; padding: 1px 5px; border-radius: 4px; }
     .vid-clip .vid-play { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,.6); pointer-events: none; opacity: .85; }
@@ -632,13 +633,23 @@
       el.className = 'vid-clip';
       el.style.aspectRatio = vidFormat === 'square' ? '1/1' : '9/16';
 
-      const img = document.createElement('img');
-      img.src = clip.preview; img.alt = 'clip preview'; img.loading = 'lazy';
-      el.appendChild(img);
+      // Video with poster: shows the still until the agent hovers (desktop) or
+      // taps (mobile), then plays the clip muted & looping so they can preview
+      // before selecting. preload="none" so the 6 clips aren't all downloaded.
+      const vid = document.createElement('video');
+      vid.src = clip.download_url; vid.poster = clip.preview;
+      vid.muted = true; vid.loop = true; vid.playsInline = true; vid.preload = 'none';
+      vid.className = 'vid-prev';
+      el.appendChild(vid);
 
       const play = document.createElement('div');
       play.className = 'vid-play'; play.textContent = '▶';
       el.appendChild(play);
+
+      el.addEventListener('mouseenter', () => { vid.play().then(() => play.style.display = 'none').catch(() => {}); });
+      el.addEventListener('mouseleave', () => { vid.pause(); vid.currentTime = 0; play.style.display = ''; });
+      // Mobile: a tap toggles the preview without selecting (long-press/second tap selects via the click handler below)
+      play.addEventListener('click', (e) => { e.stopPropagation(); if (vid.paused) { vid.play().then(() => play.style.display = 'none').catch(() => {}); } });
 
       if (clip.user) {
         const credit = document.createElement('div');
