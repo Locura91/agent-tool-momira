@@ -170,6 +170,7 @@
         <button class="style-btn active" data-style="photo" title="Full-bleed photo with text overlay">Photo</button>
         <button class="style-btn" data-style="band" title="Photo top + white branding band below">Band</button>
         <button class="style-btn" data-style="collage" title="Two-photo collage with nights badge">🖼 Collage</button>
+        <button class="style-btn" data-style="video" title="Short stock-video background instead of a photo">🎬 Video</button>
       </div>
     </div>
     <button class="btn-generate" id="gen-btn">Generate →</button>
@@ -289,8 +290,19 @@
       document.querySelectorAll('.style-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       currentStyle = btn.dataset.style;
+      applyStyleView();
     });
   });
+
+  // Show the image view for Photo/Band/Collage, or the video picker for Video.
+  function applyStyleView() {
+    if (!currentPkg) return;
+    const isVideo = currentStyle === 'video';
+    document.getElementById('results').style.display = isVideo ? 'none' : 'block';
+    document.getElementById('render-controls').style.display = isVideo ? 'none' : '';
+    document.getElementById('photo-strip-wrap').style.display = isVideo ? 'none' : 'block';
+    document.getElementById('video-section').style.display = isVideo ? 'block' : 'none';
+  }
 
   // Zoom buttons
   document.querySelectorAll('.zoom-btn').forEach(btn => {
@@ -446,7 +458,7 @@
       document.getElementById('vid-clips').innerHTML = '';
       document.getElementById('vid-render').style.display = 'none';
       resetVideoResult();
-      document.getElementById('video-section').style.display = 'block';
+      applyStyleView();   // show images or the video picker, per the selected style
 
     } catch (e) {
       showError('Could not reach the server. Please try again.');
