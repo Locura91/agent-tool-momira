@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Travel Agent Kit — Registration Link</title>
+  <style>
+    :root {
+      --brand: #17a39b;
+      --brand-dark: #128a81;
+      --brand-light: #e6f7f6;
+      --ink: #111827;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --bg: #f9fafb;
+      --white: #ffffff;
+      --green: #16a34a;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg); color: var(--ink); min-height: 100vh;
+    }
+    nav {
+      background: var(--white); border-bottom: 1px solid var(--border);
+      padding: 0 1.5rem; display: flex; align-items: center;
+      justify-content: space-between; height: 60px;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .logo { display: flex; align-items: center; gap: .5rem; text-decoration: none; color: var(--ink); }
+    .logo img { height: 36px; width: 36px; border-radius: 50%; object-fit: contain; display: block; }
+    .logo-text { font-weight: 700; font-size: 1rem; }
+    .nav-right { display: flex; align-items: center; gap: .8rem; }
+    .btn-ghost {
+      background: none; border: 1px solid var(--border); border-radius: 8px;
+      padding: .4rem .8rem; font-size: .85rem; color: var(--muted); cursor: pointer;
+    }
+    .btn-ghost:hover { background: var(--bg); }
+
+    .page { max-width: 720px; margin: 0 auto; padding: 2rem 1.5rem; }
+    .back { font-size: .85rem; color: var(--brand); text-decoration: none; display: inline-flex; align-items: center; gap: .3rem; margin-bottom: 1.5rem; }
+    .back:hover { text-decoration: underline; }
+    .page-header { margin-bottom: 2rem; }
+    .page-header h1 { font-size: 1.5rem; font-weight: 700; }
+    .page-header p { color: var(--muted); font-size: .9rem; margin-top: .3rem; }
+
+    .card {
+      background: var(--white); border: 1px solid var(--border);
+      border-radius: 16px; padding: 1.8rem; margin-bottom: 1.5rem;
+    }
+    .card h2 { font-size: 1rem; font-weight: 700; margin-bottom: 1rem; }
+
+    .input-row { display: flex; gap: .7rem; }
+    .input-row input {
+      flex: 1; border: 1.5px solid var(--border); border-radius: 10px;
+      padding: .65rem 1rem; font-size: .95rem; color: var(--ink);
+    }
+    .input-row input:focus { outline: none; border-color: var(--brand); }
+    .btn-brand {
+      background: var(--brand); color: #fff; border: none; border-radius: 10px;
+      padding: .65rem 1.2rem; font-size: .9rem; font-weight: 700; cursor: pointer; white-space: nowrap;
+    }
+    .btn-brand:hover { background: var(--brand-dark); }
+    .btn-brand:disabled { opacity: .6; cursor: not-allowed; }
+
+    .link-box { display: none; margin-top: 1.2rem; }
+    .link-box.visible { display: block; }
+    .link-preview {
+      background: var(--brand-light); border: 1.5px solid var(--brand);
+      border-radius: 10px; padding: .9rem 1rem;
+      display: flex; align-items: center; gap: .8rem; flex-wrap: wrap;
+    }
+    .link-preview a { color: var(--brand); font-size: .88rem; word-break: break-all; flex: 1; }
+    .btn-copy {
+      background: var(--brand); color: #fff; border: none; border-radius: 8px;
+      padding: .45rem .9rem; font-size: .82rem; font-weight: 700; cursor: pointer; white-space: nowrap;
+    }
+    .btn-copy:hover { background: var(--brand-dark); }
+    .copy-ok { font-size: .8rem; color: var(--green); font-weight: 600; display: none; }
+
+    /* Registrations table */
+    .section-title { font-size: 1rem; font-weight: 700; margin-bottom: 1rem; }
+    table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    th { text-align: left; padding: .6rem .8rem; color: var(--muted); font-weight: 600; border-bottom: 2px solid var(--border); }
+    td { padding: .7rem .8rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    .pkg-id { font-size: .78rem; color: var(--muted); display: block; }
+    .empty-state {
+      background: var(--white); border: 1px solid var(--border); border-radius: 12px;
+      padding: 2rem; text-align: center; color: var(--muted); font-size: .9rem;
+    }
+    @media (max-width: 520px) {
+      .input-row { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+<nav>
+  <a class="logo" href="/dashboard">
+    <img src="/static/momira-logo.png" alt="Momira Travel">
+    <span class="logo-text">Travel Agent Kit</span>
+  </a>
+  <div class="nav-right">
+    <button class="btn-ghost" onclick="location.href='/settings'">Settings</button>
+    <button class="btn-ghost" id="logout-btn">Log out</button>
+  </div>
+</nav>
+
+<div class="page">
+  <a class="back" href="/dashboard">← Dashboard</a>
+
+  <div class="page-header">
+    <h1>🔗 Registration Link</h1>
+    <p>Paste a Holiday Package ID to generate a shareable form link for your client.</p>
+  </div>
+
+  <div class="card">
+    <h2>Generate link</h2>
+    <div class="input-row">
+      <input type="text" id="pkg-id" placeholder="Holiday Package ID, e.g. 33959712" autocomplete="off">
+      <button class="btn-brand" id="gen-btn" onclick="generateLink()">Generate link</button>
+    </div>
+
+    <div class="link-box" id="link-box">
+      <div class="link-preview">
+        <a id="form-link" href="#" target="_blank"></a>
+        <button class="btn-copy" onclick="copyLink()">Copy link</button>
+      </div>
+      <span class="copy-ok" id="copy-ok">✓ Copied to clipboard</span>
+    </div>
+  </div>
+
+  <div class="section-title">Submitted registrations</div>
+  <div id="regs-container">
+    <div class="empty-state">Loading…</div>
+  </div>
+</div>
+
+<script>
+  const token = localStorage.getItem('sk_token');
+  if (!token) { window.location.href = '/'; }
+  const headers = { 'Authorization': 'Bearer ' + token };
+
+  let agentId = null;
+
+  // Load agent ID from /me
+  fetch('/me', { headers })
+    .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+    .then(a => {
+      agentId = a.id;
+      loadRegistrations();
+    })
+    .catch(() => { localStorage.removeItem('sk_token'); location.href = '/'; });
+
+  document.getElementById('logout-btn').addEventListener('click', () => {
+    localStorage.removeItem('sk_token');
+    location.href = '/';
+  });
+
+  function generateLink() {
+    const pkgId = document.getElementById('pkg-id').value.trim();
+    if (!pkgId || !agentId) return;
+    const url = location.origin + '/register/' + agentId + '/' + encodeURIComponent(pkgId);
+    const a = document.getElementById('form-link');
+    a.href = url;
+    a.textContent = url;
+    document.getElementById('link-box').classList.add('visible');
+    document.getElementById('copy-ok').style.display = 'none';
+  }
+
+  function copyLink() {
+    const url = document.getElementById('form-link').href;
+    navigator.clipboard.writeText(url).then(() => {
+      const ok = document.getElementById('copy-ok');
+      ok.style.display = 'inline';
+      setTimeout(() => { ok.style.display = 'none'; }, 2000);
+    }).catch(() => {
+      const a = document.getElementById('form-link');
+      const range = document.createRange();
+      range.selectNode(a);
+      window.getSelection().removeAllRanges();
+      window.getSelection().addRange(range);
+    });
+  }
+
+  function loadRegistrations() {
+    fetch('/api/registrations', { headers })
+      .then(r => r.json())
+      .then(rows => {
+        const c = document.getElementById('regs-container');
+        if (!rows.length) {
+          c.innerHTML = '<div class="empty-state">No registrations yet — share a link above to get started.</div>';
+          return;
+        }
+        let html = '<table><thead><tr><th>Name</th><th>Package</th><th>Contact</th><th>Nationality</th><th>Date</th></tr></thead><tbody>';
+        rows.forEach(r => {
+          const date = new Date(r.submitted_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+          html += `<tr>
+            <td><strong>${esc(r.first_name)} ${esc(r.last_name)}</strong></td>
+            <td>${esc(r.package_title || '')}
+              <span class="pkg-id">${esc(r.package_id)}</span></td>
+            <td>${esc(r.email)}<br><span style="color:#6b7280;font-size:.8rem">${esc(r.phone||'')}</span></td>
+            <td>${esc(r.nationality||'—')}</td>
+            <td style="white-space:nowrap">${date}</td>
+          </tr>`;
+        });
+        html += '</tbody></table>';
+        c.innerHTML = html;
+      })
+      .catch(() => {
+        document.getElementById('regs-container').innerHTML =
+          '<div class="empty-state">Could not load registrations.</div>';
+      });
+  }
+
+  function esc(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // Also allow Enter key in the input
+  document.getElementById('pkg-id').addEventListener('keydown', e => {
+    if (e.key === 'Enter') generateLink();
+  });
+</script>
+</body>
+</html>

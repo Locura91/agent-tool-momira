@@ -27,6 +27,7 @@ import kit_engine as engine
 import r2_upload
 import flyer_engine
 import video_kit as vk
+import mailer
 import re as _re
 
 
@@ -49,7 +50,7 @@ from auth import (
     verify_password,
 )
 from database import get_db, init_db
-from models import Agent
+from models import Agent, Registration
 from schemas import (
     AgentProfile,
     GenerateRequest,
@@ -613,6 +614,172 @@ async def tool_social_post():
 async def tool_flyer():
     with open("static/tool-flyer.html", encoding="utf-8") as f:
         return f.read()
+
+
+@app.get("/tool/registration", response_class=HTMLResponse)
+async def tool_registration():
+    with open("static/tool-registration.html", encoding="utf-8") as f:
+        return f.read()
+
+
+# --------------------------------------------------------------------------
+# Registration: public consumer form  (no auth required)
+# --------------------------------------------------------------------------
+
+@app.get("/register/{agent_id}/{package_id}", response_class=HTMLResponse)
+async def registration_form(agent_id: str, package_id: str, db: AsyncSession = Depends(get_db)):
+    """Public page shown to end consumers — fetches package info and renders the form."""
+    result = await db.execute(select(Agent).where(Agent.id == agent_id))
+    agent = result.scalar_one_or_none()
+    if not agent or not agent.is_active:
+        raise HTTPException(status_code=404, detail="Link not found")
+
+    # Fetch package title from TC (best-effort)
+    try:
+        tc_user = os.getenv("TC_USERNAME", "")
+        tc_pass = os.getenv("TC_PASSWORD", "")
+        tc_micro = os.getenv("TC_MICROSITE", "momiratravel")
+        tc_base = os.getenv("TC_BASE_URL", "https://online.travelcompositor.com/resources")
+        pack = sk.fetch_package(package_id, tc_user, tc_pass, tc_micro, tc_base, lang="EN")
+        pkg_title = pack.title
+        pkg_dest = getattr(pack, "destination", "") or ""
+        from_price = getattr(pack, "price_per_person", None)
+        price_str = f"from €{int(from_price):,}".replace(",", ".") if from_price else ""
+    except Exception:
+        pkg_title = f"Holiday Package {package_id}"
+        pkg_dest = ""
+        price_str = ""
+
+    agency_name = agent.agency_name or "Your Travel Agent"
+    logo_html = f'<img src="{agent.logo_url}" alt="{agency_name}" class="agency-logo">' if agent.logo_url else ""
+
+    with open("static/registration-form.html", encoding="utf-8") as f:
+        tmpl = f.read()
+
+    html = (tmpl
+            .replace("{{AGENT_ID}}", agent_id)
+            .replace("{{PACKAGE_ID}}", package_id)
+            .replace("{{PKG_TITLE}}", pkg_title)
+            .replace("{{PKG_DEST}}", pkg_dest)
+            .replace("{{PRICE_STR}}", price_str)
+            .replace("{{AGENCY_NAME}}", agency_name)
+            .replace("{{LOGO_HTML}}", logo_html))
+    return html
+
+
+@app.post("/register/{agent_id}/{package_id}")
+async def submit_registration(
+    agent_id: str,
+    package_id: str,
+    first_name: str = Form(...),
+    last_name: str = Form(...),
+    email: str = Form(...),
+    phone: str = Form(""),
+    nationality: str = Form(""),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(Agent).where(Agent.id == agent_id))
+    agent = result.scalar_one_or_none()
+    if not agent or not agent.is_active:
+        raise HTTPException(status_code=404, detail="Link not found")
+
+    # Fetch package title for the email
+    try:
+        tc_user = os.getenv("TC_USERNAME", "")
+        tc_pass = os.getenv("TC_PASSWORD", "")
+        tc_micro = os.getenv("TC_MICROSITE", "momiratravel")
+        tc_base = os.getenv("TC_BASE_URL", "https://online.travelcompositor.com/resources")
+        pack = sk.fetch_package(package_id, tc_user, tc_pass, tc_micro, tc_base, lang="EN")
+        pkg_title = pack.title
+    except Exception:
+        pkg_title = f"Holiday Package {package_id}"
+
+    reg = Registration(
+        agent_id=agent_id,
+        package_id=package_id,
+        package_title=pkg_title,
+        first_name=first_name.strip(),
+        last_name=last_name.strip(),
+        email=email.strip(),
+        phone=phone.strip() or None,
+        nationality=nationality.strip() or None,
+    )
+    db.add(reg)
+    await db.commit()
+
+    # Send email (best-effort — DB row is already saved)
+    agency_email = agent.agency_email or agent.email
+    try:
+        mailer.send_registration_email(
+            to_email=agency_email,
+            agency_name=agent.agency_name or "",
+            package_id=package_id,
+            package_title=pkg_title,
+            first_name=first_name,
+            last_name=last_name,
+            consumer_email=email,
+            phone=phone,
+            nationality=nationality,
+        )
+    except Exception as exc:
+        print(f"[mailer] send failed: {exc}")
+
+    return HTMLResponse(content=_thank_you_html(pkg_title, agent.agency_name or ""), status_code=200)
+
+
+def _thank_you_html(pkg_title: str, agency_name: str) -> str:
+    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Registration received</title>
+<style>
+  body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    background:#f9fafb;display:flex;align-items:center;justify-content:center;
+    min-height:100vh;margin:0;padding:1rem}}
+  .card{{background:#fff;border-radius:16px;padding:2.5rem 2rem;max-width:420px;
+    width:100%;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,.07)}}
+  .check{{font-size:3rem;margin-bottom:1rem}}
+  h1{{font-size:1.4rem;font-weight:700;margin-bottom:.5rem;color:#111827}}
+  p{{color:#6b7280;font-size:.95rem;line-height:1.6;margin:0}}
+</style></head><body>
+<div class="card">
+  <div class="check">✅</div>
+  <h1>Registration received!</h1>
+  <p>Thank you for registering your interest in<br>
+  <strong>{pkg_title}</strong>.<br><br>
+  {agency_name} will be in touch with you soon.</p>
+</div>
+</body></html>"""
+
+
+# --------------------------------------------------------------------------
+# Registration: agent tool — generate + list links
+# --------------------------------------------------------------------------
+
+@app.get("/api/registrations", dependencies=[Depends(current_agent)])
+async def list_registrations(
+    agent: Agent = Depends(current_agent),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Registration)
+        .where(Registration.agent_id == agent.id)
+        .order_by(Registration.submitted_at.desc())
+    )
+    rows = result.scalars().all()
+    return [
+        {
+            "id": r.id,
+            "package_id": r.package_id,
+            "package_title": r.package_title,
+            "first_name": r.first_name,
+            "last_name": r.last_name,
+            "email": r.email,
+            "phone": r.phone,
+            "nationality": r.nationality,
+            "submitted_at": r.submitted_at.isoformat(),
+        }
+        for r in rows
+    ]
 
 
 # --------------------------------------------------------------------------

@@ -10,7 +10,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import String, Text, DateTime, Boolean
+from sqlalchemy import String, Text, DateTime, Boolean, ForeignKey
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -64,3 +64,27 @@ class Agent(Base):
     def ribbon_label(self) -> str | None:
         """The text that actually appears on the poster (preset wins over free text)."""
         return self.ribbon_preset or self.ribbon_text or None
+
+
+class Registration(Base):
+    """One row per consumer registration submitted via a shareable package link."""
+
+    __tablename__ = "registrations"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    agent_id: Mapped[str] = mapped_column(String(36), ForeignKey("agents.id"), nullable=False, index=True)
+    package_id: Mapped[str] = mapped_column(String(120), nullable=False)   # TC Holiday Package ID
+    package_title: Mapped[str | None] = mapped_column(String(500))         # cached at submission time
+
+    # Consumer details
+    first_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    last_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    email: Mapped[str] = mapped_column(String(254), nullable=False)
+    phone: Mapped[str | None] = mapped_column(String(40))
+    nationality: Mapped[str | None] = mapped_column(String(100))
+
+    submitted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
