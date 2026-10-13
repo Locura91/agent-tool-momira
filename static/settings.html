@@ -173,6 +173,29 @@
     </div>
   </div>
 
+  <!-- Review links -->
+  <div class="settings-card" id="review-links">
+    <div class="section-head">Review links</div>
+    <div class="settings-body">
+      <div class="field-group">
+        <label for="google-review-url">Your agency's Google review link</label>
+        <input type="url" id="google-review-url" placeholder="https://g.page/r/…/review">
+        <span class="hint">Included in feedback emails when you choose Google as a platform.</span>
+      </div>
+      <div class="field-group">
+        <label for="tripadvisor-url">Your agency's TripAdvisor link</label>
+        <input type="url" id="tripadvisor-url" placeholder="https://www.tripadvisor.com/…">
+        <span class="hint">Included in feedback emails when you choose TripAdvisor.</span>
+      </div>
+      <div class="field-group">
+        <label>Momira Travel — Google review link</label>
+        <input type="url" value="https://g.page/r/CeqHXc2-NckXEBM/review" disabled
+          style="background:#f3f4f6;color:#6b7280">
+        <span class="hint">Always included in feedback emails automatically.</span>
+      </div>
+    </div>
+  </div>
+
   <button class="btn-save" id="save-btn">Save settings</button>
 </div>
 
@@ -193,6 +216,8 @@
       document.getElementById('agency-phone').value = agent.agency_phone || '';
       document.getElementById('agency-email').value = agent.agency_email || '';
       document.getElementById('ribbon-text').value = agent.ribbon_text || '';
+      document.getElementById('google-review-url').value = agent.google_review_url || '';
+      document.getElementById('tripadvisor-url').value = agent.tripadvisor_url || '';
       selectedPreset = agent.ribbon_preset || '';
       if (agent.caption_lang) document.getElementById('caption-lang').value = agent.caption_lang;
       if (agent.currency) document.getElementById('currency').value = agent.currency;
@@ -268,6 +293,8 @@
           ribbon_preset: selectedPreset || null,
           caption_lang: document.getElementById('caption-lang').value || null,
           currency: document.getElementById('currency').value || null,
+          google_review_url: document.getElementById('google-review-url').value.trim() || null,
+          tripadvisor_url: document.getElementById('tripadvisor-url').value.trim() || null,
         }),
       });
       if (!res.ok) { const d = await res.json(); showError(d.detail || 'Save failed.'); return; }

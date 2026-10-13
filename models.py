@@ -53,6 +53,10 @@ class Agent(Base):
     caption_lang: Mapped[str | None] = mapped_column(String(5))       # default "en"
     currency: Mapped[str | None] = mapped_column(String(5))           # default "EUR"
 
+    # Review links (used in feedback emails)
+    google_review_url: Mapped[str | None] = mapped_column(String(2048))    # agent's own Google review link
+    tripadvisor_url: Mapped[str | None] = mapped_column(String(2048))      # agent's TripAdvisor link
+
     # Account state
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -64,6 +68,38 @@ class Agent(Base):
     def ribbon_label(self) -> str | None:
         """The text that actually appears on the poster (preset wins over free text)."""
         return self.ribbon_preset or self.ribbon_text or None
+
+
+class Booking(Base):
+    """One row per customer trip added manually by the agent."""
+
+    __tablename__ = "bookings"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    agent_id: Mapped[str] = mapped_column(String(36), ForeignKey("agents.id"), nullable=False, index=True)
+
+    # Customer
+    first_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    last_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    email: Mapped[str] = mapped_column(String(254), nullable=False)
+
+    # Trip
+    package_id: Mapped[str | None] = mapped_column(String(120))
+    package_title: Mapped[str | None] = mapped_column(String(500))
+    return_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # Feedback workflow
+    # status: pending | sent
+    feedback_status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
+    feedback_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Comma-separated platforms chosen at send time: "google,tripadvisor"
+    feedback_platforms: Mapped[str | None] = mapped_column(String(100))
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
 
 
 class Registration(Base):

@@ -78,6 +78,74 @@ This registration was submitted through your shareable booking link.
     msg["Cc"] = cc_addr
     msg.set_content(body)
 
+    _smtp_send(msg)
+
+
+def send_feedback_email(
+    *,
+    to_email: str,
+    first_name: str,
+    package_title: str,
+    agency_name: str,
+    agency_google_url: str | None,
+    agency_tripadvisor_url: str | None,
+    platforms: list[str],   # ["google", "tripadvisor"]
+) -> None:
+    """Send the post-trip feedback request to the customer."""
+    host = _cfg("SMTP_HOST")
+    user = _cfg("SMTP_USER")
+    password = _cfg("SMTP_PASS")
+    from_addr = _cfg("SMTP_FROM") or user
+
+    if not host or not user or not password:
+        print("[mailer] SMTP not configured — feedback email skipped")
+        return
+
+    MOMIRA_GOOGLE = "https://g.page/r/CeqHXc2-NckXEBM/review"
+
+    # Build review links block
+    review_lines = []
+    if "google" in platforms and agency_google_url:
+        review_lines.append(f"  ★ Review {agency_name} on Google:\n    {agency_google_url}")
+    if "tripadvisor" in platforms and agency_tripadvisor_url:
+        review_lines.append(f"  ★ Review {agency_name} on TripAdvisor:\n    {agency_tripadvisor_url}")
+    review_lines.append(f"  ★ Review Momira Travel on Google:\n    {MOMIRA_GOOGLE}")
+    review_block = "\n\n".join(review_lines)
+
+    subject = f"How was your trip, {first_name}? We'd love your feedback!"
+
+    body = f"""\
+Dear {first_name},
+
+We hope you had a wonderful time on your {package_title} holiday!
+
+Your experience and feedback mean a lot to us. If you have a moment, \
+we would be incredibly grateful if you could share a short review — \
+it helps other travellers and supports our team.
+
+{review_block}
+
+Thank you for choosing {agency_name} and Momira Travel.
+We look forward to planning your next adventure!
+
+Warm regards,
+{agency_name}
+"""
+
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = from_addr
+    msg["To"] = to_email
+    msg.set_content(body)
+
+    _smtp_send(msg)
+
+
+def _smtp_send(msg: EmailMessage) -> None:
+    host = _cfg("SMTP_HOST")
+    port = int(_cfg("SMTP_PORT", "587"))
+    user = _cfg("SMTP_USER")
+    password = _cfg("SMTP_PASS")
     ctx = ssl.create_default_context()
     if port == 465:
         with smtplib.SMTP_SSL(host, port, context=ctx) as s:

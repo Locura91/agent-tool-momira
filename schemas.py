@@ -72,6 +72,8 @@ class AgentProfile(BaseModel):
     tc_lang: Optional[str]
     caption_lang: Optional[str]
     currency: Optional[str]
+    google_review_url: Optional[str]
+    tripadvisor_url: Optional[str]
 
     model_config = {"from_attributes": True}
 
@@ -87,6 +89,8 @@ class UpdateProfileRequest(BaseModel):
     tc_lang: Optional[str] = None
     caption_lang: Optional[str] = None
     currency: Optional[str] = None
+    google_review_url: Optional[str] = None
+    tripadvisor_url: Optional[str] = None
 
     @field_validator("currency")
     @classmethod

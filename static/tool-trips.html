@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Travel Agent Kit — Customer Trips</title>
+  <style>
+    :root {
+      --brand: #17a39b; --brand-dark: #128a81; --brand-light: #e6f7f6;
+      --ink: #111827; --muted: #6b7280; --border: #e5e7eb;
+      --bg: #f9fafb; --white: #fff;
+      --green: #16a34a; --green-bg: #dcfce7;
+      --amber: #d97706; --amber-bg: #fef3c7;
+      --blue: #2563eb; --blue-bg: #dbeafe;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg); color: var(--ink); min-height: 100vh; }
+
+    nav { background: var(--white); border-bottom: 1px solid var(--border);
+      padding: 0 1.5rem; display: flex; align-items: center;
+      justify-content: space-between; height: 60px; position: sticky; top: 0; z-index: 100; }
+    .logo { display: flex; align-items: center; gap: .5rem; text-decoration: none; color: var(--ink); }
+    .logo img { height: 36px; width: 36px; border-radius: 50%; object-fit: contain; display: block; }
+    .logo-text { font-weight: 700; font-size: 1rem; }
+    .nav-right { display: flex; align-items: center; gap: .8rem; }
+    .btn-ghost { background: none; border: 1px solid var(--border); border-radius: 8px;
+      padding: .4rem .8rem; font-size: .85rem; color: var(--muted); cursor: pointer; }
+    .btn-ghost:hover { background: var(--bg); }
+
+    .page { max-width: 860px; margin: 0 auto; padding: 2rem 1.5rem; }
+    .back { font-size: .85rem; color: var(--brand); text-decoration: none;
+      display: inline-flex; align-items: center; gap: .3rem; margin-bottom: 1.5rem; }
+    .back:hover { text-decoration: underline; }
+    .page-header { margin-bottom: 2rem; display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+    .page-header h1 { font-size: 1.5rem; font-weight: 700; }
+    .page-header p { color: var(--muted); font-size: .9rem; margin-top: .3rem; }
+
+    .btn-brand { background: var(--brand); color: #fff; border: none; border-radius: 10px;
+      padding: .6rem 1.1rem; font-size: .88rem; font-weight: 700; cursor: pointer; white-space: nowrap; }
+    .btn-brand:hover { background: var(--brand-dark); }
+
+    /* Add booking form */
+    .add-card { background: var(--white); border: 1px solid var(--border);
+      border-radius: 16px; padding: 1.6rem; margin-bottom: 2rem; display: none; }
+    .add-card.open { display: block; }
+    .add-card h2 { font-size: 1rem; font-weight: 700; margin-bottom: 1.2rem; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; }
+    .form-grid .full { grid-column: 1 / -1; }
+    label { display: block; font-size: .8rem; font-weight: 600; margin-bottom: .3rem; color: var(--ink); }
+    label .req { color: #dc2626; }
+    input[type=text], input[type=email], input[type=date] {
+      width: 100%; border: 1.5px solid var(--border); border-radius: 8px;
+      padding: .6rem .85rem; font-size: .9rem; color: var(--ink); background: var(--white); }
+    input:focus { outline: none; border-color: var(--brand); }
+    .form-actions { display: flex; gap: .7rem; margin-top: 1rem; }
+    .btn-cancel { background: none; border: 1px solid var(--border); border-radius: 8px;
+      padding: .6rem 1rem; font-size: .88rem; color: var(--muted); cursor: pointer; }
+
+    /* Trip list */
+    .trips-list { display: flex; flex-direction: column; gap: .8rem; }
+    .trip-card {
+      background: var(--white); border: 1px solid var(--border); border-radius: 14px;
+      padding: 1.2rem 1.4rem; display: grid;
+      grid-template-columns: 1fr auto; gap: .6rem .8rem; align-items: start;
+    }
+    .trip-main {}
+    .trip-name { font-weight: 700; font-size: .95rem; }
+    .trip-pkg { font-size: .82rem; color: var(--muted); margin-top: .15rem; }
+    .trip-email { font-size: .82rem; color: var(--muted); }
+    .trip-return { font-size: .82rem; margin-top: .3rem; }
+    .trip-return strong { color: var(--ink); }
+
+    .trip-side { display: flex; flex-direction: column; align-items: flex-end; gap: .5rem; }
+    .badge {
+      font-size: .72rem; font-weight: 700; padding: .2rem .55rem;
+      border-radius: 99px; white-space: nowrap;
+    }
+    .badge-pending { background: var(--amber-bg); color: var(--amber); }
+    .badge-sent    { background: var(--green-bg); color: var(--green); }
+    .badge-future  { background: var(--blue-bg); color: var(--blue); }
+
+    /* Feedback approval panel */
+    .approve-panel {
+      grid-column: 1 / -1;
+      background: var(--brand-light); border-radius: 10px;
+      padding: 1rem 1.1rem; margin-top: .2rem;
+      display: none;
+    }
+    .approve-panel.open { display: block; }
+    .approve-panel p { font-size: .85rem; color: var(--ink); margin-bottom: .7rem; }
+    .platform-checks { display: flex; gap: 1rem; margin-bottom: .8rem; flex-wrap: wrap; }
+    .platform-checks label {
+      display: flex; align-items: center; gap: .4rem;
+      font-size: .85rem; font-weight: 500; cursor: pointer; color: var(--ink);
+    }
+    .platform-checks input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--brand); }
+    .approve-warning { font-size: .78rem; color: var(--muted); margin-bottom: .7rem; }
+    .btn-approve { background: var(--green); color: #fff; border: none; border-radius: 8px;
+      padding: .5rem 1rem; font-size: .85rem; font-weight: 700; cursor: pointer; }
+    .btn-approve:hover { background: #15803d; }
+    .btn-approve:disabled { opacity: .5; cursor: not-allowed; }
+
+    .empty-state { background: var(--white); border: 1px solid var(--border);
+      border-radius: 12px; padding: 2.5rem; text-align: center; color: var(--muted); font-size: .9rem; }
+
+    /* No review links warning */
+    .warn-strip { background: #fef3c7; border: 1px solid #fde68a; border-radius: 10px;
+      padding: .8rem 1rem; font-size: .85rem; color: #92400e; margin-bottom: 1.5rem; display: none; }
+    .warn-strip a { color: #92400e; font-weight: 700; }
+
+    @media (max-width: 540px) {
+      .form-grid { grid-template-columns: 1fr; }
+      .form-grid .full { grid-column: 1; }
+      .trip-card { grid-template-columns: 1fr; }
+      .trip-side { flex-direction: row; align-items: center; }
+    }
+  </style>
+</head>
+<body>
+<nav>
+  <a class="logo" href="/dashboard">
+    <img src="/static/momira-logo.png" alt="Momira Travel">
+    <span class="logo-text">Travel Agent Kit</span>
+  </a>
+  <div class="nav-right">
+    <button class="btn-ghost" onclick="location.href='/settings'">Settings</button>
+    <button class="btn-ghost" id="logout-btn">Log out</button>
+  </div>
+</nav>
+
+<div class="page">
+  <a class="back" href="/dashboard">← Dashboard</a>
+
+  <div class="page-header">
+    <div>
+      <h1>✈️ Customer Trips</h1>
+      <p>Add trips manually and send feedback emails after the customer returns.</p>
+    </div>
+    <button class="btn-brand" onclick="toggleAdd()">+ Add trip</button>
+  </div>
+
+  <div class="warn-strip" id="warn-strip">
+    ⚠️ You haven't added your review links yet.
+    <a href="/settings#review-links">Go to Settings →</a> to add your Google or TripAdvisor link.
+  </div>
+
+  <!-- Add booking form -->
+  <div class="add-card" id="add-card">
+    <h2>Add new trip</h2>
+    <form id="add-form">
+      <div class="form-grid">
+        <div>
+          <label>First name <span class="req">*</span></label>
+          <input type="text" name="first_name" required>
+        </div>
+        <div>
+          <label>Last name <span class="req">*</span></label>
+          <input type="text" name="last_name" required>
+        </div>
+        <div class="full">
+          <label>Customer e-mail <span class="req">*</span></label>
+          <input type="email" name="email" required>
+        </div>
+        <div>
+          <label>Holiday Package ID <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+          <input type="text" name="package_id" placeholder="e.g. 33959712">
+        </div>
+        <div>
+          <label>Return date <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+          <input type="date" name="return_date">
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn-brand" id="add-submit-btn">Save trip</button>
+        <button type="button" class="btn-cancel" onclick="toggleAdd()">Cancel</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Trips list -->
+  <div id="trips-container">
+    <div class="empty-state">Loading…</div>
+  </div>
+</div>
+
+<script>
+  const token = localStorage.getItem('sk_token');
+  if (!token) { window.location.href = '/'; }
+  const headers = { 'Authorization': 'Bearer ' + token };
+
+  let agentProfile = null;
+
+  fetch('/me', { headers })
+    .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+    .then(a => {
+      agentProfile = a;
+      if (!a.google_review_url && !a.tripadvisor_url) {
+        document.getElementById('warn-strip').style.display = 'block';
+      }
+      loadTrips();
+    })
+    .catch(() => { localStorage.removeItem('sk_token'); location.href = '/'; });
+
+  document.getElementById('logout-btn').addEventListener('click', () => {
+    localStorage.removeItem('sk_token'); location.href = '/';
+  });
+
+  function toggleAdd() {
+    const c = document.getElementById('add-card');
+    c.classList.toggle('open');
+    if (c.classList.contains('open')) {
+      c.querySelector('input[name=first_name]').focus();
+    }
+  }
+
+  document.getElementById('add-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = document.getElementById('add-submit-btn');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    const fd = new FormData(e.target);
+    try {
+      const r = await fetch('/api/bookings', { method: 'POST', headers, body: fd });
+      if (!r.ok) throw new Error(await r.text());
+      e.target.reset();
+      document.getElementById('add-card').classList.remove('open');
+      await loadTrips();
+    } catch(err) { alert('Error: ' + err.message); }
+    btn.disabled = false; btn.textContent = 'Save trip';
+  });
+
+  async function loadTrips() {
+    const r = await fetch('/api/bookings', { headers });
+    const trips = await r.json();
+    const c = document.getElementById('trips-container');
+    if (!trips.length) {
+      c.innerHTML = '<div class="empty-state">No trips yet — add your first one above.</div>';
+      return;
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    c.innerHTML = '<div class="trips-list">' + trips.map(t => renderTrip(t, today)).join('') + '</div>';
+  }
+
+  function renderTrip(t, today) {
+    const name = esc(t.first_name) + ' ' + esc(t.last_name);
+    const pkg = t.package_title ? esc(t.package_title) : (t.package_id ? 'Package ' + esc(t.package_id) : '—');
+    const retDate = t.return_date || null;
+
+    let badge, showApprove;
+    if (t.feedback_status === 'sent') {
+      badge = '<span class="badge badge-sent">✓ Feedback sent</span>';
+      showApprove = false;
+    } else if (!retDate || retDate > today) {
+      badge = '<span class="badge badge-future">Upcoming</span>';
+      showApprove = false;
+    } else {
+      badge = '<span class="badge badge-pending">Awaiting feedback</span>';
+      showApprove = true;
+    }
+
+    const retStr = retDate
+      ? '<div class="trip-return">Return: <strong>' + fmtDate(retDate) + '</strong></div>'
+      : '';
+
+    const sentStr = t.feedback_sent_at
+      ? '<div style="font-size:.75rem;color:var(--muted);margin-top:.2rem">Sent ' + fmtDate(t.feedback_sent_at.slice(0,10)) + (t.feedback_platforms ? ' · ' + t.feedback_platforms.split(',').join(' + ') : '') + '</div>'
+      : '';
+
+    const approvePanel = showApprove ? `
+      <div class="approve-panel" id="panel-${t.id}">
+        <p><strong>${esc(t.first_name)}</strong> is back! Choose review platforms and send the feedback email.</p>
+        <div class="platform-checks">
+          ${agentProfile && agentProfile.google_review_url ? '<label><input type="checkbox" checked value="google" class="plat-' + t.id + '"> Google</label>' : ''}
+          ${agentProfile && agentProfile.tripadvisor_url ? '<label><input type="checkbox" value="tripadvisor" class="plat-' + t.id + '"> TripAdvisor</label>' : ''}
+          <label style="color:var(--muted);cursor:default"><input type="checkbox" checked disabled> Momira Travel Google</label>
+        </div>
+        <div class="approve-warning">The email will be sent to ${esc(t.email)} immediately after you click Approve.</div>
+        <button class="btn-approve" onclick="sendFeedback('${t.id}')">✓ Approve &amp; send feedback email</button>
+      </div>` : '';
+
+    const toggleBtn = showApprove
+      ? `<button class="btn-ghost" style="font-size:.78rem" onclick="togglePanel('${t.id}')">Send feedback →</button>`
+      : '';
+
+    return `<div class="trip-card">
+      <div class="trip-main">
+        <div class="trip-name">${name}</div>
+        <div class="trip-pkg">${pkg}</div>
+        <div class="trip-email">${esc(t.email)}</div>
+        ${retStr}
+        ${sentStr}
+      </div>
+      <div class="trip-side">
+        ${badge}
+        ${toggleBtn}
+      </div>
+      ${approvePanel}
+    </div>`;
+  }
+
+  function togglePanel(id) {
+    const p = document.getElementById('panel-' + id);
+    if (p) p.classList.toggle('open');
+  }
+
+  async function sendFeedback(id) {
+    const checks = document.querySelectorAll('.plat-' + id + ':checked');
+    const platforms = Array.from(checks).map(c => c.value).join(',') || 'google';
+    const btn = event.target;
+    btn.disabled = true; btn.textContent = 'Sending…';
+    const fd = new FormData();
+    fd.append('platforms', platforms);
+    try {
+      const r = await fetch('/api/bookings/' + id + '/send-feedback', { method: 'POST', headers, body: fd });
+      if (!r.ok) {
+        const d = await r.json();
+        throw new Error(d.detail || 'Failed');
+      }
+      await loadTrips();
+    } catch(err) {
+      alert('Error: ' + err.message);
+      btn.disabled = false; btn.textContent = '✓ Approve & send feedback email';
+    }
+  }
+
+  function fmtDate(iso) {
+    const d = new Date(iso + 'T12:00:00Z');
+    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+  function esc(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+</script>
+</body>
+</html>

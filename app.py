@@ -231,6 +231,10 @@ async def update_profile(
         agent.agency_phone = req.agency_phone
     if req.agency_email is not None:
         agent.agency_email = req.agency_email
+    if req.google_review_url is not None:
+        agent.google_review_url = req.google_review_url or None
+    if req.tripadvisor_url is not None:
+        agent.tripadvisor_url = req.tripadvisor_url or None
 
     db.add(agent)
     await db.commit()
@@ -749,6 +753,132 @@ def _thank_you_html(pkg_title: str, agency_name: str) -> str:
   {agency_name} will be in touch with you soon.</p>
 </div>
 </body></html>"""
+
+
+# --------------------------------------------------------------------------
+# Bookings — manual trip list + feedback approval
+# --------------------------------------------------------------------------
+
+@app.get("/tool/trips", response_class=HTMLResponse)
+async def tool_trips():
+    with open("static/tool-trips.html", encoding="utf-8") as f:
+        return f.read()
+
+
+@app.post("/api/bookings")
+async def add_booking(
+    first_name: str = Form(...),
+    last_name: str = Form(...),
+    email: str = Form(...),
+    package_id: str = Form(""),
+    return_date: str = Form(""),   # YYYY-MM-DD
+    agent: Agent = Depends(current_agent),
+    db: AsyncSession = Depends(get_db),
+):
+    from datetime import date as _date
+    pkg_title = None
+    if package_id.strip():
+        try:
+            tc_user = os.getenv("TC_USERNAME", "")
+            tc_pass = os.getenv("TC_PASSWORD", "")
+            tc_micro = os.getenv("TC_MICROSITE", "momiratravel")
+            tc_base = os.getenv("TC_BASE_URL", "https://online.travelcompositor.com/resources")
+            pack = sk.fetch_package(package_id.strip(), tc_user, tc_pass, tc_micro, tc_base, lang="EN")
+            pkg_title = pack.title
+        except Exception:
+            pkg_title = None
+
+    ret_dt = None
+    if return_date.strip():
+        try:
+            from datetime import datetime as _dt
+            ret_dt = _dt.fromisoformat(return_date.strip()).replace(tzinfo=__import__("datetime").timezone.utc)
+        except ValueError:
+            pass
+
+    from models import Booking
+    b = Booking(
+        agent_id=agent.id,
+        first_name=first_name.strip(),
+        last_name=last_name.strip(),
+        email=email.strip(),
+        package_id=package_id.strip() or None,
+        package_title=pkg_title,
+        return_date=ret_dt,
+    )
+    db.add(b)
+    await db.commit()
+    await db.refresh(b)
+    return {"id": b.id, "package_title": b.package_title}
+
+
+@app.get("/api/bookings")
+async def list_bookings(
+    agent: Agent = Depends(current_agent),
+    db: AsyncSession = Depends(get_db),
+):
+    from models import Booking
+    result = await db.execute(
+        select(Booking)
+        .where(Booking.agent_id == agent.id)
+        .order_by(Booking.return_date.asc().nulls_last(), Booking.created_at.desc())
+    )
+    rows = result.scalars().all()
+    return [
+        {
+            "id": r.id,
+            "first_name": r.first_name,
+            "last_name": r.last_name,
+            "email": r.email,
+            "package_id": r.package_id,
+            "package_title": r.package_title,
+            "return_date": r.return_date.date().isoformat() if r.return_date else None,
+            "feedback_status": r.feedback_status,
+            "feedback_sent_at": r.feedback_sent_at.isoformat() if r.feedback_sent_at else None,
+            "feedback_platforms": r.feedback_platforms,
+        }
+        for r in rows
+    ]
+
+
+@app.post("/api/bookings/{booking_id}/send-feedback")
+async def send_feedback(
+    booking_id: str,
+    platforms: str = Form("google"),   # comma-separated: "google,tripadvisor"
+    agent: Agent = Depends(current_agent),
+    db: AsyncSession = Depends(get_db),
+):
+    from models import Booking
+    from datetime import datetime, timezone
+    result = await db.execute(
+        select(Booking).where(Booking.id == booking_id, Booking.agent_id == agent.id)
+    )
+    booking = result.scalar_one_or_none()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    if booking.feedback_status == "sent":
+        raise HTTPException(status_code=409, detail="Feedback email already sent")
+
+    platform_list = [p.strip() for p in platforms.split(",") if p.strip()]
+
+    try:
+        mailer.send_feedback_email(
+            to_email=booking.email,
+            first_name=booking.first_name,
+            package_title=booking.package_title or booking.package_id or "your trip",
+            agency_name=agent.agency_name or "",
+            agency_google_url=agent.google_review_url,
+            agency_tripadvisor_url=agent.tripadvisor_url,
+            platforms=platform_list,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Email send failed: {exc}")
+
+    booking.feedback_status = "sent"
+    booking.feedback_sent_at = datetime.now(timezone.utc)
+    booking.feedback_platforms = ",".join(platform_list)
+    await db.commit()
+    return {"ok": True}
 
 
 # --------------------------------------------------------------------------
