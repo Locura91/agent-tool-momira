@@ -1,0 +1,585 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Travel Agent Kit — Stop Sales</title>
+  <style>
+    :root {
+      --brand: #17a39b; --brand-dark: #128a81; --brand-light: #e6f7f6;
+      --ink: #111827; --muted: #6b7280; --border: #e5e7eb;
+      --bg: #f9fafb; --white: #ffffff; --red: #dc2626; --red-bg: #fef2f2;
+      --amber: #d97706; --amber-bg: #fffbeb;
+      --green: #059669; --green-bg: #ecfdf5;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+           background: var(--bg); color: var(--ink); min-height: 100vh; }
+
+    nav { background: var(--white); border-bottom: 1px solid var(--border);
+          padding: 0 1.5rem; display: flex; align-items: center;
+          justify-content: space-between; height: 60px; position: sticky; top: 0; z-index: 100; }
+    .logo { display: flex; align-items: center; gap: .5rem;
+            text-decoration: none; color: var(--ink); }
+    .logo img { height: 36px; width: 36px; border-radius: 50%; object-fit: contain; }
+    .logo-text { font-weight: 700; font-size: 1rem; }
+    .nav-back { font-size: .85rem; color: var(--muted); cursor: pointer;
+                background: none; border: 1px solid var(--border); border-radius: 8px;
+                padding: .4rem .8rem; }
+
+    .page { max-width: 1040px; margin: 0 auto; padding: 2rem 1.5rem; }
+    .page-header { margin-bottom: 1.5rem; }
+    .page-header h1 { font-size: 1.4rem; font-weight: 700; }
+    .page-header p { color: var(--muted); font-size: .9rem; margin-top: .3rem; }
+
+    /* ── Tabs ── */
+    .tabs { display: flex; gap: 0; border-bottom: 2px solid var(--border);
+            margin-bottom: 1.5rem; }
+    .tab-btn { padding: .6rem 1.2rem; font-size: .9rem; font-weight: 600;
+               background: none; border: none; cursor: pointer; color: var(--muted);
+               border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab-btn.active { color: var(--brand); border-bottom-color: var(--brand); }
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
+
+    /* ── Cards ── */
+    .card { background: var(--white); border: 1px solid var(--border);
+            border-radius: 12px; padding: 1.3rem 1.5rem; margin-bottom: 1.2rem; }
+    .card h2 { font-size: 1rem; font-weight: 700; margin-bottom: .8rem; }
+
+    /* ── Upload zone ── */
+    .upload-zone {
+      border: 2px dashed var(--border); border-radius: 10px; padding: 2.5rem 1.5rem;
+      text-align: center; cursor: pointer; transition: border-color .15s, background .15s;
+    }
+    .upload-zone:hover, .upload-zone.drag-over {
+      border-color: var(--brand); background: var(--brand-light);
+    }
+    .upload-zone input[type="file"] { display: none; }
+    .upload-icon { font-size: 2.5rem; margin-bottom: .5rem; }
+    .upload-hint { color: var(--muted); font-size: .85rem; margin-top: .4rem; }
+
+    /* ── Buttons ── */
+    .btn {
+      background: var(--brand); color: #fff; border: none; border-radius: 8px;
+      padding: .6rem 1.2rem; font-size: .9rem; font-weight: 700;
+      cursor: pointer; transition: background .15s;
+    }
+    .btn:hover { background: var(--brand-dark); }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-outline {
+      background: var(--white); color: var(--ink); border: 1px solid var(--border);
+    }
+    .btn-outline:hover { border-color: var(--brand); color: var(--brand); background: var(--brand-light); }
+    .btn-danger { background: var(--red); }
+    .btn-danger:hover { background: #b91c1c; }
+    .btn-sm { padding: .35rem .75rem; font-size: .82rem; }
+
+    /* ── Alerts ── */
+    .alert { border-radius: 8px; padding: .65rem .9rem; font-size: .85rem;
+             margin-bottom: 1rem; display: none; }
+    .alert-error { background: var(--red-bg); border: 1px solid #fca5a5; color: var(--red); }
+    .alert-success { background: var(--green-bg); border: 1px solid #6ee7b7; color: var(--green); }
+    .alert-warn { background: var(--amber-bg); border: 1px solid #fcd34d; color: var(--amber); }
+    .alert.show { display: block; }
+
+    /* ── Match modal ── */
+    .modal-backdrop {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45);
+      z-index: 200; align-items: center; justify-content: center;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal { background: var(--white); border-radius: 14px; padding: 1.8rem 2rem;
+             max-width: 480px; width: 92%; box-shadow: 0 20px 50px rgba(0,0,0,.2); }
+    .modal h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: .4rem; }
+    .modal p { font-size: .88rem; color: var(--muted); margin-bottom: 1.2rem; }
+    .field { display: flex; flex-direction: column; gap: .35rem; margin-bottom: .9rem; }
+    .field label { font-size: .82rem; font-weight: 600; }
+    .field input, .field select {
+      padding: .6rem .9rem; border: 1px solid var(--border); border-radius: 8px;
+      font-size: .9rem; color: var(--ink); outline: none;
+    }
+    .field input:focus, .field select:focus { border-color: var(--brand); }
+    .modal-actions { display: flex; gap: .6rem; justify-content: flex-end; margin-top: 1.2rem; }
+
+    /* ── Preview entries table (inside modal) ── */
+    .preview-entries { max-height: 200px; overflow-y: auto; margin-bottom: 1rem;
+                       border: 1px solid var(--border); border-radius: 8px; }
+    .preview-entries table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+    .preview-entries th { background: var(--bg); padding: .4rem .7rem; text-align: left;
+                          font-weight: 600; border-bottom: 1px solid var(--border); position: sticky; top: 0; }
+    .preview-entries td { padding: .4rem .7rem; border-bottom: 1px solid var(--border); color: var(--ink); }
+    .preview-entries tr:last-child td { border-bottom: none; }
+
+    /* ── Stop sales list ── */
+    .filter-bar { display: flex; gap: .75rem; flex-wrap: wrap; align-items: flex-end; margin-bottom: 1.2rem; }
+    .filter-bar .field { margin-bottom: 0; flex: 1; min-width: 140px; }
+    .filter-bar input, .filter-bar select {
+      padding: .5rem .75rem; border: 1px solid var(--border); border-radius: 8px;
+      font-size: .875rem; color: var(--ink); outline: none; width: 100%;
+    }
+    .filter-bar input:focus { border-color: var(--brand); }
+
+    .ss-table-wrap { overflow-x: auto; }
+    .ss-table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+    .ss-table th { background: var(--bg); padding: .55rem .9rem; text-align: left;
+                   font-weight: 600; border-bottom: 2px solid var(--border);
+                   white-space: nowrap; }
+    .ss-table td { padding: .55rem .9rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .ss-table tr:hover td { background: var(--brand-light); }
+    .ss-table .badge {
+      display: inline-block; padding: .15rem .5rem; border-radius: 4px;
+      font-size: .75rem; font-weight: 700; letter-spacing: .02em;
+    }
+    .badge-hotel { background: #dbeafe; color: #1d4ed8; }
+    .badge-tour { background: #ede9fe; color: #7c3aed; }
+    .badge-all { background: var(--brand-light); color: var(--brand-dark); }
+
+    .empty-state { text-align: center; padding: 3rem 1rem; color: var(--muted); }
+    .empty-state .emoji { font-size: 2.5rem; margin-bottom: .6rem; }
+
+    /* ── Document history ── */
+    .doc-row { display: flex; align-items: center; gap: 1rem; padding: .75rem 0;
+               border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+    .doc-row:last-child { border-bottom: none; }
+    .doc-icon { font-size: 1.5rem; flex-shrink: 0; }
+    .doc-info { flex: 1; min-width: 0; }
+    .doc-name { font-weight: 600; font-size: .9rem; overflow: hidden;
+                text-overflow: ellipsis; white-space: nowrap; }
+    .doc-meta { font-size: .78rem; color: var(--muted); margin-top: .15rem; }
+    .doc-status { font-size: .78rem; font-weight: 600; padding: .2rem .55rem;
+                  border-radius: 4px; flex-shrink: 0; }
+    .doc-status.matched { background: var(--green-bg); color: var(--green); }
+    .doc-status.pending { background: var(--amber-bg); color: var(--amber); }
+    .doc-status.error { background: var(--red-bg); color: var(--red); }
+
+    /* Upload progress */
+    .progress-bar-wrap { background: var(--border); border-radius: 4px; height: 6px; margin: .8rem 0; display: none; }
+    .progress-bar { background: var(--brand); height: 100%; border-radius: 4px; width: 0; transition: width .2s; }
+  </style>
+</head>
+<body>
+<nav>
+  <a class="logo" href="/dashboard">
+    <img src="/static/momira-logo.png" alt="Momira Travel">
+    <span class="logo-text">Travel Agent Kit</span>
+  </a>
+  <button class="nav-back" onclick="history.back()">← Dashboard</button>
+</nav>
+
+<div class="page">
+  <div class="page-header">
+    <h1>🚫 Stop Sales</h1>
+    <p>Upload hotel or tour stop-sale documents (PDF, Excel, CSV). The system reads them automatically and builds your daily stop-sale list.</p>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('upload')">📤 Upload Document</button>
+    <button class="tab-btn" onclick="switchTab('list')">📋 Stop Sales List</button>
+    <button class="tab-btn" onclick="switchTab('docs')">📁 Document History</button>
+  </div>
+
+  <!-- ══ TAB: UPLOAD ══ -->
+  <div class="tab-pane active" id="tab-upload">
+    <div class="card">
+      <h2>Upload a stop-sale document</h2>
+      <p style="font-size:.88rem;color:var(--muted);margin-bottom:1rem;">
+        Supported formats: <strong>PDF, Excel (.xlsx), CSV, TXT</strong>.
+        After uploading you will confirm which hotel or tour the document belongs to.
+        Once confirmed, future uploads for the same hotel/tour are processed automatically.
+      </p>
+
+      <div class="upload-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+        <input type="file" id="file-input" accept=".pdf,.xlsx,.xls,.csv,.txt"
+               onchange="handleFileSelected(this.files[0])">
+        <div class="upload-icon">📄</div>
+        <div style="font-weight:600;">Click to choose a file, or drag &amp; drop here</div>
+        <div class="upload-hint">PDF, Excel, CSV or TXT — max 10 MB</div>
+      </div>
+
+      <div class="progress-bar-wrap" id="progress-wrap">
+        <div class="progress-bar" id="progress-bar"></div>
+      </div>
+
+      <div class="alert alert-error" id="upload-error"></div>
+      <div class="alert alert-success" id="upload-ok"></div>
+    </div>
+  </div>
+
+  <!-- ══ TAB: LIST ══ -->
+  <div class="tab-pane" id="tab-list">
+    <div class="filter-bar">
+      <div class="field">
+        <label style="font-size:.82rem;font-weight:600;">Travel date from</label>
+        <input type="date" id="filter-from" onchange="loadStopSales()">
+      </div>
+      <div class="field">
+        <label style="font-size:.82rem;font-weight:600;">Travel date to</label>
+        <input type="date" id="filter-to" onchange="loadStopSales()">
+      </div>
+      <div class="field">
+        <label style="font-size:.82rem;font-weight:600;">Search hotel / room</label>
+        <input type="text" id="filter-search" placeholder="e.g. Riu Gran Canaria…"
+               oninput="debounceLoad()">
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="clearFilters()">Clear</button>
+      <button class="btn btn-sm" onclick="loadStopSales()">🔍 Apply</button>
+    </div>
+
+    <div class="card" style="padding:0;overflow:hidden;" id="list-card">
+      <div class="ss-table-wrap">
+        <table class="ss-table">
+          <thead>
+            <tr>
+              <th>Hotel / Tour</th>
+              <th>Room type</th>
+              <th>Market</th>
+              <th>Travel dates</th>
+              <th>Booking window</th>
+              <th>Imported</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="ss-tbody">
+            <tr><td colspan="7">
+              <div class="empty-state">
+                <div class="emoji">🔄</div>
+                <div>Loading…</div>
+              </div>
+            </td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TAB: DOCS ══ -->
+  <div class="tab-pane" id="tab-docs">
+    <div class="card" id="docs-card">
+      <div class="empty-state">
+        <div class="emoji">🔄</div>
+        <div>Loading…</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MATCH MODAL ══ -->
+<div class="modal-backdrop" id="match-modal">
+  <div class="modal">
+    <h3>📍 Match document to a hotel or tour</h3>
+    <p id="modal-desc">We found <strong id="modal-count">0</strong> stop-sale entries in this document.
+       Please tell us which hotel or tour it belongs to.</p>
+
+    <div id="preview-wrap" style="display:none;">
+      <p style="font-size:.82rem;font-weight:600;margin-bottom:.4rem;color:var(--ink);">Preview of extracted entries:</p>
+      <div class="preview-entries">
+        <table>
+          <thead><tr><th>Room</th><th>Market</th><th>From</th><th>To</th></tr></thead>
+          <tbody id="preview-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="match-type">Type</label>
+      <select id="match-type">
+        <option value="hotel">Hotel</option>
+        <option value="tour">Closed tour / cruise</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="match-label">Hotel or tour name</label>
+      <input type="text" id="match-label" placeholder="e.g. Riu Gran Canaria, 7-Night Caribbean Cruise…" autocomplete="off">
+    </div>
+
+    <div class="alert alert-error" id="match-error"></div>
+
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+      <button class="btn" onclick="confirmMatch()">✅ Confirm &amp; Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const token = localStorage.getItem('sk_token');
+  if (!token) window.location.href = '/';
+  const H = { Authorization: 'Bearer ' + token };
+
+  let _pendingDocId = null;
+  let _debounceTimer = null;
+
+  // ── Tabs ────────────────────────────────────────────────────────────────
+  function switchTab(name) {
+    document.querySelectorAll('.tab-btn').forEach((b, i) => {
+      const tabs = ['upload', 'list', 'docs'];
+      b.classList.toggle('active', tabs[i] === name);
+    });
+    document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+
+    if (name === 'list') loadStopSales();
+    if (name === 'docs') loadDocs();
+  }
+
+  // ── Drag & drop ─────────────────────────────────────────────────────────
+  const dropZone = document.getElementById('drop-zone');
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    const f = e.dataTransfer.files[0];
+    if (f) handleFileSelected(f);
+  });
+
+  // ── Upload ───────────────────────────────────────────────────────────────
+  function showAlert(id, msg) {
+    const el = document.getElementById(id);
+    el.textContent = msg;
+    el.classList.add('show');
+  }
+  function hideAlerts() {
+    ['upload-error', 'upload-ok', 'match-error'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.textContent = ''; el.classList.remove('show'); }
+    });
+  }
+
+  async function handleFileSelected(file) {
+    if (!file) return;
+    hideAlerts();
+    const wrap = document.getElementById('progress-wrap');
+    const bar = document.getElementById('progress-bar');
+    wrap.style.display = 'block';
+    bar.style.width = '30%';
+
+    const fd = new FormData();
+    fd.append('file', file);
+    let res, data;
+    try {
+      bar.style.width = '60%';
+      res = await fetch('/stop-sales/upload', { method: 'POST', headers: H, body: fd });
+      bar.style.width = '90%';
+      data = await res.json();
+    } catch (e) {
+      bar.style.width = '0';
+      wrap.style.display = 'none';
+      showAlert('upload-error', 'Network error — please try again.');
+      return;
+    }
+    bar.style.width = '100%';
+    setTimeout(() => { wrap.style.display = 'none'; bar.style.width = '0'; }, 400);
+
+    if (!res.ok) {
+      showAlert('upload-error', data.detail || 'Upload failed.');
+      return;
+    }
+
+    if (data.parse_error) {
+      showAlert('upload-error', '⚠️ ' + data.parse_error + ' — you can still match the document manually.');
+    }
+
+    // Always open the match modal for human confirmation
+    openModal(data.doc_id, data.entries_found, data.entries || []);
+  }
+
+  // ── Match modal ──────────────────────────────────────────────────────────
+  function openModal(docId, count, entries) {
+    _pendingDocId = docId;
+    document.getElementById('modal-count').textContent = count;
+    document.getElementById('match-label').value = '';
+    document.getElementById('match-error').classList.remove('show');
+
+    // Fill preview table
+    const tbody = document.getElementById('preview-tbody');
+    if (entries.length > 0) {
+      tbody.innerHTML = entries.slice(0, 20).map(e =>
+        `<tr>
+          <td>${e.room_type || 'ALL'}</td>
+          <td>${e.market || 'ALL'}</td>
+          <td>${e.date_from || '—'}</td>
+          <td>${e.date_to || '—'}</td>
+        </tr>`
+      ).join('');
+      document.getElementById('preview-wrap').style.display = 'block';
+    } else {
+      document.getElementById('preview-wrap').style.display = 'none';
+    }
+
+    document.getElementById('match-modal').classList.add('open');
+    setTimeout(() => document.getElementById('match-label').focus(), 100);
+  }
+
+  function closeModal() {
+    document.getElementById('match-modal').classList.remove('open');
+    _pendingDocId = null;
+  }
+
+  async function confirmMatch() {
+    const label = document.getElementById('match-label').value.trim();
+    const type = document.getElementById('match-type').value;
+    if (!label) {
+      showAlert('match-error', 'Please enter the hotel or tour name.');
+      return;
+    }
+    const fd = new FormData();
+    fd.append('match_label', label);
+    fd.append('match_type', type);
+
+    const res = await fetch(`/stop-sales/${_pendingDocId}/match`, {
+      method: 'POST', headers: H, body: fd
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      showAlert('match-error', data.detail || 'Could not save match.');
+      return;
+    }
+
+    closeModal();
+    showAlert('upload-ok',
+      `✅ Saved — ${data.stop_sales_saved} stop-sale entr${data.stop_sales_saved === 1 ? 'y' : 'ies'} ` +
+      `added for "${data.match_label}".`
+    );
+  }
+
+  // close modal on backdrop click
+  document.getElementById('match-modal').addEventListener('click', e => {
+    if (e.target === document.getElementById('match-modal')) closeModal();
+  });
+
+  // ── Stop sales list ──────────────────────────────────────────────────────
+  function debounceLoad() {
+    clearTimeout(_debounceTimer);
+    _debounceTimer = setTimeout(loadStopSales, 400);
+  }
+
+  function clearFilters() {
+    document.getElementById('filter-from').value = '';
+    document.getElementById('filter-to').value = '';
+    document.getElementById('filter-search').value = '';
+    loadStopSales();
+  }
+
+  async function loadStopSales() {
+    const tbody = document.getElementById('ss-tbody');
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="emoji">🔄</div><div>Loading…</div></div></td></tr>`;
+
+    const params = new URLSearchParams();
+    const from = document.getElementById('filter-from').value;
+    const to = document.getElementById('filter-to').value;
+    const search = document.getElementById('filter-search').value.trim();
+    if (from) params.set('from_date', from);
+    if (to) params.set('to_date', to);
+    if (search) params.set('search', search);
+
+    let data;
+    try {
+      const res = await fetch('/stop-sales?' + params, { headers: H });
+      data = await res.json();
+    } catch {
+      tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="emoji">❌</div><div>Could not load stop sales.</div></div></td></tr>`;
+      return;
+    }
+
+    if (!Array.isArray(data) || data.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="7">
+        <div class="empty-state">
+          <div class="emoji">✅</div>
+          <div>No stop sales found for the selected filters.</div>
+        </div>
+      </td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = data.map(r => {
+      const travel = r.date_from
+        ? (r.date_to ? `${r.date_from} – ${r.date_to}` : `from ${r.date_from}`)
+        : '—';
+      const booking = r.booking_from
+        ? (r.booking_to ? `${r.booking_from} – ${r.booking_to}` : `from ${r.booking_from}`)
+        : '—';
+      const room = (r.room_type || 'ALL').toUpperCase();
+      const market = (r.market || 'ALL').toUpperCase();
+      const roomBadge = room === 'ALL' ? `<span class="badge badge-all">ALL</span>` : `<span class="badge">${room}</span>`;
+      const mktBadge = market === 'ALL' ? `<span class="badge badge-all">ALL</span>` : `<span class="badge">${market}</span>`;
+      return `<tr>
+        <td><strong>${esc(r.hotel_or_tour)}</strong></td>
+        <td>${roomBadge}</td>
+        <td>${mktBadge}</td>
+        <td>${travel}</td>
+        <td style="color:var(--muted);font-size:.8rem;">${booking}</td>
+        <td style="color:var(--muted);font-size:.8rem;">${r.imported_at}</td>
+        <td>
+          <button class="btn btn-danger btn-sm" onclick="deleteEntry('${r.id}', this)">🗑</button>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  async function deleteEntry(id, btn) {
+    if (!confirm('Delete this stop-sale entry?')) return;
+    btn.disabled = true;
+    const res = await fetch(`/stop-sales/${id}`, { method: 'DELETE', headers: H });
+    if (res.ok) {
+      btn.closest('tr').remove();
+    } else {
+      btn.disabled = false;
+      alert('Could not delete — please try again.');
+    }
+  }
+
+  // ── Document history ─────────────────────────────────────────────────────
+  async function loadDocs() {
+    const card = document.getElementById('docs-card');
+    card.innerHTML = `<div class="empty-state"><div class="emoji">🔄</div><div>Loading…</div></div>`;
+
+    let data;
+    try {
+      const res = await fetch('/stop-sales/documents', { headers: H });
+      data = await res.json();
+    } catch {
+      card.innerHTML = `<div class="empty-state"><div class="emoji">❌</div><div>Could not load documents.</div></div>`;
+      return;
+    }
+
+    if (!Array.isArray(data) || data.length === 0) {
+      card.innerHTML = `<div class="empty-state">
+        <div class="emoji">📂</div>
+        <div>No documents uploaded yet. Go to the Upload tab to add your first document.</div>
+      </div>`;
+      return;
+    }
+
+    const icon = f => f.endsWith('.pdf') ? '📄' : f.endsWith('.xlsx') || f.endsWith('.xls') ? '📊' : '📃';
+    card.innerHTML = data.map(d => {
+      const status = d.parse_error
+        ? `<span class="doc-status error">⚠ Error</span>`
+        : d.match_confirmed
+          ? `<span class="doc-status matched">✅ ${esc(d.match_label || 'Matched')}</span>`
+          : `<span class="doc-status pending">⏳ Needs matching</span>`;
+      return `<div class="doc-row">
+        <div class="doc-icon">${icon(d.filename)}</div>
+        <div class="doc-info">
+          <div class="doc-name">${esc(d.filename)}</div>
+          <div class="doc-meta">${d.match_type ? d.match_type.charAt(0).toUpperCase() + d.match_type.slice(1) + ' · ' : ''}Uploaded ${d.uploaded_at}</div>
+        </div>
+        ${status}
+      </div>`;
+    }).join('');
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
+  function esc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // ── Init ─────────────────────────────────────────────────────────────────
+  // Pre-set today's date as default "from" filter
+  const today = new Date().toISOString().slice(0, 10);
+  document.getElementById('filter-from').value = today;
+</script>
+</body>
+</html>
