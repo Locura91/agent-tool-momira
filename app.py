@@ -638,24 +638,166 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
     if not agent or not agent.is_active:
         raise HTTPException(status_code=404, detail="Link not found")
 
-    # Fetch package title from TC (best-effort)
+    # Fetch full package data from TC (best-effort)
+    pack = None
+    pkg_title = f"Holiday Package {package_id}"
+    pkg_dest = ""
+    price_str = ""
+    num_adults = 2
+    num_children = 0
+    itinerary_json = "null"
+
     try:
         tc_user = os.getenv("TC_USERNAME", "")
         tc_pass = os.getenv("TC_PASSWORD", "")
         tc_micro = os.getenv("TC_MICROSITE", "momiratravel")
         tc_base = os.getenv("TC_BASE_URL", "https://online.travelcompositor.com/resources")
         pack = sk.fetch_package(package_id, tc_user, tc_pass, tc_micro, tc_base, lang="EN")
-        pkg_title = pack.title
-        pkg_dest = getattr(pack, "destination", "") or ""
-        from_price = getattr(pack, "price_per_person", None)
-        price_str = f"from €{int(from_price):,}".replace(",", ".") if from_price else ""
-    except Exception:
-        pkg_title = f"Holiday Package {package_id}"
-        pkg_dest = ""
-        price_str = ""
+        pkg_title = pack.title or pkg_title
+        # Destination: first destination name
+        if pack.destinations:
+            pkg_dest = pack.destinations[0].get("name", "")
+        from_price = pack.price if pack.price else None
+        if from_price:
+            price_str = f"from €{int(from_price):,}".replace(",", ".")
+
+        # --- Extract passenger counts from raw TC data ---
+        raw_info = pack.raw.get("info", {}) or {}
+        raw_detail = pack.raw.get("detail", {}) or {}
+
+        def _pick_raw(src, keys, default=None):
+            for k in keys:
+                for kk in (k, k.lower(), k.upper()):
+                    if kk in src:
+                        return src[kk]
+            return default
+
+        # TC may have pax info at top level or inside occupancy/rooms
+        pax_fields = ["pax", "passengers", "personsCount", "numberOfPersons",
+                      "numberOfPassengers", "totalPax"]
+        adults_fields = ["adults", "adultsCount", "numAdults", "numberAdults"]
+        children_fields = ["children", "childrenCount", "numChildren", "numberChildren", "kids"]
+
+        raw_adults = _pick_raw(raw_info, adults_fields) or _pick_raw(raw_detail, adults_fields)
+        raw_children = _pick_raw(raw_info, children_fields) or _pick_raw(raw_detail, children_fields)
+
+        if raw_adults is not None:
+            try:
+                num_adults = max(1, int(raw_adults))
+            except (ValueError, TypeError):
+                pass
+
+        if raw_children is not None:
+            try:
+                num_children = max(0, int(raw_children))
+            except (ValueError, TypeError):
+                pass
+
+        # Fallback: look inside occupancy / rooms arrays
+        if num_adults == 2 and num_children == 0:
+            for src in (raw_info, raw_detail):
+                for occ_key in ("occupancy", "room", "rooms", "roomOccupancy", "paxDetails"):
+                    occ = src.get(occ_key)
+                    if isinstance(occ, list) and occ:
+                        occ = occ[0]
+                    if isinstance(occ, dict):
+                        a = occ.get("adults") or occ.get("adultsCount") or 0
+                        c = occ.get("children") or occ.get("childrenCount") or 0
+                        try:
+                            a = int(a); c = int(c)
+                        except (ValueError, TypeError):
+                            a = 0; c = 0
+                        if a > 0:
+                            num_adults = a
+                            num_children = c
+                            break
+
+        # --- Build itinerary JSON for the collapsible tour summary ---
+        import json as _json
+
+        def _extract_flights(transports):
+            flights = []
+            for t in (transports or []):
+                if not isinstance(t, dict):
+                    continue
+                ttype = str(t.get("transportType") or t.get("type") or "").upper()
+                if "FLIGHT" not in ttype:
+                    continue
+                dep_date = t.get("departureDate") or t.get("departureDateTime") or t.get("date") or ""
+                dep_time = t.get("departureTime") or t.get("departureHour") or ""
+                if not dep_time and dep_date and "T" in str(dep_date):
+                    dep_time = str(dep_date).split("T")[1][:5]
+                arr_time = t.get("arrivalTime") or t.get("arrivalHour") or ""
+                origin = t.get("originCode") or t.get("origin") or t.get("originAirport") or ""
+                dest_code = t.get("targetCode") or t.get("target") or t.get("destinationAirport") or ""
+                duration_min = t.get("duration") or t.get("flightDuration") or 0
+                try:
+                    duration_min = int(duration_min)
+                except (ValueError, TypeError):
+                    duration_min = 0
+                duration_str = ""
+                if duration_min:
+                    h, m = divmod(duration_min, 60)
+                    duration_str = f"{h}h {m:02d}m" if h else f"{m}m"
+                # Luggage/baggage
+                baggage = (t.get("baggage") or t.get("luggageIncluded") or
+                           t.get("baggageIncluded") or t.get("includedBaggage") or
+                           t.get("handLuggage") or "")
+                if isinstance(baggage, bool):
+                    baggage = "Included" if baggage else ""
+                elif isinstance(baggage, (int, float)):
+                    baggage = f"{int(baggage)} kg" if baggage else ""
+                else:
+                    baggage = str(baggage).strip() if baggage else ""
+                flights.append({
+                    "origin": str(origin),
+                    "dest": str(dest_code),
+                    "dep_time": str(dep_time)[:5] if dep_time else "",
+                    "arr_time": str(arr_time)[:5] if arr_time else "",
+                    "duration": duration_str,
+                    "baggage": baggage,
+                })
+            return flights
+
+        def _extract_transfers(detail):
+            transfers = []
+            for t in (_pick_raw(detail, ["transfers"], []) or []):
+                if not isinstance(t, dict):
+                    continue
+                name = (t.get("name") or t.get("title") or
+                        t.get("description") or "Transfer")
+                transfers.append(str(name).strip())
+            return transfers
+
+        def _extract_hotels(detail):
+            hotels = []
+            for idx, h in enumerate(pack.hotel_names):
+                hotels.append({
+                    "name": h,
+                    "nights": pack.hotel_nights[idx] if idx < len(pack.hotel_nights) else 0,
+                    "stars": pack.hotel_stars[idx] if idx < len(pack.hotel_stars) else 0,
+                    "board": pack.hotel_boards[idx] if idx < len(pack.hotel_boards) else "",
+                })
+            return hotels
+
+        transports_raw = _pick_raw(raw_detail, ["transports"], []) or []
+        itinerary = {
+            "flights": _extract_flights(transports_raw),
+            "transfers": _extract_transfers(raw_detail),
+            "hotels": _extract_hotels(raw_detail),
+            "activities": pack.activities,
+            "days": pack.days,
+        }
+        itinerary_json = _json.dumps(itinerary, ensure_ascii=False)
+
+    except Exception as exc:
+        print(f"[registration_form] TC fetch failed: {exc}")
 
     agency_name = agent.agency_name or "Your Travel Agent"
-    logo_html = f'<img src="{agent.logo_url}" alt="{agency_name}" class="agency-logo">' if agent.logo_url else ""
+    logo_html = (
+        f'<img src="{agent.logo_url}" alt="{agency_name}" class="agency-logo">'
+        if agent.logo_url else ""
+    )
 
     with open("static/registration-form.html", encoding="utf-8") as f:
         tmpl = f.read()
@@ -667,7 +809,10 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
             .replace("{{PKG_DEST}}", pkg_dest)
             .replace("{{PRICE_STR}}", price_str)
             .replace("{{AGENCY_NAME}}", agency_name)
-            .replace("{{LOGO_HTML}}", logo_html))
+            .replace("{{LOGO_HTML}}", logo_html)
+            .replace("{{NUM_ADULTS}}", str(num_adults))
+            .replace("{{NUM_CHILDREN}}", str(num_children))
+            .replace("{{ITINERARY_JSON}}", itinerary_json))
     return html
 
 
@@ -675,13 +820,20 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
 async def submit_registration(
     agent_id: str,
     package_id: str,
-    first_name: str = Form(...),
-    last_name: str = Form(...),
+    # Shared contact fields
     email: str = Form(...),
     phone: str = Form(""),
+    street: str = Form(""),
+    house_number: str = Form(""),
+    postal_code: str = Form(""),
+    city: str = Form(""),
+    country_of_residence: str = Form(""),
     nationality: str = Form(""),
+    # Per-passenger data (JSON blob built on the client side)
+    passengers_json: str = Form("[]"),
     db: AsyncSession = Depends(get_db),
 ):
+    import json as _json
     result = await db.execute(select(Agent).where(Agent.id == agent_id))
     agent = result.scalar_one_or_none()
     if not agent or not agent.is_active:
@@ -698,6 +850,17 @@ async def submit_registration(
     except Exception:
         pkg_title = f"Holiday Package {package_id}"
 
+    # Parse passengers — [{type:"adult"|"child", full_name:"…", dob:"YYYY-MM-DD"}]
+    try:
+        passengers = _json.loads(passengers_json) if passengers_json else []
+    except Exception:
+        passengers = []
+
+    # Primary passenger (first adult) for backward-compat fields
+    primary = next((p for p in passengers if p.get("type") == "adult"), passengers[0] if passengers else {})
+    first_name = primary.get("full_name", "").split()[0] if primary.get("full_name") else ""
+    last_name = " ".join(primary.get("full_name", "").split()[1:]) if primary.get("full_name") else ""
+
     reg = Registration(
         agent_id=agent_id,
         package_id=package_id,
@@ -707,6 +870,11 @@ async def submit_registration(
         email=email.strip(),
         phone=phone.strip() or None,
         nationality=nationality.strip() or None,
+        street=f"{street.strip()} {house_number.strip()}".strip() or None,
+        postal_code=postal_code.strip() or None,
+        city=city.strip() or None,
+        country_of_residence=country_of_residence.strip() or None,
+        passengers_json=_json.dumps(passengers, ensure_ascii=False) if passengers else None,
     )
     db.add(reg)
     await db.commit()
@@ -724,6 +892,8 @@ async def submit_registration(
             consumer_email=email,
             phone=phone,
             nationality=nationality,
+            passengers=passengers,
+            address=f"{street} {house_number}, {postal_code} {city}, {country_of_residence}".strip(", "),
         )
     except Exception as exc:
         print(f"[mailer] send failed: {exc}")

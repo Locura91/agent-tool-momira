@@ -119,6 +119,13 @@ class Registration(Base):
     phone: Mapped[str | None] = mapped_column(String(40))
     nationality: Mapped[str | None] = mapped_column(String(100))
 
+    # Extended fields added for full registration form
+    street: Mapped[str | None] = mapped_column(String(255))              # street + house number
+    postal_code: Mapped[str | None] = mapped_column(String(20))
+    city: Mapped[str | None] = mapped_column(String(120))
+    country_of_residence: Mapped[str | None] = mapped_column(String(100))
+    passengers_json: Mapped[str | None] = mapped_column(Text)            # JSON: [{type,full_name,dob}]
+
     submitted_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

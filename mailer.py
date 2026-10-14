@@ -34,6 +34,8 @@ def send_registration_email(
     consumer_email: str,
     phone: str,
     nationality: str,
+    passengers: list | None = None,
+    address: str = "",
 ) -> None:
     """
     Send one registration notification email.
@@ -53,7 +55,20 @@ def send_registration_email(
         print("[mailer] SMTP not configured — email skipped")
         return
 
-    subject = f"New Registration: {package_title or package_id} — {first_name} {last_name}"
+    # Build passenger section
+    pax_lines = ""
+    if passengers:
+        adults = [p for p in passengers if p.get("type") == "adult"]
+        children = [p for p in passengers if p.get("type") == "child"]
+        pax_lines = "\nPassengers\n──────────\n"
+        for i, p in enumerate(adults, 1):
+            pax_lines += f"Adult {i}:     {p.get('full_name', '—')}  (DOB: {p.get('dob', '—')})\n"
+        for i, p in enumerate(children, 1):
+            pax_lines += f"Child {i}:     {p.get('full_name', '—')}  (DOB: {p.get('dob', '—')})\n"
+
+    # Use first passenger name if available, else the split first/last
+    display_name = passengers[0].get("full_name", f"{first_name} {last_name}") if passengers else f"{first_name} {last_name}"
+    subject = f"New Registration: {package_title or package_id} — {display_name}"
 
     body = f"""\
 New travel registration received via Travel Agent Kit.
@@ -61,13 +76,13 @@ New travel registration received via Travel Agent Kit.
 Package:     {package_title or '—'} (ID: {package_id})
 Agency:      {agency_name}
 
-Customer details
-────────────────
-Name:        {first_name} {last_name}
+Contact details
+───────────────
 E-mail:      {consumer_email}
 Phone:       {phone or '—'}
+Address:     {address or '—'}
 Nationality: {nationality or '—'}
-
+{pax_lines}
 This registration was submitted through your shareable booking link.
 """
 

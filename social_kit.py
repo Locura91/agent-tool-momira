@@ -276,6 +276,23 @@ def _find_image_urls(node: Any, limit: int = 12, _seen: Optional[List[str]] = No
     return found
 
 
+def fetch_package(
+    package_id: str,
+    username: str,
+    password: str,
+    microsite: str,
+    base_url: str,
+    lang: str = "EN",
+) -> Package:
+    """
+    Convenience wrapper used by the registration route.
+    Creates a TCClient from explicit credentials (not env vars) and fetches.
+    """
+    config = TCConfig(base=base_url, microsite=microsite, username=username, password=password)
+    client = TCClient(config)
+    return fetch(client, package_id, lang=lang)
+
+
 def fetch(client: TCClient, package_id: str, brand: "Brand" = None, lang: Optional[str] = None) -> Package:
     """
     One ID becomes one Package.
