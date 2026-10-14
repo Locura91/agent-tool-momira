@@ -799,8 +799,8 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
         if agent.logo_url else ""
     )
 
-    with open("static/registration-form.html", encoding="utf-8") as f:
-        tmpl = f.read()
+    import registration_form_template as _rft
+    tmpl = _rft.TEMPLATE
 
     html = (tmpl
             .replace("{{AGENT_ID}}", agent_id)
