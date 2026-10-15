@@ -26,6 +26,7 @@ async def _migrate(conn) -> None:
     migrations = [
         "ALTER TABLE agents ADD COLUMN google_review_url TEXT",
         "ALTER TABLE agents ADD COLUMN tripadvisor_url TEXT",
+        "ALTER TABLE agents ADD COLUMN role TEXT NOT NULL DEFAULT 'agent'",
         "ALTER TABLE registrations ADD COLUMN street TEXT",
         "ALTER TABLE registrations ADD COLUMN postal_code TEXT",
         "ALTER TABLE registrations ADD COLUMN city TEXT",

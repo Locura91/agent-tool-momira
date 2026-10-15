@@ -79,3 +79,10 @@ async def current_agent(
     if not agent:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Agent not found.")
     return agent
+
+
+async def current_admin(agent: Agent = Depends(current_agent)) -> Agent:
+    """Dependency for admin-only endpoints."""
+    if agent.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required.")
+    return agent

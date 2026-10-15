@@ -45,6 +45,7 @@ def _download_name(pack, agent, ext: str) -> str:
 
 from auth import (
     create_access_token,
+    current_admin,
     current_agent,
     hash_password,
     verify_password,
@@ -143,24 +144,6 @@ async def index():
         return f.read()
 
 
-@app.post("/auth/register", response_model=TokenResponse, status_code=201)
-async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
-    existing = await db.execute(select(Agent).where(Agent.email == req.email))
-    if existing.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="An account with that email already exists.")
-
-    agent = Agent(
-        email=req.email,
-        password_hash=hash_password(req.password),
-        agency_name=req.agency_name,
-    )
-    db.add(agent)
-    await db.commit()
-    await db.refresh(agent)
-
-    return TokenResponse(access_token=create_access_token(agent.id))
-
-
 @app.post("/auth/login", response_model=TokenResponse)
 async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Agent).where(Agent.email == req.email, Agent.is_active == True))
@@ -169,31 +152,30 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
     if not agent or not verify_password(req.password, agent.password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password.")
 
-    return TokenResponse(access_token=create_access_token(agent.id))
+    return TokenResponse(access_token=create_access_token(agent.id), role=agent.role)
 
 
-@app.post("/auth/guest", response_model=TokenResponse)
-async def guest_login(db: AsyncSession = Depends(get_db)):
-    """Auto-login as a built-in guest/demo account for testing."""
-    GUEST_EMAIL = "guest@momira.demo"
-    result = await db.execute(select(Agent).where(Agent.email == GUEST_EMAIL))
-    agent = result.scalar_one_or_none()
-    if not agent:
-        agent = Agent(
-            email=GUEST_EMAIL,
-            password_hash=hash_password("guest-demo-2026"),
-            agency_name="Momira Travel",
-        )
-        db.add(agent)
-        await db.commit()
-        await db.refresh(agent)
-    elif agent.agency_name in (None, "", "Momira Demo"):
-        # Fix up the demo account name for existing rows
-        agent.agency_name = "Momira Travel"
-        db.add(agent)
-        await db.commit()
-        await db.refresh(agent)
-    return TokenResponse(access_token=create_access_token(agent.id))
+# Admin-only: create a new Travel Agent account
+@app.post("/admin/agents", response_model=TokenResponse, status_code=201)
+async def admin_create_agent(
+    req: RegisterRequest,
+    db: AsyncSession = Depends(get_db),
+    _admin: Agent = Depends(current_admin),
+):
+    existing = await db.execute(select(Agent).where(Agent.email == req.email))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="An account with that email already exists.")
+
+    agent = Agent(
+        email=req.email,
+        password_hash=hash_password(req.password),
+        agency_name=req.agency_name,
+        role="agent",
+    )
+    db.add(agent)
+    await db.commit()
+    await db.refresh(agent)
+    return TokenResponse(access_token=create_access_token(agent.id), role=agent.role)
 
 
 # --------------------------------------------------------------------------
@@ -590,6 +572,56 @@ async def generate_video(
         media_type="video/mp4",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+# --------------------------------------------------------------------------
+# Admin area
+# --------------------------------------------------------------------------
+
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_page():
+    with open("static/admin.html", encoding="utf-8") as f:
+        return f.read()
+
+
+@app.get("/admin/agents", response_model=list)
+async def admin_list_agents(
+    db: AsyncSession = Depends(get_db),
+    _admin: Agent = Depends(current_admin),
+):
+    result = await db.execute(select(Agent).order_by(Agent.created_at.desc()))
+    agents = result.scalars().all()
+    return [
+        {
+            "id": a.id,
+            "email": a.email,
+            "agency_name": a.agency_name,
+            "role": a.role,
+            "is_active": a.is_active,
+            "created_at": a.created_at.isoformat() if a.created_at else None,
+        }
+        for a in agents
+    ]
+
+
+@app.patch("/admin/agents/{agent_id}")
+async def admin_update_agent(
+    agent_id: str,
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    _admin: Agent = Depends(current_admin),
+):
+    result = await db.execute(select(Agent).where(Agent.id == agent_id))
+    agent = result.scalar_one_or_none()
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found.")
+    allowed = {"is_active", "agency_name", "role"}
+    for key, value in body.items():
+        if key in allowed:
+            setattr(agent, key, value)
+    db.add(agent)
+    await db.commit()
+    return {"ok": True}
 
 
 # --------------------------------------------------------------------------

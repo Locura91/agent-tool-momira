@@ -31,6 +31,7 @@ class LoginRequest(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    role: str = "agent"
 
 
 # --------------------------------------------------------------------------
@@ -61,6 +62,7 @@ CURRENCIES = ("EUR", "PLN", "USD", "GBP", "CHF", "SEK", "NOK", "DKK")
 class AgentProfile(BaseModel):
     id: str
     email: str
+    role: str = "agent"
     agency_name: Optional[str]
     agency_url: Optional[str]
     agency_site: Optional[str]

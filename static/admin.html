@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Travel Agent Kit — Admin</title>
+  <style>
+    :root {
+      --brand: #17a39b;
+      --brand-dark: #128a81;
+      --ink: #111827;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --bg: #f9fafb;
+      --white: #ffffff;
+      --red: #dc2626;
+      --green: #16a34a;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); min-height: 100vh; }
+    header {
+      background: var(--white);
+      border-bottom: 1px solid var(--border);
+      padding: .85rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .logo { display: flex; align-items: center; gap: .6rem; }
+    .logo img { height: 36px; width: 36px; border-radius: 50%; object-fit: contain; }
+    .logo-text { font-weight: 700; font-size: 1rem; }
+    .badge { background: #fef3c7; color: #92400e; font-size: .75rem; font-weight: 700; padding: .2rem .55rem; border-radius: 99px; }
+    .logout-btn { font-size: .85rem; color: var(--muted); cursor: pointer; border: none; background: none; }
+    .logout-btn:hover { color: var(--red); }
+    main { max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+    h1 { font-size: 1.4rem; font-weight: 700; margin-bottom: .3rem; }
+    .section-title { font-size: 1rem; font-weight: 700; margin: 2rem 0 .8rem; }
+    /* Create agent form */
+    .form-row { display: flex; gap: .75rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .form-row input { flex: 1; min-width: 160px; padding: .6rem .85rem; border: 1px solid var(--border); border-radius: 8px; font-size: .9rem; outline: none; }
+    .form-row input:focus { border-color: var(--brand); }
+    .btn { padding: .6rem 1.2rem; background: var(--brand); color: #fff; border: none; border-radius: 8px; font-size: .9rem; font-weight: 700; cursor: pointer; }
+    .btn:hover { background: var(--brand-dark); }
+    .btn:disabled { opacity: .6; cursor: not-allowed; }
+    .msg { font-size: .85rem; margin-top: .5rem; display: none; }
+    .msg.ok { color: var(--green); }
+    .msg.err { color: var(--red); }
+    /* Agents table */
+    table { width: 100%; border-collapse: collapse; background: var(--white); border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+    th { text-align: left; font-size: .78rem; font-weight: 700; color: var(--muted); padding: .65rem 1rem; border-bottom: 1px solid var(--border); background: var(--bg); }
+    td { padding: .65rem 1rem; font-size: .88rem; border-bottom: 1px solid var(--border); }
+    tr:last-child td { border-bottom: none; }
+    .pill { display: inline-block; padding: .15rem .55rem; border-radius: 99px; font-size: .75rem; font-weight: 700; }
+    .pill.admin { background: #ede9fe; color: #6d28d9; }
+    .pill.agent { background: #d1fae5; color: #065f46; }
+    .pill.inactive { background: #fee2e2; color: #b91c1c; }
+    .action-btn { font-size: .8rem; border: 1px solid var(--border); background: var(--white); padding: .2rem .6rem; border-radius: 6px; cursor: pointer; }
+    .action-btn:hover { border-color: var(--brand); color: var(--brand); }
+    .empty { color: var(--muted); font-size: .9rem; padding: 1.5rem 1rem; }
+  </style>
+</head>
+<body>
+<header>
+  <div class="logo">
+    <img src="/static/momira-logo.png" alt="Momira Travel">
+    <span class="logo-text">Travel Agent Kit</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:.75rem">
+    <span class="badge">ADMIN</span>
+    <button class="logout-btn" onclick="logout()">Log out</button>
+  </div>
+</header>
+
+<main>
+  <h1>Admin Dashboard</h1>
+  <p style="color:var(--muted);font-size:.9rem">Manage Travel Agent accounts.</p>
+
+  <!-- Create agent -->
+  <div class="section-title">Create new Travel Agent account</div>
+  <div class="form-row">
+    <input type="text" id="new-name" placeholder="Agency name">
+    <input type="email" id="new-email" placeholder="Email address">
+    <input type="password" id="new-password" placeholder="Password (min 8 chars)">
+    <button class="btn" id="create-btn" onclick="createAgent()">Create account</button>
+  </div>
+  <div class="msg" id="create-msg"></div>
+
+  <!-- Agents list -->
+  <div class="section-title">All accounts</div>
+  <table id="agents-table">
+    <thead>
+      <tr>
+        <th>Agency</th>
+        <th>Email</th>
+        <th>Role</th>
+        <th>Status</th>
+        <th>Created</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="agents-body">
+      <tr><td colspan="6" class="empty">Loading…</td></tr>
+    </tbody>
+  </table>
+</main>
+
+<script>
+  const token = () => localStorage.getItem('sk_token');
+
+  function logout() {
+    localStorage.removeItem('sk_token');
+    localStorage.removeItem('sk_role');
+    window.location.href = '/';
+  }
+
+  // Redirect to login if not authenticated or not admin
+  if (!token() || localStorage.getItem('sk_role') !== 'admin') {
+    window.location.href = '/';
+  }
+
+  async function api(method, path, body) {
+    const res = await fetch(path, {
+      method,
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token() },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if (res.status === 401 || res.status === 403) { logout(); return null; }
+    return res;
+  }
+
+  async function loadAgents() {
+    const res = await api('GET', '/admin/agents');
+    if (!res) return;
+    const agents = await res.json();
+    const tbody = document.getElementById('agents-body');
+    if (!agents.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty">No accounts yet.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = agents.map(a => `
+      <tr>
+        <td>${esc(a.agency_name || '—')}</td>
+        <td>${esc(a.email)}</td>
+        <td><span class="pill ${a.role}">${a.role}</span></td>
+        <td><span class="pill ${a.is_active ? 'agent' : 'inactive'}">${a.is_active ? 'Active' : 'Inactive'}</span></td>
+        <td>${a.created_at ? a.created_at.slice(0,10) : '—'}</td>
+        <td>
+          <button class="action-btn" onclick="toggleActive('${a.id}', ${a.is_active})">
+            ${a.is_active ? 'Deactivate' : 'Activate'}
+          </button>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  async function createAgent() {
+    const name = document.getElementById('new-name').value.trim();
+    const email = document.getElementById('new-email').value.trim();
+    const password = document.getElementById('new-password').value;
+    const msg = document.getElementById('create-msg');
+    msg.style.display = 'none';
+
+    if (!name || !email || !password) {
+      msg.textContent = 'Please fill in all three fields.';
+      msg.className = 'msg err'; msg.style.display = 'block'; return;
+    }
+    if (password.length < 8) {
+      msg.textContent = 'Password must be at least 8 characters.';
+      msg.className = 'msg err'; msg.style.display = 'block'; return;
+    }
+
+    const btn = document.getElementById('create-btn');
+    btn.disabled = true; btn.textContent = 'Creating…';
+
+    const res = await api('POST', '/admin/agents', { email, password, agency_name: name });
+    btn.disabled = false; btn.textContent = 'Create account';
+    if (!res) return;
+
+    const data = await res.json();
+    if (!res.ok) {
+      msg.textContent = data.detail || 'Could not create account.';
+      msg.className = 'msg err'; msg.style.display = 'block';
+    } else {
+      msg.textContent = `✅ Account created for ${email}.`;
+      msg.className = 'msg ok'; msg.style.display = 'block';
+      document.getElementById('new-name').value = '';
+      document.getElementById('new-email').value = '';
+      document.getElementById('new-password').value = '';
+      loadAgents();
+    }
+  }
+
+  async function toggleActive(id, currentlyActive) {
+    const res = await api('PATCH', `/admin/agents/${id}`, { is_active: !currentlyActive });
+    if (res && res.ok) loadAgents();
+  }
+
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  loadAgents();
+</script>
+</body>
+</html>

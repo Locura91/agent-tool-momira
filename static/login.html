@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Travel Agent Kit — Travel Agent Login</title>
+  <title>Travel Agent Kit — Login</title>
   <style>
     :root {
       --brand: #17a39b;
@@ -38,50 +38,22 @@
     .logo {
       display: flex;
       align-items: center;
-      gap: .5rem;
+      gap: .6rem;
       margin-bottom: 2rem;
     }
-    .logo-mark {
-      width: 36px;
-      height: 36px;
-      background: var(--brand);
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #fff;
-      font-weight: 700;
-      font-size: 1.1rem;
-      letter-spacing: -.5px;
-    }
+    .logo img { height: 44px; width: 44px; border-radius: 50%; object-fit: contain; display: block; }
     .logo-text { font-weight: 700; font-size: 1.1rem; color: var(--ink); }
-    h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: .4rem; }
+    h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: .35rem; }
     .subtitle { color: var(--muted); font-size: .9rem; margin-bottom: 1.8rem; }
-    .tabs {
-      display: flex;
-      border-bottom: 2px solid var(--border);
-      margin-bottom: 1.6rem;
-    }
-    .tab {
-      padding: .5rem 1rem;
-      font-weight: 600;
-      font-size: .9rem;
-      color: var(--muted);
-      cursor: pointer;
-      border-bottom: 2px solid transparent;
-      margin-bottom: -2px;
-      transition: color .15s, border-color .15s;
-    }
-    .tab.active { color: var(--brand); border-color: var(--brand); }
     label { display: block; font-size: .875rem; font-weight: 600; margin-bottom: .35rem; }
-    input[type=text], input[type=email], input[type=password] {
+    input[type=email], input[type=password] {
       width: 100%;
       padding: .65rem .9rem;
       border: 1px solid var(--border);
       border-radius: 8px;
       font-size: .95rem;
       color: var(--ink);
-      margin-bottom: 1rem;
+      margin-bottom: 1.1rem;
       outline: none;
       transition: border-color .15s;
     }
@@ -110,134 +82,72 @@
       margin-bottom: 1rem;
       display: none;
     }
-    .form-panel { display: none; }
-    .form-panel.active { display: block; }
   </style>
 </head>
 <body>
 <div class="card">
   <div class="logo">
-    <img src="/static/momira-logo.png" alt="Momira Travel" style="height:44px;width:44px;border-radius:50%;display:block;object-fit:contain">
+    <img src="/static/momira-logo.png" alt="Momira Travel">
     <span class="logo-text">Travel Agent Kit</span>
   </div>
   <h1>Welcome back</h1>
-  <p class="subtitle">Create your travel agency's social posts in seconds.</p>
+  <p class="subtitle">Log in to your travel agency account.</p>
 
-  <div class="tabs">
-    <div class="tab active" data-tab="login">Log in</div>
-    <div class="tab" data-tab="register">Create account</div>
-  </div>
-
-  <!-- Login -->
-  <div class="form-panel active" id="panel-login">
-    <div class="error" id="login-error"></div>
-    <label for="login-email">Email</label>
-    <input type="email" id="login-email" placeholder="you@youragency.com" autocomplete="email">
-    <label for="login-password">Password</label>
-    <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
-    <button class="btn" id="login-btn">Log in</button>
-  </div>
-
-  <!-- Register -->
-  <div class="form-panel" id="panel-register">
-    <div class="error" id="register-error"></div>
-    <label for="reg-name">Agency name</label>
-    <input type="text" id="reg-name" placeholder="Sunshine Travels">
-    <label for="reg-email">Email</label>
-    <input type="email" id="reg-email" placeholder="you@youragency.com" autocomplete="email">
-    <label for="reg-password">Password</label>
-    <input type="password" id="reg-password" placeholder="At least 8 characters" autocomplete="new-password">
-    <button class="btn" id="register-btn">Create account</button>
-  </div>
+  <div class="error" id="login-error"></div>
+  <label for="login-email">Email</label>
+  <input type="email" id="login-email" placeholder="you@youragency.com" autocomplete="email">
+  <label for="login-password">Password</label>
+  <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
+  <button class="btn" id="login-btn">Log in</button>
 </div>
 
 <script>
-  const API = '';  // same origin
+  // If already logged in, send to the right page right away
+  const token = localStorage.getItem('sk_token');
+  const savedRole = localStorage.getItem('sk_role');
+  if (token) {
+    window.location.href = savedRole === 'admin' ? '/admin' : '/dashboard';
+  }
 
-  // --- tab switching ---
-  document.querySelectorAll('.tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      document.querySelectorAll('.tab, .form-panel').forEach(el => el.classList.remove('active'));
-      tab.classList.add('active');
-      document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
-    });
-  });
-
-  function showError(id, msg) {
-    const el = document.getElementById(id);
+  function showError(msg) {
+    const el = document.getElementById('login-error');
     el.textContent = msg;
     el.style.display = 'block';
   }
-  function hideError(id) {
-    document.getElementById(id).style.display = 'none';
-  }
 
-  // --- login ---
+  // Allow submitting with Enter
+  document.getElementById('login-password').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('login-btn').click();
+  });
+
   document.getElementById('login-btn').addEventListener('click', async () => {
-    hideError('login-error');
+    document.getElementById('login-error').style.display = 'none';
     const email = document.getElementById('login-email').value.trim();
     const password = document.getElementById('login-password').value;
-    if (!email || !password) { showError('login-error', 'Please fill in both fields.'); return; }
+    if (!email || !password) { showError('Please fill in both fields.'); return; }
 
     const btn = document.getElementById('login-btn');
     btn.disabled = true; btn.textContent = 'Logging in…';
 
     try {
-      const res = await fetch(API + '/auth/login', {
+      const res = await fetch('/auth/login', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ email, password }),
       });
       const data = await res.json();
-      if (!res.ok) { showError('login-error', data.detail || 'Login failed.'); return; }
+      if (!res.ok) { showError(data.detail || 'Login failed. Check your email and password.'); return; }
+
       localStorage.setItem('sk_token', data.access_token);
-      window.location.href = '/dashboard';
+      localStorage.setItem('sk_role', data.role || 'agent');
+
+      window.location.href = data.role === 'admin' ? '/admin' : '/dashboard';
     } catch (e) {
-      showError('login-error', 'Could not reach the server. Try again.');
+      showError('Could not reach the server. Please try again.');
     } finally {
       btn.disabled = false; btn.textContent = 'Log in';
     }
   });
-
-  // --- register ---
-  document.getElementById('register-btn').addEventListener('click', async () => {
-    hideError('register-error');
-    const agency_name = document.getElementById('reg-name').value.trim();
-    const email = document.getElementById('reg-email').value.trim();
-    const password = document.getElementById('reg-password').value;
-    if (!agency_name || !email || !password) { showError('register-error', 'Please fill in all fields.'); return; }
-
-    const btn = document.getElementById('register-btn');
-    btn.disabled = true; btn.textContent = 'Creating account…';
-
-    try {
-      const res = await fetch(API + '/auth/register', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ email, password, agency_name }),
-      });
-      const data = await res.json();
-      if (!res.ok) { showError('register-error', data.detail || 'Registration failed.'); return; }
-      localStorage.setItem('sk_token', data.access_token);
-      window.location.href = '/dashboard';
-    } catch (e) {
-      showError('register-error', 'Could not reach the server. Try again.');
-    } finally {
-      btn.disabled = false; btn.textContent = 'Create account';
-    }
-  });
-
-  // Already logged in?
-  if (localStorage.getItem('sk_token')) window.location.href = '/dashboard';
-
-  // Auto guest login for testing
-  (async () => {
-    try {
-      const res = await fetch('/auth/guest', { method: 'POST' });
-      const data = await res.json();
-      if (res.ok) { localStorage.setItem('sk_token', data.access_token); window.location.href = '/dashboard'; }
-    } catch (e) {}
-  })();
 </script>
 </body>
 </html>

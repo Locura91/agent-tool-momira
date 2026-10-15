@@ -57,6 +57,9 @@ class Agent(Base):
     google_review_url: Mapped[str | None] = mapped_column(String(2048))    # agent's own Google review link
     tripadvisor_url: Mapped[str | None] = mapped_column(String(2048))      # agent's TripAdvisor link
 
+    # Role: "admin" can manage all agents; "agent" is a travel agency account
+    role: Mapped[str] = mapped_column(String(10), default="agent", nullable=False)
+
     # Account state
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
