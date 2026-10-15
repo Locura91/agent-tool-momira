@@ -146,6 +146,7 @@
   <a class="logo" href="/dashboard"><img src="/static/momira-logo.png" alt="Momira Travel" style="height:36px;width:36px;border-radius:50%;display:block;object-fit:contain"><span class="logo-text">Travel Agent Kit</span></a>
   <div class="nav-right">
     <span class="nav-agent"><strong id="nav-agency">…</strong></span>
+    <button class="btn-ghost" id="admin-btn" style="display:none" onclick="location.href='/admin'">⚙ Admin</button>
     <button class="btn-ghost" onclick="location.href='/settings'">Settings</button>
     <button class="btn-ghost" id="logout-btn">Log out</button>
   </div>
@@ -235,6 +236,9 @@
     .then(r => { if (!r.ok) throw new Error(); return r.json(); })
     .then(agent => {
       document.getElementById('nav-agency').textContent = agent.agency_name || agent.email;
+      if (agent.role === 'admin') {
+        document.getElementById('admin-btn').style.display = 'inline-flex';
+      }
       if (!agent.logo_url) {
         document.getElementById('onboarding-strip').style.display = 'flex';
       }

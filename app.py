@@ -579,7 +579,21 @@ async def generate_video(
 # --------------------------------------------------------------------------
 
 @app.get("/admin", response_class=HTMLResponse)
-async def admin_page():
+async def admin_page(request: Request):
+    token = request.cookies.get("sk_token") or request.headers.get("X-Token")
+    if not token:
+        return RedirectResponse("/", status_code=302)
+    try:
+        from auth import decode_token
+        from sqlalchemy import select as _sel
+        agent_id = decode_token(token)
+        async with AsyncSessionLocal() as db:
+            r = await db.execute(_sel(Agent).where(Agent.id == agent_id))
+            a = r.scalar_one_or_none()
+        if not a or a.role != "admin":
+            return RedirectResponse("/", status_code=302)
+    except Exception:
+        return RedirectResponse("/", status_code=302)
     with open("static/admin.html", encoding="utf-8") as f:
         return f.read()
 

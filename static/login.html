@@ -106,7 +106,7 @@
   const token = localStorage.getItem('sk_token');
   const savedRole = localStorage.getItem('sk_role');
   if (token) {
-    window.location.href = savedRole === 'admin' ? '/admin' : '/dashboard';
+    window.location.href = '/dashboard';
   }
 
   function showError(msg) {
@@ -141,7 +141,7 @@
       localStorage.setItem('sk_token', data.access_token);
       localStorage.setItem('sk_role', data.role || 'agent');
 
-      window.location.href = data.role === 'admin' ? '/admin' : '/dashboard';
+      window.location.href = '/dashboard';
     } catch (e) {
       showError('Could not reach the server. Please try again.');
     } finally {
