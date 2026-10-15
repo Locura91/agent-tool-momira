@@ -831,8 +831,15 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
             origin = str(t.get("originCode") or t.get("origin") or t.get("originCity") or t.get("from") or "")
             dest_c = str(t.get("targetCode") or t.get("target") or t.get("destinationCode") or
                          t.get("destination") or t.get("to") or "")
+            def _is_code(s):
+                return bool(s) and " " not in str(s).strip() and (
+                    "_" in str(s) or (any(c.isdigit() for c in str(s)) and str(s).upper() == str(s)))
+            raw_name = t.get("name") or t.get("title") or ""
+            display_name = "" if _is_code(raw_name) else str(raw_name).strip()
+            if not display_name:
+                display_name = str(t.get("description") or "").strip() or None
             title = f"{origin} → {dest_c}" if (origin and dest_c) else (
-                t.get("name") or t.get("title") or chip_label)
+                display_name or chip_label)
 
             parts = []
             if dep_time and dep_time[:5]:
@@ -889,7 +896,10 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
         for t in (_pick_raw(raw_detail, ["transfers", "transfer"], []) or []):
             if not isinstance(t, dict):
                 continue
-            name = str(t.get("name") or t.get("title") or t.get("description") or "Transfer").strip()
+            _raw_name = t.get("name") or t.get("title") or ""
+            name = (str(_raw_name).strip()
+                    if _raw_name and " " in str(_raw_name)
+                    else (str(t.get("description") or "").strip() or "Transfer"))
             date_raw = t.get("date") or t.get("startDate") or t.get("departureDate") or ""
             items.append({
                 "sort_key": _fmt_date_iso(date_raw) + "C",
