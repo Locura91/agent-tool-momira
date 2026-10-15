@@ -35,11 +35,6 @@ async def main() -> None:
         print("Password must be at least 8 characters.")
         sys.exit(1)
 
-    confirm = getpass.getpass("Confirm password: ")
-    if password != confirm:
-        print("Passwords do not match.")
-        sys.exit(1)
-
     await init_db()
 
     async with AsyncSessionLocal() as db:
