@@ -17,7 +17,7 @@ from typing import Optional
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -579,22 +579,9 @@ async def generate_video(
 # --------------------------------------------------------------------------
 
 @app.get("/admin", response_class=HTMLResponse)
-async def admin_page(request: Request):
-    token = request.cookies.get("sk_token") or request.headers.get("X-Token")
-    if not token:
-        return RedirectResponse("/", status_code=302)
-    try:
-        from auth import decode_token
-        from sqlalchemy import select as _sel
-        agent_id = decode_token(token)
-        async with AsyncSessionLocal() as db:
-            r = await db.execute(_sel(Agent).where(Agent.id == agent_id))
-            a = r.scalar_one_or_none()
-        if not a or a.role != "admin":
-            return RedirectResponse("/", status_code=302)
-    except Exception:
-        return RedirectResponse("/", status_code=302)
-    with open("static/admin.html", encoding="utf-8") as f:
+async def admin_page():
+    html_path = os.path.join(os.path.dirname(__file__), "static", "admin.html")
+    with open(html_path, encoding="utf-8") as f:
         return f.read()
 
 
@@ -644,7 +631,8 @@ async def admin_update_agent(
 
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard():
-    with open("static/dashboard.html", encoding="utf-8") as f:
+    html_path = os.path.join(os.path.dirname(__file__), "static", "dashboard.html")
+    with open(html_path, encoding="utf-8") as f:
         return f.read()
 
 
