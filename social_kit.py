@@ -1329,12 +1329,11 @@ def _render_collage(pack: Package, fmt: str, photo: Image.Image, brand: "Brand",
       • Inset accent photo (top-right corner, ~30% wide) with teal border
       • Nights circle badge floats on the hero/panel boundary
       • Dark ink bottom panel: destination chips row + large title + price/CTA row
-      • Wordmark pill top-left
     Story format stacks the same elements differently (hero 55%, taller panel).
     """
     width, height, _ = FORMATS[fmt]
     unit = width / 1080
-    pad = int(56 * unit)
+    pad = int(72 * unit)
 
     INK_DARK = (10, 18, 30)
     TEAL_LIGHT = (200, 242, 240)
@@ -1422,7 +1421,7 @@ def _render_collage(pack: Package, fmt: str, photo: Image.Image, brand: "Brand",
         y += int(meta_font.size * 1.8)
 
     # ── Price + CTA row at bottom of panel ───────────────────────────────────
-    foot = height - int(40 * unit)
+    foot = height - int(70 * unit)
     price = format_price(pack, brand, pln_rate)
     cta = _t(brand, "poster_cta_short")
     cta_font = _font("bold", int(26 * unit))
@@ -1437,10 +1436,6 @@ def _render_collage(pack: Package, fmt: str, photo: Image.Image, brand: "Brand",
 
     _pill(draw, (width - pad - cta_w, foot - int(cta_font.size * 2.2)),
           cta, cta_font, BRAND, WHITE, int(28 * unit))
-
-    # ── Wordmark pill — top-left hero ────────────────────────────────────────
-    _pill(draw, (pad, pad), brand.wordmark,
-          _font("bold", int(22 * unit)), INK_DARK, WHITE, int(24 * unit))
 
     return canvas
 
@@ -1460,7 +1455,7 @@ def render_video_overlay(pack: Package, fmt: str, brand: "Brand",
     """
     width, height, _ = FORMATS[fmt]
     unit = width / 1080
-    pad = int(56 * unit)
+    pad = int(72 * unit)
 
     INK_DARK = (10, 18, 30)
     TEAL_LIGHT = (200, 242, 240)
@@ -1489,8 +1484,8 @@ def render_video_overlay(pack: Package, fmt: str, brand: "Brand",
         band.putalpha(bmask.resize((width, band_h)))
         canvas.alpha_composite(band, (0, panel_y - band_h))
 
-    # Solid dark info panel (opaque).
-    panel = Image.new("RGBA", (width, panel_h), (*INK_DARK, 255))
+    # Semi-transparent dark info panel so video shows through slightly.
+    panel = Image.new("RGBA", (width, panel_h), (*INK_DARK, 210))
     canvas.alpha_composite(panel, (0, panel_y))
 
     draw = ImageDraw.Draw(canvas)
@@ -1544,7 +1539,7 @@ def render_video_overlay(pack: Package, fmt: str, brand: "Brand",
         draw.text((pad, y), "  ·  ".join(meta_parts), font=meta_font, fill=(160, 185, 195))
 
     # Price + CTA row.
-    foot = height - int(40 * unit)
+    foot = height - int(70 * unit)
     price = format_price(pack, brand, pln_rate)
     cta = _t(brand, "poster_cta_short")
     cta_font = _font("bold", int(26 * unit))
@@ -1556,10 +1551,6 @@ def render_video_overlay(pack: Package, fmt: str, brand: "Brand",
         draw.text((pad, foot), price_line, font=price_font, fill=GOLD, anchor="ls")
     _pill(draw, (width - pad - cta_w, foot - int(cta_font.size * 2.2)),
           cta, cta_font, BRAND, WHITE, int(28 * unit))
-
-    # Wordmark pill — top-left.
-    _pill(draw, (pad, pad), brand.wordmark,
-          _font("bold", int(22 * unit)), INK_DARK, WHITE, int(24 * unit))
 
     return canvas
 

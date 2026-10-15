@@ -8,7 +8,7 @@ style onto it, producing a short MP4 ready to post to Reels / Stories / TikTok.
 Design decisions, all driven by keeping this viable on Render's free tier
 (512 MB RAM, shared CPU):
 
-  • MAX_VIDEO_SECONDS = 7   — a short cap is the single biggest lever on FFmpeg
+  • MAX_VIDEO_SECONDS = 5   — a short cap is the single biggest lever on FFmpeg
                              cost; it also loops well on social and replays more.
   • 720p source cap        — we ask Pexels for the smallest file that is still
                              sharp at output size, never 1080p/4K, to keep RAM
@@ -42,7 +42,7 @@ import social_kit as sk
 MODULE_BUILD = "2026-10-02-video-kit-pexels-ffmpeg"
 
 # ── Tunables (all in one place; see module docstring) ──────────────────────
-MAX_VIDEO_SECONDS = 7
+MAX_VIDEO_SECONDS = 5
 SOURCE_HEIGHT_CAP = 720      # never download a file taller than this
 OUTPUT_FPS = 30
 X264_CRF = 24                # 18 (big/sharp) … 28 (small/soft); 24 is a good social default
