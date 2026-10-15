@@ -746,81 +746,197 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
                             num_children = c
                             break
 
-        # --- Build itinerary JSON for the collapsible tour summary ---
+        # --- Build full chronological itinerary for the registration form ---
         import json as _json
+        from datetime import datetime as _dt
 
-        def _extract_flights(transports):
-            flights = []
-            for t in (transports or []):
-                if not isinstance(t, dict):
-                    continue
-                ttype = str(t.get("transportType") or t.get("type") or "").upper()
-                if "FLIGHT" not in ttype:
-                    continue
-                dep_date = t.get("departureDate") or t.get("departureDateTime") or t.get("date") or ""
-                dep_time = t.get("departureTime") or t.get("departureHour") or ""
-                if not dep_time and dep_date and "T" in str(dep_date):
-                    dep_time = str(dep_date).split("T")[1][:5]
-                arr_time = t.get("arrivalTime") or t.get("arrivalHour") or ""
-                origin = t.get("originCode") or t.get("origin") or t.get("originAirport") or ""
-                dest_code = t.get("targetCode") or t.get("target") or t.get("destinationAirport") or ""
-                duration_min = t.get("duration") or t.get("flightDuration") or 0
+        def _fmt_date(raw) -> str:
+            """Return 'Mon DD' label from any date string, or '' if unparseable."""
+            s = str(raw or "").strip()
+            for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M", "%Y-%m-%d", "%d/%m/%Y", "%d.%m.%Y"):
                 try:
-                    duration_min = int(duration_min)
-                except (ValueError, TypeError):
-                    duration_min = 0
-                duration_str = ""
-                if duration_min:
-                    h, m = divmod(duration_min, 60)
-                    duration_str = f"{h}h {m:02d}m" if h else f"{m}m"
-                # Luggage/baggage
-                baggage = (t.get("baggage") or t.get("luggageIncluded") or
-                           t.get("baggageIncluded") or t.get("includedBaggage") or
-                           t.get("handLuggage") or "")
-                if isinstance(baggage, bool):
-                    baggage = "Included" if baggage else ""
-                elif isinstance(baggage, (int, float)):
-                    baggage = f"{int(baggage)} kg" if baggage else ""
-                else:
-                    baggage = str(baggage).strip() if baggage else ""
-                flights.append({
-                    "origin": str(origin),
-                    "dest": str(dest_code),
-                    "dep_time": str(dep_time)[:5] if dep_time else "",
-                    "arr_time": str(arr_time)[:5] if arr_time else "",
-                    "duration": duration_str,
-                    "baggage": baggage,
+                    return _dt.strptime(s[:len(fmt.replace("%Y","0000").replace("%m","00").replace("%d","00").replace("%H","00").replace("%M","00").replace("%S","00"))], fmt).strftime("%d %b")
+                except Exception:
+                    pass
+            # Try just stripping time part
+            if "T" in s:
+                try:
+                    return _dt.strptime(s.split("T")[0], "%Y-%m-%d").strftime("%d %b")
+                except Exception:
+                    pass
+            return ""
+
+        def _fmt_date_iso(raw) -> str:
+            """Return sortable YYYY-MM-DD or '' for chronological sorting."""
+            s = str(raw or "").strip()
+            if len(s) >= 10 and s[4] == "-":
+                return s[:10]
+            return ""
+
+        def _duration_str(minutes) -> str:
+            try:
+                m = int(minutes)
+                h, mn = divmod(m, 60)
+                return f"{h}h {mn:02d}m" if h else f"{mn}m"
+            except Exception:
+                return ""
+
+        def _baggage_str(t) -> str:
+            b = (t.get("baggage") or t.get("luggageIncluded") or t.get("baggageIncluded") or
+                 t.get("includedBaggage") or t.get("handLuggage") or t.get("checkedBaggage") or "")
+            if isinstance(b, bool):
+                return "Luggage included" if b else ""
+            if isinstance(b, (int, float)):
+                return f"{int(b)} kg luggage" if b else ""
+            return str(b).strip() if b else ""
+
+        def _board_label(board: str) -> str:
+            b = str(board or "").strip().lower()
+            mapping = {
+                "ro": "Room only", "room only": "Room only", "roomonly": "Room only",
+                "bb": "Breakfast included", "b&b": "Breakfast included", "breakfast": "Breakfast included",
+                "hb": "Half board", "half board": "Half board", "halfboard": "Half board",
+                "fb": "Full board", "full board": "Full board", "fullboard": "Full board",
+                "ai": "All inclusive", "all inclusive": "All inclusive", "allinclusive": "All inclusive",
+                "all-inclusive": "All inclusive",
+            }
+            return mapping.get(b, board.title() if board else "")
+
+        TRANSPORT_LABELS = {
+            "FLIGHT": ("Flight", "flight"),
+            "BUS": ("Bus", "bus"),
+            "FERRY": ("Ferry", "ferry"),
+            "TRAIN": ("Train", "train"),
+            "CAR": ("Car rental", "car"),
+            "TRANSFER": ("Transfer", "transfer"),
+            "CRUISE": ("Cruise", "cruise"),
+        }
+
+        items = []  # each: {sort_key, date_label, kind, chip, title, detail}
+
+        # 1. Transports (all types)
+        transports_raw = _pick_raw(raw_detail, ["transports", "transport"], []) or []
+        for t in (transports_raw or []):
+            if not isinstance(t, dict):
+                continue
+            ttype = str(t.get("transportType") or t.get("type") or "OTHER").upper()
+            chip_label, chip_kind = TRANSPORT_LABELS.get(ttype, (ttype.title(), "flight"))
+
+            dep_raw = (t.get("departureDate") or t.get("departureDateTime") or
+                       t.get("date") or t.get("startDate") or "")
+            dep_time = str(t.get("departureTime") or t.get("departureHour") or "")
+            if not dep_time and dep_raw and "T" in str(dep_raw):
+                dep_time = str(dep_raw).split("T")[1][:5]
+            arr_time = str(t.get("arrivalTime") or t.get("arrivalHour") or "")
+            origin = str(t.get("originCode") or t.get("origin") or t.get("originCity") or t.get("from") or "")
+            dest_c = str(t.get("targetCode") or t.get("target") or t.get("destinationCode") or
+                         t.get("destination") or t.get("to") or "")
+            title = f"{origin} → {dest_c}" if (origin and dest_c) else (
+                t.get("name") or t.get("title") or chip_label)
+
+            parts = []
+            if dep_time and dep_time[:5]:
+                parts.append(f"{dep_time[:5]}{(' → ' + arr_time[:5]) if arr_time else ''}")
+            dur = _duration_str(t.get("duration") or t.get("flightDuration") or 0)
+            if dur:
+                parts.append(dur)
+            bag = _baggage_str(t)
+            if bag:
+                parts.append(f"🧳 {bag}")
+            airline = str(t.get("airline") or t.get("carrier") or t.get("company") or "")
+            flight_no = str(t.get("flightNumber") or t.get("flightNo") or t.get("serviceNumber") or "")
+            if airline:
+                parts.append(airline + (f" {flight_no}" if flight_no else ""))
+            elif flight_no:
+                parts.append(flight_no)
+
+            items.append({
+                "sort_key": _fmt_date_iso(dep_raw) + "A",
+                "date_label": _fmt_date(dep_raw),
+                "kind": chip_kind,
+                "chip": chip_label,
+                "title": str(title),
+                "detail": " · ".join(p for p in parts if p),
+            })
+
+        # 2. Hotels
+        for idx, h_name in enumerate(pack.hotel_names):
+            nights = pack.hotel_nights[idx] if idx < len(pack.hotel_nights) else 0
+            stars = pack.hotel_stars[idx] if idx < len(pack.hotel_stars) else 0
+            board = pack.hotel_boards[idx] if idx < len(pack.hotel_boards) else ""
+            # Try to get check-in date from raw
+            raw_hotels = _pick_raw(raw_detail, ["hotels", "accommodations", "hotel"], []) or []
+            hotel_raw = raw_hotels[idx] if isinstance(raw_hotels, list) and idx < len(raw_hotels) else {}
+            checkin_raw = (hotel_raw.get("checkIn") or hotel_raw.get("checkInDate") or
+                           hotel_raw.get("startDate") or hotel_raw.get("arrivalDate") or "") if isinstance(hotel_raw, dict) else ""
+            parts = []
+            if nights:
+                parts.append(f"{nights} night{'s' if nights != 1 else ''}")
+            board_label = _board_label(board)
+            if board_label:
+                parts.append(board_label)
+            items.append({
+                "sort_key": _fmt_date_iso(checkin_raw) + "B",
+                "date_label": _fmt_date(checkin_raw),
+                "kind": "hotel",
+                "chip": "Hotel",
+                "title": h_name,
+                "stars": stars,
+                "detail": " · ".join(p for p in parts if p),
+            })
+
+        # 3. Transfers (separate from transport)
+        for t in (_pick_raw(raw_detail, ["transfers", "transfer"], []) or []):
+            if not isinstance(t, dict):
+                continue
+            name = str(t.get("name") or t.get("title") or t.get("description") or "Transfer").strip()
+            date_raw = t.get("date") or t.get("startDate") or t.get("departureDate") or ""
+            items.append({
+                "sort_key": _fmt_date_iso(date_raw) + "C",
+                "date_label": _fmt_date(date_raw),
+                "kind": "transfer",
+                "chip": "Transfer",
+                "title": name,
+                "detail": "",
+            })
+
+        # 4. Activities / excursions / tickets
+        raw_activities = _pick_raw(raw_detail, ["activities", "tickets", "excursions", "services"], []) or []
+        for a in (raw_activities or []):
+            if isinstance(a, str):
+                name, date_raw = a, ""
+            elif isinstance(a, dict):
+                name = str(a.get("name") or a.get("title") or a.get("description") or "Activity").strip()
+                date_raw = a.get("date") or a.get("startDate") or a.get("activityDate") or ""
+            else:
+                continue
+            items.append({
+                "sort_key": _fmt_date_iso(date_raw) + "D",
+                "date_label": _fmt_date(date_raw),
+                "kind": "activity",
+                "chip": "Activity",
+                "title": name,
+                "detail": "",
+            })
+        # Fallback: pack.activities (plain strings)
+        if not raw_activities and pack.activities:
+            for a in pack.activities:
+                items.append({
+                    "sort_key": "ZZZD",
+                    "date_label": "",
+                    "kind": "activity",
+                    "chip": "Included",
+                    "title": str(a),
+                    "detail": "",
                 })
-            return flights
 
-        def _extract_transfers(detail):
-            transfers = []
-            for t in (_pick_raw(detail, ["transfers"], []) or []):
-                if not isinstance(t, dict):
-                    continue
-                name = (t.get("name") or t.get("title") or
-                        t.get("description") or "Transfer")
-                transfers.append(str(name).strip())
-            return transfers
+        # Sort chronologically; items without a date float to their natural position
+        items.sort(key=lambda x: (x["sort_key"] or "ZZZZ"))
 
-        def _extract_hotels(detail):
-            hotels = []
-            for idx, h in enumerate(pack.hotel_names):
-                hotels.append({
-                    "name": h,
-                    "nights": pack.hotel_nights[idx] if idx < len(pack.hotel_nights) else 0,
-                    "stars": pack.hotel_stars[idx] if idx < len(pack.hotel_stars) else 0,
-                    "board": pack.hotel_boards[idx] if idx < len(pack.hotel_boards) else "",
-                })
-            return hotels
-
-        transports_raw = _pick_raw(raw_detail, ["transports"], []) or []
         itinerary = {
-            "flights": _extract_flights(transports_raw),
-            "transfers": _extract_transfers(raw_detail),
-            "hotels": _extract_hotels(raw_detail),
-            "activities": pack.activities,
+            "items": items,
             "days": pack.days,
+            "nights": pack.nights,
         }
         itinerary_json = _json.dumps(itinerary, ensure_ascii=False)
 

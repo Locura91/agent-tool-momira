@@ -6,154 +6,135 @@
   <title>Travel Registration — {{AGENCY_NAME}}</title>
   <style>
     :root {
-      --brand: #17a39b; --brand-dark: #128a81; --brand-light: #e6f7f6;
-      --ink: #111827; --muted: #6b7280; --border: #e5e7eb;
-      --bg: #f9fafb; --white: #fff;
-      --red: #dc2626;
+      --brand:#17a39b; --brand-dark:#128a81; --brand-light:#e6f7f6;
+      --ink:#111827; --muted:#6b7280; --border:#e5e7eb;
+      --bg:#f9fafb; --white:#fff; --red:#dc2626; --gold:#b45309;
     }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: var(--bg); color: var(--ink); min-height: 100vh;
-    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+      background:var(--bg);color:var(--ink);min-height:100vh}
 
     /* ── Header ── */
-    .page-header {
-      background: var(--brand);
-      padding: 1.5rem 1.5rem 2.5rem;
-      text-align: center;
-    }
-    .agency-logo {
-      height: 56px; max-width: 180px; object-fit: contain;
-      display: block; margin: 0 auto .9rem;
-      border-radius: 8px;
-    }
-    .page-header h1 { color:#fff; font-size:1.35rem; font-weight:700; line-height:1.3; }
-    .page-header .subtitle { color:rgba(255,255,255,.82); font-size:.88rem; margin-top:.35rem; }
+    .page-header{background:var(--brand);padding:1.6rem 1.5rem 2.8rem;text-align:center}
+    .agency-logo{height:56px;max-width:180px;object-fit:contain;display:block;
+      margin:0 auto .9rem;border-radius:8px}
+    .page-header h1{color:#fff;font-size:1.3rem;font-weight:700;line-height:1.35}
+    .page-header .subtitle{color:rgba(255,255,255,.82);font-size:.85rem;margin-top:.35rem}
+    .price-badge{display:inline-block;background:rgba(0,0,0,.18);
+      color:#fff;font-weight:700;font-size:.95rem;padding:.35rem .9rem;
+      border-radius:99px;margin-top:.6rem}
 
     /* ── Page wrapper ── */
-    .page { max-width:700px; margin:-1.5rem auto 3rem; padding:0 1rem; }
+    .page{max-width:700px;margin:-1.8rem auto 3rem;padding:0 1rem}
 
-    /* ── Card shell ── */
-    .card {
-      background:var(--white); border:1px solid var(--border);
-      border-radius:16px; margin-bottom:1.25rem;
-      box-shadow:0 2px 8px rgba(0,0,0,.06); overflow:hidden;
-    }
+    /* ── Card ── */
+    .card{background:var(--white);border:1px solid var(--border);border-radius:16px;
+      margin-bottom:1.25rem;box-shadow:0 2px 8px rgba(0,0,0,.06);overflow:hidden}
+    .card-header{padding:1rem 1.4rem;border-bottom:1px solid var(--border);
+      display:flex;align-items:center;gap:.6rem}
+    .card-header h2{font-size:.95rem;font-weight:700}
+    .card-header .meta{font-size:.8rem;color:var(--muted);margin-top:.15rem}
 
-    /* ── Itinerary toggle header ── */
-    .itin-toggle {
-      width:100%; background:none; border:none; cursor:pointer;
-      padding:1.1rem 1.4rem;
-      display:flex; align-items:center; justify-content:space-between;
-      text-align:left;
-    }
-    .itin-toggle:hover { background:var(--bg); }
-    .itin-toggle-left h2 { font-size:.95rem; font-weight:700; }
-    .itin-toggle-left .itin-meta { font-size:.8rem; color:var(--muted); margin-top:.2rem; }
-    .itin-chevron {
-      width:20px; height:20px; flex-shrink:0; color:var(--muted);
-      transition:transform .22s;
-    }
-    .itin-chevron.open { transform:rotate(180deg); }
-    .itin-body { display:none; border-top:1px solid var(--border); }
-    .itin-body.open { display:block; }
+    /* ── Reservation notice ── */
+    .notice{background:#fffbeb;border:1px solid #fde68a;border-radius:12px;
+      padding:1rem 1.2rem;margin-bottom:1.25rem;display:flex;gap:.75rem;align-items:flex-start}
+    .notice-icon{font-size:1.3rem;flex-shrink:0;margin-top:.05rem}
+    .notice-title{font-weight:700;font-size:.9rem;margin-bottom:.25rem}
+    .notice p{font-size:.82rem;color:#78350f;line-height:1.55}
 
     /* ── Timeline ── */
-    .timeline { padding:.5rem 1.2rem 1.2rem; }
-    .tl-item {
-      display:flex; gap:.9rem; padding:.65rem 0;
-      position:relative;
-    }
-    /* vertical line between items */
-    .tl-item:not(:last-child)::after {
-      content:''; position:absolute;
-      left:calc(.9rem + 16px); top:40px;
-      width:2px; bottom:-6px;
-      background:var(--border);
-    }
+    .timeline-wrap{padding:.4rem 1.2rem 1.2rem}
+    .tl-item{display:flex;gap:.85rem;padding:.55rem 0;position:relative}
+    .tl-item:not(:last-child)::after{
+      content:'';position:absolute;
+      left:calc(.85rem + 17px);top:38px;
+      width:2px;bottom:-4px;background:var(--border)}
+    .tl-date{flex-shrink:0;width:36px;text-align:center;
+      border-radius:8px;font-size:.58rem;font-weight:700;line-height:1.2;
+      text-transform:uppercase;min-height:36px;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      padding:.2rem}
+    .tl-date.flight  {background:#dbeafe;color:#1d4ed8}
+    .tl-date.bus     {background:#e0f2fe;color:#0369a1}
+    .tl-date.ferry   {background:#cffafe;color:#0e7490}
+    .tl-date.train   {background:#f0fdf4;color:#166534}
+    .tl-date.car     {background:#fef9c3;color:#854d0e}
+    .tl-date.hotel   {background:#fef3c7;color:#92400e}
+    .tl-date.transfer{background:#d1fae5;color:#065f46}
+    .tl-date.activity{background:#ede9fe;color:#5b21b6}
+    .tl-date.cruise  {background:#e0e7ff;color:#3730a3}
+    .tl-date.no-date {background:#f3f4f6;color:var(--muted)}
+    .tl-content{flex:1;min-width:0;padding-top:.15rem}
+    .tl-top{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin-bottom:.15rem}
+    .tl-chip{font-size:.6rem;font-weight:700;text-transform:uppercase;
+      letter-spacing:.04em;padding:.15rem .45rem;border-radius:4px}
+    .chip-flight  {background:#dbeafe;color:#1d4ed8}
+    .chip-bus     {background:#e0f2fe;color:#0369a1}
+    .chip-ferry   {background:#cffafe;color:#0e7490}
+    .chip-train   {background:#f0fdf4;color:#166534}
+    .chip-car     {background:#fef9c3;color:#854d0e}
+    .chip-hotel   {background:#fef3c7;color:#92400e}
+    .chip-transfer{background:#d1fae5;color:#065f46}
+    .chip-activity{background:#ede9fe;color:#5b21b6}
+    .chip-cruise  {background:#e0e7ff;color:#3730a3}
+    .tl-title{font-size:.88rem;font-weight:600;color:var(--ink)}
+    .tl-stars{color:#f59e0b;font-size:.78rem;letter-spacing:1px}
+    .tl-detail{font-size:.76rem;color:var(--muted);margin-top:.12rem;line-height:1.5}
 
-    /* date badge */
-    .tl-date {
-      flex-shrink:0; width:34px; text-align:center;
-      padding:.3rem .1rem; border-radius:8px;
-      font-size:.65rem; font-weight:700; line-height:1.2;
-      text-transform:uppercase; min-height:36px;
-      display:flex; flex-direction:column; align-items:center; justify-content:center;
-    }
-    .tl-date.accent { background:var(--brand); color:#fff; }
-    .tl-date.dark   { background:#1f2937;      color:#fff; }
-    .tl-date.empty  { background:transparent;  }
+    /* ── Form fields ── */
+    .pax-block{border-bottom:1px solid var(--border);padding:1.2rem 1.4rem}
+    .pax-block:last-of-type{border-bottom:none}
+    .pax-label{font-size:.72rem;font-weight:700;text-transform:uppercase;
+      letter-spacing:.06em;color:var(--brand);margin-bottom:.85rem}
+    .shared-section{padding:1.2rem 1.4rem;border-top:2px solid var(--brand-light)}
+    .shared-title{font-size:.72rem;font-weight:700;text-transform:uppercase;
+      letter-spacing:.06em;color:var(--muted);margin-bottom:.9rem}
+    .field{display:flex;flex-direction:column;gap:.28rem;margin-bottom:.7rem}
+    .field:last-child{margin-bottom:0}
+    label.fl{font-size:.78rem;font-weight:600}
+    label.fl .req{color:var(--red)}
+    input[type=text],input[type=email],input[type=tel],input[type=date]{
+      width:100%;padding:.58rem .8rem;
+      border:1.5px solid var(--border);border-radius:8px;
+      font-size:.9rem;color:var(--ink);background:var(--white);
+      outline:none;transition:border-color .15s;-webkit-appearance:none}
+    input:focus{border-color:var(--brand)}
+    input.err{border-color:var(--red)}
+    .ferr{font-size:.74rem;color:var(--red);display:none}
+    .ferr.show{display:block}
+    .row2{display:grid;grid-template-columns:1fr 90px;gap:.5rem}
+    .row2b{display:grid;grid-template-columns:110px 1fr;gap:.5rem}
 
-    /* content */
-    .tl-content { flex:1; min-width:0; }
-    .tl-top { display:flex; align-items:center; gap:.45rem; flex-wrap:wrap; margin-bottom:.2rem; }
-    .tl-chip {
-      font-size:.62rem; font-weight:700; text-transform:uppercase;
-      letter-spacing:.04em; padding:.18rem .5rem; border-radius:4px;
-    }
-    .chip-flight   { background:#dbeafe; color:#1d4ed8; }
-    .chip-hotel    { background:#fef3c7; color:#92400e; }
-    .chip-transfer { background:#d1fae5; color:#065f46; }
-    .chip-activity { background:#ede9fe; color:#5b21b6; }
-    .chip-nights   { background:#fce7f3; color:#9d174d; }
+    /* ── T&C checkboxes ── */
+    .tc-section{padding:1.2rem 1.4rem;border-top:2px solid var(--brand-light)}
+    .tc-title{font-size:.72rem;font-weight:700;text-transform:uppercase;
+      letter-spacing:.06em;color:var(--muted);margin-bottom:.85rem}
+    .tc-item{display:flex;gap:.7rem;align-items:flex-start;margin-bottom:.75rem}
+    .tc-item:last-child{margin-bottom:0}
+    .tc-item input[type=checkbox]{
+      width:18px;height:18px;flex-shrink:0;accent-color:var(--brand);
+      margin-top:.1rem;cursor:pointer}
+    .tc-item label{font-size:.82rem;line-height:1.55;cursor:pointer}
+    .tc-item label a{color:var(--brand);text-decoration:underline}
+    .tc-err{font-size:.74rem;color:var(--red);display:none;margin-top:.3rem}
+    .tc-err.show{display:block}
 
-    .tl-title { font-size:.9rem; font-weight:600; }
-    .tl-detail { font-size:.78rem; color:var(--muted); margin-top:.15rem; line-height:1.5; }
-    .tl-stars { color:#f59e0b; font-size:.8rem; }
+    /* ── Submit ── */
+    .submit-wrap{padding:1.2rem 1.4rem;border-top:1px solid var(--border);background:var(--bg)}
+    .btn-submit{width:100%;background:var(--brand);color:#fff;border:none;
+      border-radius:10px;padding:.82rem 1.5rem;font-size:1rem;font-weight:700;
+      cursor:pointer;transition:background .15s}
+    .btn-submit:hover{background:var(--brand-dark)}
+    .btn-submit:disabled{opacity:.6;cursor:not-allowed}
+    .submit-note{text-align:center;font-size:.76rem;color:var(--muted);margin-top:.55rem;line-height:1.5}
 
-    /* ── Form section ── */
-    .pax-block { border-bottom:1px solid var(--border); padding:1.2rem 1.4rem; }
-    .pax-block:last-of-type { border-bottom:none; }
-    .pax-label {
-      font-size:.72rem; font-weight:700; text-transform:uppercase;
-      letter-spacing:.06em; color:var(--brand); margin-bottom:.85rem;
-    }
-    .shared-section { padding:1.2rem 1.4rem; border-top:2px solid var(--brand-light); }
-    .shared-title {
-      font-size:.72rem; font-weight:700; text-transform:uppercase;
-      letter-spacing:.06em; color:var(--muted); margin-bottom:.9rem;
-    }
-
-    /* fields */
-    .field { display:flex; flex-direction:column; gap:.28rem; margin-bottom:.7rem; }
-    .field:last-child { margin-bottom:0; }
-    label.fl { font-size:.78rem; font-weight:600; }
-    label.fl .req { color:var(--red); }
-    input[type=text],input[type=email],input[type=tel],input[type=date] {
-      width:100%; padding:.58rem .8rem;
-      border:1.5px solid var(--border); border-radius:8px;
-      font-size:.9rem; color:var(--ink); background:var(--white);
-      outline:none; transition:border-color .15s; -webkit-appearance:none;
-    }
-    input:focus { border-color:var(--brand); }
-    input.err   { border-color:var(--red); }
-    .ferr { font-size:.74rem; color:var(--red); display:none; }
-    .ferr.show { display:block; }
-
-    .row2 { display:grid; grid-template-columns:1fr 90px; gap:.5rem; }
-    .row2b{ display:grid; grid-template-columns:110px 1fr; gap:.5rem; }
-
-    /* submit */
-    .submit-wrap { padding:1.2rem 1.4rem; border-top:1px solid var(--border); background:var(--bg); }
-    .btn-submit {
-      width:100%; background:var(--brand); color:#fff;
-      border:none; border-radius:10px; padding:.82rem 1.5rem;
-      font-size:1rem; font-weight:700; cursor:pointer; transition:background .15s;
-    }
-    .btn-submit:hover { background:var(--brand-dark); }
-    .btn-submit:disabled { opacity:.6; cursor:not-allowed; }
-    .submit-note { text-align:center; font-size:.76rem; color:var(--muted); margin-top:.55rem; }
-
-    .err-banner {
-      background:#fef2f2; border:1px solid #fca5a5; color:var(--red);
-      border-radius:8px; padding:.65rem 1rem; font-size:.86rem;
-      margin-bottom:1rem; display:none;
-    }
-    .err-banner.show { display:block; }
+    .err-banner{background:#fef2f2;border:1px solid #fca5a5;color:var(--red);
+      border-radius:8px;padding:.65rem 1rem;font-size:.86rem;
+      margin-bottom:1rem;display:none}
+    .err-banner.show{display:block}
 
     @media(max-width:480px){
-      .row2,.row2b { grid-template-columns:1fr; }
+      .row2,.row2b{grid-template-columns:1fr}
     }
   </style>
 </head>
@@ -163,24 +144,34 @@
   {{LOGO_HTML}}
   <h1>{{PKG_TITLE}}</h1>
   <div class="subtitle" id="hdr-sub">{{AGENCY_NAME}}</div>
+  <div id="price-badge-wrap"></div>
 </div>
 
 <div class="page">
 
-  <!-- Itinerary summary -->
+  <!-- Reservation notice -->
+  <div class="notice">
+    <span class="notice-icon">ℹ️</span>
+    <div>
+      <div class="notice-title">This is a reservation request — not a confirmed booking</div>
+      <p>By submitting this form you are placing a <strong>reservation request</strong>. Your travel agent at <strong>{{AGENCY_NAME}}</strong> will immediately attempt to confirm your booking at the stated price and will contact you directly. Until you receive written confirmation, no booking has been made.</p>
+    </div>
+  </div>
+
+  <!-- Tour Overview -->
   <div class="card" id="itin-card" style="display:none">
-    <button class="itin-toggle" type="button" onclick="toggleItin()">
-      <div class="itin-toggle-left">
+    <div class="card-header" style="cursor:pointer" onclick="toggleItin()">
+      <div style="flex:1">
         <h2>🗺️ Tour Overview</h2>
-        <div class="itin-meta" id="itin-meta"></div>
+        <div class="meta" id="itin-meta"></div>
       </div>
-      <svg class="itin-chevron" id="itin-chevron" viewBox="0 0 20 20" fill="none"
-           stroke="currentColor" stroke-width="2">
+      <svg id="itin-chevron" style="width:20px;height:20px;flex-shrink:0;color:var(--muted);transition:transform .22s"
+           viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
         <polyline points="5,8 10,13 15,8"/>
       </svg>
-    </button>
-    <div class="itin-body" id="itin-body">
-      <div class="timeline" id="timeline"></div>
+    </div>
+    <div id="itin-body" style="display:none;border-top:1px solid var(--border)">
+      <div class="timeline-wrap" id="timeline"></div>
     </div>
   </div>
 
@@ -194,7 +185,6 @@
 
     <div class="shared-section">
       <div class="shared-title">Contact &amp; Address</div>
-
       <div class="field">
         <label class="fl" for="f-email">E-mail <span class="req">*</span></label>
         <input type="email" id="f-email" name="email" autocomplete="email" required>
@@ -209,7 +199,7 @@
         <label class="fl">Street &amp; house number <span class="req">*</span></label>
         <div class="row2">
           <input type="text" id="f-street" name="street" placeholder="Street name" required>
-          <input type="text" id="f-house"  name="house_number" placeholder="No.">
+          <input type="text" id="f-house" name="house_number" placeholder="No.">
         </div>
         <span class="ferr" id="e-street">Please enter a street.</span>
       </div>
@@ -217,7 +207,7 @@
         <label class="fl">Postal code &amp; city <span class="req">*</span></label>
         <div class="row2b">
           <input type="text" id="f-postal" name="postal_code" placeholder="Postal code" required>
-          <input type="text" id="f-city"   name="city" placeholder="City" required>
+          <input type="text" id="f-city" name="city" placeholder="City" required>
         </div>
         <span class="ferr" id="e-city">Please enter postal code and city.</span>
       </div>
@@ -229,21 +219,57 @@
       </div>
       <div class="field">
         <label class="fl" for="f-nat">Nationality <span class="req">*</span></label>
-        <input type="text" id="f-nat" name="nationality"
-               placeholder="e.g. German" required>
+        <input type="text" id="f-nat" name="nationality" placeholder="e.g. German" required>
         <span class="ferr" id="e-nat">Please enter your nationality.</span>
       </div>
+    </div>
+
+    <!-- Terms & Conditions -->
+    <div class="tc-section">
+      <div class="tc-title">Terms &amp; Conditions</div>
+
+      <div class="tc-item">
+        <input type="checkbox" id="tc-reservation" name="tc_reservation">
+        <label for="tc-reservation">
+          I understand that this is a <strong>reservation request only</strong>, not a confirmed booking. My travel agent will contact me to confirm availability and price. I am not charged until I receive a written booking confirmation.
+        </label>
+      </div>
+      <span class="tc-err" id="e-tc-reservation">Please confirm you understand this is a reservation.</span>
+
+      <div class="tc-item">
+        <input type="checkbox" id="tc-terms" name="tc_terms">
+        <label for="tc-terms">
+          I have read and accept the <a href="https://momira.travel/terms" target="_blank" rel="noopener">General Terms &amp; Conditions of Momira Travel</a>, including the cancellation and payment policies.
+        </label>
+      </div>
+      <span class="tc-err" id="e-tc-terms">Please accept the Terms &amp; Conditions.</span>
+
+      <div class="tc-item">
+        <input type="checkbox" id="tc-data" name="tc_data">
+        <label for="tc-data">
+          I agree that my personal data will be processed solely for the purpose of this travel reservation and subsequent booking process, in accordance with applicable data protection law (GDPR).
+        </label>
+      </div>
+      <span class="tc-err" id="e-tc-data">Please accept the data protection clause.</span>
+
+      <div class="tc-item">
+        <input type="checkbox" id="tc-accuracy" name="tc_accuracy">
+        <label for="tc-accuracy">
+          I confirm that all passenger details entered are accurate and match the official travel documents (passport / ID).
+        </label>
+      </div>
+      <span class="tc-err" id="e-tc-accuracy">Please confirm the details are accurate.</span>
     </div>
 
     <input type="hidden" name="passengers_json" id="passengers-json">
 
     <div class="submit-wrap">
       <button type="submit" class="btn-submit" id="submit-btn">
-        ✈️ Secure your trip now
+        ✈️ Submit reservation request
       </button>
       <div class="submit-note">
-        By submitting you confirm that all details are accurate.
-        Your data will only be used for this travel booking.
+        By submitting you confirm all details are accurate and accept the terms above.<br>
+        Your travel agent will contact you as soon as possible to confirm your booking.
       </div>
     </div>
   </form>
@@ -251,29 +277,28 @@
 
 <script>
   const NUM_ADULTS   = parseInt("{{NUM_ADULTS}}", 10)  || 2;
-  const NUM_CHILDREN = parseInt("{{NUM_CHILDREN}}", 10)|| 0;
+  const NUM_CHILDREN = parseInt("{{NUM_CHILDREN}}", 10) || 0;
   const PRICE_STR    = "{{PRICE_STR}}";
   const ITIN = (function(){
     try{ return JSON.parse('{{ITINERARY_JSON}}'); } catch(e){ return null; }
   })();
 
-  /* header subtitle */
+  /* Price badge in header */
   if (PRICE_STR) {
-    document.getElementById('hdr-sub').textContent =
-      "{{AGENCY_NAME}} · " + PRICE_STR;
+    document.getElementById('hdr-sub').textContent = "{{AGENCY_NAME}} · " + PRICE_STR;
   }
 
   /* ── Passenger sections ── */
   (function(){
     const el = document.getElementById('pax-sections');
     let html = '';
-    for(let i=0;i<NUM_ADULTS;i++)   html += paxBlock('adult',i+1,i);
-    for(let i=0;i<NUM_CHILDREN;i++) html += paxBlock('child',i+1,NUM_ADULTS+i);
+    for(let i = 0; i < NUM_ADULTS; i++)   html += paxBlock('adult', i + 1, i);
+    for(let i = 0; i < NUM_CHILDREN; i++) html += paxBlock('child', i + 1, NUM_ADULTS + i);
     el.innerHTML = html;
   })();
 
   function paxBlock(type, num, idx){
-    const label = type==='adult' ? 'Adult '+num : 'Child '+num;
+    const label = type === 'adult' ? 'Adult ' + num : 'Child ' + num;
     return `
       <div class="pax-block" data-type="${type}" data-idx="${idx}">
         <div class="pax-label">${label}</div>
@@ -293,88 +318,63 @@
 
   /* ── Itinerary timeline ── */
   (function(){
-    if(!ITIN) return;
-    const rows = [];
+    if(!ITIN || !ITIN.items || !ITIN.items.length) return;
+    const items = ITIN.items;
 
-    /* flights */
-    (ITIN.flights||[]).forEach(f=>{
-      const route = [f.origin, f.dest].filter(Boolean).join(' → ') || 'Flight';
-      const parts = [];
-      if(f.dep_time) parts.push(f.dep_time + (f.arr_time?' → '+f.arr_time:''));
-      if(f.duration) parts.push(f.duration);
-      if(f.baggage)  parts.push('🧳 '+f.baggage);
-      rows.push({chip:'flight', chipLabel:'Flight', title: route, detail: parts.join(' · ')});
-    });
-
-    /* hotels */
-    (ITIN.hotels||[]).forEach(h=>{
-      const stars = h.stars ? '★'.repeat(Math.min(h.stars,5)) : '';
-      const parts = [];
-      if(h.nights) parts.push(h.nights+' night'+(h.nights>1?'s':''));
-      if(h.board)  parts.push(h.board);
-      rows.push({chip:'hotel', chipLabel: (h.nights?h.nights+' nights':'Hotel'),
-                 title: h.name, stars: stars, detail: parts.join(' · ')});
-    });
-
-    /* transfers */
-    (ITIN.transfers||[]).forEach(t=>{
-      rows.push({chip:'transfer', chipLabel:'Transfer', title: t, detail:''});
-    });
-
-    /* activities */
-    (ITIN.activities||[]).forEach(a=>{
-      rows.push({chip:'activity', chipLabel:'Included', title: a, detail:''});
-    });
-
-    if(!rows.length) return;
-
-    /* meta line */
     const metaParts = [];
-    const fc = (ITIN.flights||[]).length;
-    const hc = (ITIN.hotels||[]).length;
-    if(fc) metaParts.push(fc+' flight'+(fc>1?'s':''));
-    if(hc) metaParts.push(hc+' hotel'+(hc>1?'s':''));
-    if(ITIN.days) metaParts.push(ITIN.days+' days');
-    document.getElementById('itin-meta').textContent =
-      metaParts.join(' · ') || 'Click to expand';
+    const counts = {};
+    items.forEach(it => { counts[it.kind] = (counts[it.kind] || 0) + 1; });
+    if(counts.flight) metaParts.push(counts.flight + ' flight' + (counts.flight > 1 ? 's' : ''));
+    if(counts.ferry)  metaParts.push(counts.ferry  + ' ferry' + (counts.ferry  > 1 ? '/ferries' : ''));
+    if(counts.bus)    metaParts.push(counts.bus    + ' bus'   + (counts.bus    > 1 ? 'ses' : ''));
+    if(counts.hotel)  metaParts.push(counts.hotel  + ' hotel' + (counts.hotel  > 1 ? 's' : ''));
+    if(ITIN.days)     metaParts.push(ITIN.days + ' days');
+    document.getElementById('itin-meta').textContent = metaParts.join(' · ') || 'Click to expand';
 
     const tl = document.getElementById('timeline');
-    tl.innerHTML = rows.map((r,i)=>{
-      const chipClass = 'chip-'+r.chip;
-      const dateClass = i%2===0 ? 'accent' : 'dark';
+    tl.innerHTML = items.map(it => {
+      const dateClass = it.kind || 'no-date';
+      const chipClass = 'chip-' + (it.kind || 'activity');
+      const dateLines = it.date_label
+        ? it.date_label.split(' ').map(s => `<span>${esc(s)}</span>`).join('')
+        : '<span>—</span>';
       return `
         <div class="tl-item">
-          <div class="tl-date ${dateClass}"></div>
+          <div class="tl-date ${dateClass}">${dateLines}</div>
           <div class="tl-content">
             <div class="tl-top">
-              <span class="tl-chip ${chipClass}">${esc(r.chipLabel)}</span>
-              <span class="tl-title">${esc(r.title)}</span>
+              <span class="tl-chip ${chipClass}">${esc(it.chip)}</span>
+              <span class="tl-title">${esc(it.title)}</span>
             </div>
-            ${r.stars?`<div class="tl-stars">${r.stars}</div>`:''}
-            ${r.detail?`<div class="tl-detail">${esc(r.detail)}</div>`:''}
+            ${it.stars ? `<div class="tl-stars">${'★'.repeat(Math.min(parseInt(it.stars)||0,5))}</div>` : ''}
+            ${it.detail ? `<div class="tl-detail">${esc(it.detail)}</div>` : ''}
           </div>
         </div>`;
     }).join('');
 
     document.getElementById('itin-card').style.display = 'block';
+    /* Auto-expand the timeline */
+    document.getElementById('itin-body').style.display = 'block';
+    document.getElementById('itin-chevron').style.transform = 'rotate(180deg)';
   })();
 
   function toggleItin(){
     const body = document.getElementById('itin-body');
     const chev = document.getElementById('itin-chevron');
-    const open = body.classList.toggle('open');
-    chev.classList.toggle('open', open);
+    const open = body.style.display === 'none';
+    body.style.display = open ? 'block' : 'none';
+    chev.style.transform = open ? 'rotate(180deg)' : '';
   }
 
   /* ── Validation & submit ── */
   function clearErrs(){
-    document.querySelectorAll('.ferr').forEach(e=>e.classList.remove('show'));
-    document.querySelectorAll('input.err').forEach(e=>e.classList.remove('err'));
+    document.querySelectorAll('.ferr,.tc-err').forEach(e => e.classList.remove('show'));
+    document.querySelectorAll('input.err').forEach(e => e.classList.remove('err'));
     document.getElementById('err-banner').classList.remove('show');
   }
   function markErr(inputId, errId){
-    const i=document.getElementById(inputId);
-    const e=document.getElementById(errId);
+    const i = document.getElementById(inputId);
+    const e = document.getElementById(errId);
     if(i) i.classList.add('err');
     if(e) e.classList.add('show');
   }
@@ -382,49 +382,55 @@
   document.getElementById('reg-form').addEventListener('submit', function(ev){
     ev.preventDefault();
     clearErrs();
-    let ok=true;
+    let ok = true;
 
-    document.querySelectorAll('.pax-name').forEach(inp=>{
-      const idx=inp.dataset.idx;
-      if(!inp.value.trim()){ markErr('pn'+idx,'en'+idx); ok=false; }
+    document.querySelectorAll('.pax-name').forEach(inp => {
+      const idx = inp.dataset.idx;
+      if(!inp.value.trim()){ markErr('pn'+idx, 'en'+idx); ok = false; }
     });
-    document.querySelectorAll('.pax-dob').forEach(inp=>{
-      const idx=inp.dataset.idx;
-      if(!inp.value){ markErr('pd'+idx,'ed'+idx); ok=false; }
+    document.querySelectorAll('.pax-dob').forEach(inp => {
+      const idx = inp.dataset.idx;
+      if(!inp.value){ markErr('pd'+idx, 'ed'+idx); ok = false; }
     });
 
-    const email=document.getElementById('f-email');
-    if(!email.value.trim()||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value)){
-      markErr('f-email','e-email'); ok=false;
+    const email = document.getElementById('f-email');
+    if(!email.value.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value)){
+      markErr('f-email','e-email'); ok = false;
     }
-    if(!document.getElementById('f-phone').value.trim()){ markErr('f-phone','e-phone'); ok=false; }
-    if(!document.getElementById('f-street').value.trim()){ markErr('f-street','e-street'); ok=false; }
-    if(!document.getElementById('f-postal').value.trim()||
-       !document.getElementById('f-city').value.trim()){ markErr('f-postal','e-city'); ok=false; }
-    if(!document.getElementById('f-country').value.trim()){ markErr('f-country','e-country'); ok=false; }
-    if(!document.getElementById('f-nat').value.trim()){ markErr('f-nat','e-nat'); ok=false; }
+    if(!document.getElementById('f-phone').value.trim()){ markErr('f-phone','e-phone'); ok = false; }
+    if(!document.getElementById('f-street').value.trim()){ markErr('f-street','e-street'); ok = false; }
+    if(!document.getElementById('f-postal').value.trim() ||
+       !document.getElementById('f-city').value.trim()){ markErr('f-postal','e-city'); ok = false; }
+    if(!document.getElementById('f-country').value.trim()){ markErr('f-country','e-country'); ok = false; }
+    if(!document.getElementById('f-nat').value.trim()){ markErr('f-nat','e-nat'); ok = false; }
+
+    ['tc-reservation','tc-terms','tc-data','tc-accuracy'].forEach(id => {
+      if(!document.getElementById(id).checked){
+        document.getElementById('e-' + id).classList.add('show'); ok = false;
+      }
+    });
 
     if(!ok){
-      const b=document.getElementById('err-banner');
-      b.textContent='Please fill in all required fields.';
+      const b = document.getElementById('err-banner');
+      b.textContent = 'Please fill in all required fields and accept all terms.';
       b.classList.add('show');
-      window.scrollTo({top:0,behavior:'smooth'});
+      window.scrollTo({top: 0, behavior: 'smooth'});
       return;
     }
 
-    const passengers=[];
-    document.querySelectorAll('.pax-block').forEach(block=>{
-      const idx=block.dataset.idx;
+    const passengers = [];
+    document.querySelectorAll('.pax-block').forEach(block => {
+      const idx = block.dataset.idx;
       passengers.push({
         type: block.dataset.type,
         full_name: document.getElementById('pn'+idx).value.trim(),
         dob: document.getElementById('pd'+idx).value,
       });
     });
-    document.getElementById('passengers-json').value=JSON.stringify(passengers);
+    document.getElementById('passengers-json').value = JSON.stringify(passengers);
 
-    const btn=document.getElementById('submit-btn');
-    btn.disabled=true; btn.textContent='Sending…';
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = true; btn.textContent = 'Sending…';
     this.submit();
   });
 
