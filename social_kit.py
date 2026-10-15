@@ -1420,8 +1420,7 @@ def _render_collage(pack: Package, fmt: str, photo: Image.Image, brand: "Brand",
         draw.text((pad, y), meta_text, font=meta_font, fill=(160, 185, 195))
         y += int(meta_font.size * 1.8)
 
-    # ── Price + CTA row at bottom of panel ───────────────────────────────────
-    foot = height - int(70 * unit)
+    # ── Price — placed right after meta row so it's always visible ───────────
     price = format_price(pack, brand, pln_rate)
     cta = _t(brand, "poster_cta_short")
     cta_font = _font("bold", int(26 * unit))
@@ -1429,12 +1428,13 @@ def _render_collage(pack: Package, fmt: str, photo: Image.Image, brand: "Brand",
 
     if price:
         price_line = _t(brand, "poster_from").format(price=price)
-        price_font = _font("bold", int(50 * unit))
-        # Shadow then text
-        draw.text((pad + int(2 * unit), foot + int(2 * unit)), price_line, font=price_font, fill=(0, 0, 0), anchor="ls")
-        draw.text((pad, foot), price_line, font=price_font, fill=GOLD, anchor="ls")
+        price_font = _font("bold", int(52 * unit))
+        draw.text((pad + int(2 * unit), y + int(2 * unit)), price_line, font=price_font, fill=(0, 0, 0))
+        draw.text((pad, y), price_line, font=price_font, fill=GOLD)
 
-    _pill(draw, (width - pad - cta_w, foot - int(cta_font.size * 2.2)),
+    # ── CTA pill — pinned to bottom-right ────────────────────────────────────
+    foot_cta = height - int(60 * unit)
+    _pill(draw, (width - pad - cta_w, foot_cta - int(cta_font.size * 2.2)),
           cta, cta_font, BRAND, WHITE, int(28 * unit))
 
     return canvas
@@ -1537,19 +1537,25 @@ def render_video_overlay(pack: Package, fmt: str, brand: "Brand",
     if meta_parts:
         meta_font = _font("regular", int(24 * unit))
         draw.text((pad, y), "  ·  ".join(meta_parts), font=meta_font, fill=(160, 185, 195))
+        y += int(meta_font.size * 1.8)
+    else:
+        y += int(28 * unit)
 
-    # Price + CTA row.
-    foot = height - int(70 * unit)
+    # Price — placed right after meta row so it's always visible in the panel.
     price = format_price(pack, brand, pln_rate)
     cta = _t(brand, "poster_cta_short")
     cta_font = _font("bold", int(26 * unit))
     cta_w = int(draw.textlength(cta, font=cta_font)) + int(56 * unit)
     if price:
         price_line = _t(brand, "poster_from").format(price=price)
-        price_font = _font("bold", int(50 * unit))
-        draw.text((pad + int(2 * unit), foot + int(2 * unit)), price_line, font=price_font, fill=(0, 0, 0), anchor="ls")
-        draw.text((pad, foot), price_line, font=price_font, fill=GOLD, anchor="ls")
-    _pill(draw, (width - pad - cta_w, foot - int(cta_font.size * 2.2)),
+        price_font = _font("bold", int(52 * unit))
+        draw.text((pad + int(2 * unit), y + int(2 * unit)), price_line, font=price_font, fill=(0, 0, 0))
+        draw.text((pad, y), price_line, font=price_font, fill=GOLD)
+        y += int(price_font.size * 1.4)
+
+    # CTA pill — pinned to bottom-right.
+    foot_cta = height - int(60 * unit)
+    _pill(draw, (width - pad - cta_w, foot_cta - int(cta_font.size * 2.2)),
           cta, cta_font, BRAND, WHITE, int(28 * unit))
 
     return canvas

@@ -233,7 +233,7 @@
 
   <!-- Video post (optional) -->
   <div class="video-section" id="video-section" style="display:none">
-    <div class="results-title">🎬 Video post <span style="font-weight:400;color:var(--muted);font-size:.85rem;">— optional, a 7-second branded clip</span></div>
+    <div class="results-title">🎬 Video post <span style="font-weight:400;color:var(--muted);font-size:.85rem;">— optional, a 5-second branded clip</span></div>
     <p class="vid-intro">Prefer a moving post for Reels, Stories or TikTok? Pick a free stock clip of the destination and we'll add your branding. The image above stays the default — this is an extra option. The clip comes <strong>without sound</strong>, so you can add a trending track or voiceover yourself when you post.</p>
 
     <div class="vid-controls">
@@ -256,7 +256,7 @@
     <div class="vid-clips" id="vid-clips"></div>
 
     <div class="vid-render" id="vid-render" style="display:none">
-      <button class="btn-generate" id="vid-create-btn" style="align-self:flex-start">Create 7-sec video →</button>
+      <button class="btn-generate" id="vid-create-btn" style="align-self:flex-start">Create 5-sec video →</button>
       <div class="vid-result" id="vid-result" style="display:none">
         <video id="vid-player" controls playsinline style="width:100%;max-width:380px;border-radius:12px;background:#000;display:block;margin:1rem 0;"></video>
         <button class="btn-sm btn-dl" id="vid-dl-btn">⬇ Download video</button>
@@ -717,7 +717,7 @@
     } catch (e) {
       showError(e.message || 'Could not create the video.');
     } finally {
-      btn.disabled = false; btn.textContent = 'Create 7-sec video →';
+      btn.disabled = false; btn.textContent = 'Create 5-sec video →';
     }
   }
 </script>
