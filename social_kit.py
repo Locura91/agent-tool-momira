@@ -1463,8 +1463,9 @@ def render_video_overlay(pack: Package, fmt: str, brand: "Brand",
     GOLD = (255, 196, 60)
 
     is_story = height > width
+    is_square = (width == height)
 
-    hero_ratio = 0.52 if is_story else 0.62
+    hero_ratio = 0.52 if is_story else (0.55 if is_square else 0.62)
     hero_h = int(height * hero_ratio)
     panel_h = height - hero_h
     panel_y = hero_h
@@ -1520,7 +1521,7 @@ def render_video_overlay(pack: Package, fmt: str, brand: "Brand",
         y += int(28 * unit)
 
     # Title.
-    title_font_size = int(64 * unit) if not is_story else int(72 * unit)
+    title_font_size = int(72 * unit) if is_story else (int(52 * unit) if is_square else int(64 * unit))
     title_font = _font("bold", title_font_size)
     for line in _wrap(draw, pack.title, title_font, width - pad * 2, 3):
         draw.text((pad + int(2 * unit), y + int(2 * unit)), line, font=title_font, fill=(0, 0, 0))
