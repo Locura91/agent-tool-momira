@@ -127,10 +127,10 @@ def _composite_logo(canvas: Image.Image, logo_img: Image.Image, unit: float) -> 
     Paste the agent's logo in the top-left corner, inside a white pill
     that mirrors where the text wordmark would sit.
 
-    The logo is scaled to fit a max height of 44*unit pixels while keeping
+    The logo is scaled to fit a max height of 80*unit pixels while keeping
     its aspect ratio; a 12*unit horizontal padding is added on each side.
     """
-    max_h = int(44 * unit)
+    max_h = int(80 * unit)
     aspect = logo_img.width / logo_img.height
     logo_h = min(max_h, logo_img.height)
     logo_w = int(logo_h * aspect)
