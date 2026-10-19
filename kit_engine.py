@@ -225,3 +225,34 @@ def render_for_agent(
         _composite_ribbon(canvas, ribbon, unit)
 
     return canvas
+
+
+def render_video_overlay_for_agent(
+    pack: Package,
+    agent: "Agent",
+    fmt: str = "square",
+) -> Image.Image:
+    """
+    Video overlay pipeline: sk.render_video_overlay() → agent logo composite.
+
+    brand.wordmark="" so social_kit draws no text pill; we paste the logo
+    (or text fallback) in the same top-left corner position used by the stills.
+    """
+    brand = agent_brand(agent)  # wordmark="" already set
+
+    overlay = sk.render_video_overlay(pack, fmt, brand)
+
+    width, _height, _ = sk.FORMATS[fmt]
+    unit = width / 1080
+
+    if agent.logo_url:
+        try:
+            logo_img = _load_image_url(agent.logo_url)
+            _composite_logo(overlay, logo_img, unit)
+        except Exception:
+            if agent.agency_name:
+                _draw_text_wordmark(overlay, agent.agency_name, unit)
+    elif agent.agency_name:
+        _draw_text_wordmark(overlay, agent.agency_name, unit)
+
+    return overlay

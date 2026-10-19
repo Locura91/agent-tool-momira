@@ -29,7 +29,7 @@ Requires: requests, Pillow.
 
 from __future__ import annotations
 
-MODULE_BUILD = "2026-09-27-social-kit-momira-only-and-image-fallback"
+MODULE_BUILD = "2026-10-19-video-wordmark-and-agent-logo"
 
 import io
 import os
@@ -1558,6 +1558,10 @@ def render_video_overlay(pack: Package, fmt: str, brand: "Brand",
     foot_cta = height - int(60 * unit)
     _pill(draw, (width - pad - cta_w, foot_cta - int(cta_font.size * 2.2)),
           cta, cta_font, BRAND, WHITE, int(28 * unit))
+
+    # Wordmark pill — top-left, same position as photo/band/collage styles.
+    if brand.wordmark:
+        _pill(draw, (pad, pad), brand.wordmark, _font("bold", int(22 * unit)), BRAND, WHITE, int(24 * unit))
 
     return canvas
 

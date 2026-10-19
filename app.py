@@ -557,7 +557,7 @@ async def generate_video(
     loop = asyncio.get_event_loop()
 
     def _work() -> bytes:
-        overlay = sk.render_video_overlay(pack, format, brand)
+        overlay = engine.render_video_overlay_for_agent(pack, agent, format)
         overlay_png = sk.overlay_to_png_bytes(overlay)
         return vk.render_video(clip, overlay_png, format)
 
