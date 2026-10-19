@@ -21,6 +21,7 @@ Key decisions:
 from __future__ import annotations
 
 import io
+import re as _re
 from typing import Optional
 from urllib.parse import urlparse
 
@@ -63,9 +64,14 @@ def agent_brand(agent: Agent) -> sk.Brand:
         caption_lang = "en"
     tc_lang = _lang_map.get(caption_lang, "EN")
 
+    # Strip any role suffix like " (Admin)" or " (admin)" that should never
+    # appear on published images or captions.
+    raw_name = agent.agency_name or "Travel Agent"
+    display_name = _re.sub(r"\s*\(admin\)\s*$", "", raw_name, flags=_re.IGNORECASE).strip() or raw_name
+
     return sk.Brand(
         key=agent.id,
-        name=agent.agency_name or "Travel Agent",
+        name=display_name,
         lang=caption_lang,
         tc_lang=tc_lang,
         currency=currency,
