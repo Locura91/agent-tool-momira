@@ -81,6 +81,12 @@ def agent_brand(agent: Agent) -> sk.Brand:
 # --------------------------------------------------------------------------
 
 def _load_image_url(url: str) -> Image.Image:
+    if url.startswith("data:"):
+        # base64 data URL — decode directly, no HTTP request needed
+        header, b64 = url.split(",", 1)
+        import base64
+        data = base64.b64decode(b64)
+        return Image.open(io.BytesIO(data)).convert("RGBA")
     resp = requests.get(url, timeout=20)
     resp.raise_for_status()
     return Image.open(io.BytesIO(resp.content)).convert("RGBA")
