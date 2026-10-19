@@ -124,29 +124,32 @@ _RIBBON_COLORS: dict[str, tuple[tuple[int, int, int], tuple[int, int, int]]] = {
 
 def _composite_logo(canvas: Image.Image, logo_img: Image.Image, unit: float) -> None:
     """
-    Paste the agent's logo in the top-left corner, inside a white pill
-    that mirrors where the text wordmark would sit.
-
-    The logo is scaled to fit a max height of 80*unit pixels while keeping
-    its aspect ratio; a 12*unit horizontal padding is added on each side.
+    Paste the agent's logo in the top-left corner on a white rounded-rectangle
+    background.  Max height 160 px (at 1080 px canvas width).
     """
-    max_h = int(80 * unit)
+    max_h = int(160 * unit)
     aspect = logo_img.width / logo_img.height
     logo_h = min(max_h, logo_img.height)
     logo_w = int(logo_h * aspect)
+    # Cap width so a very wide logo doesn't overflow
+    max_w = int(400 * unit)
+    if logo_w > max_w:
+        logo_w = max_w
+        logo_h = int(logo_w / aspect)
     logo_scaled = logo_img.resize((logo_w, logo_h), Image.LANCZOS)
 
-    pad_x = int(20 * unit)
-    pad_y = int(20 * unit)
-    pill_pad = int(14 * unit)
-    pill_w = logo_w + pill_pad * 2
-    pill_h = logo_h + int(12 * unit)
-    radius = pill_h // 2
+    pad_x = int(28 * unit)
+    pad_y = int(28 * unit)
+    pill_pad_x = int(20 * unit)
+    pill_pad_y = int(14 * unit)
+    pill_w = logo_w + pill_pad_x * 2
+    pill_h = logo_h + pill_pad_y * 2
+    radius = int(20 * unit)
 
     pill = Image.new("RGBA", (pill_w, pill_h), (0, 0, 0, 0))
     draw = ImageDraw.Draw(pill)
-    draw.rounded_rectangle([0, 0, pill_w, pill_h], radius=radius, fill=(255, 255, 255, 240))
-    logo_x = pill_pad
+    draw.rounded_rectangle([0, 0, pill_w, pill_h], radius=radius, fill=(255, 255, 255, 230))
+    logo_x = pill_pad_x
     logo_y = (pill_h - logo_h) // 2
     pill.paste(logo_scaled, (logo_x, logo_y), logo_scaled if logo_scaled.mode == "RGBA" else None)
 
