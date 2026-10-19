@@ -1095,6 +1095,41 @@ async def tool_trips():
         return f.read()
 
 
+@app.get("/api/bookings/lookup")
+async def lookup_booking(
+    ref: str,
+    agent: Agent = Depends(current_agent),
+):
+    """Look up a TC booking by reference number and return customer details."""
+    import os as _os
+    microsite = _os.environ.get("TRAVELC_MICROSITE_ID", "momiratravel")
+    try:
+        client = sk.TCClient()
+        data = client.get(f"/booking/getBookings/{microsite}/{ref.strip()}")
+    except sk.TCError as e:
+        msg = str(e)
+        if "404" in msg:
+            raise HTTPException(status_code=404, detail="Booking not found")
+        raise HTTPException(status_code=502, detail=msg)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"TC lookup failed: {e}")
+
+    # TC returns a list or a single object depending on version
+    if isinstance(data, list):
+        data = data[0] if data else None
+    if not data:
+        raise HTTPException(status_code=404, detail="Booking not found")
+
+    cp = data.get("contactPerson") or {}
+    return {
+        "first_name": cp.get("name") or "",
+        "last_name": cp.get("lastName") or "",
+        "email": cp.get("email") or "",
+        "return_date": data.get("endDate") or "",  # YYYY-MM-DD
+        "booking_ref": ref.strip(),
+    }
+
+
 @app.post("/api/bookings")
 async def add_booking(
     first_name: str = Form(...),
@@ -1102,6 +1137,7 @@ async def add_booking(
     email: str = Form(...),
     package_id: str = Form(""),
     return_date: str = Form(""),   # YYYY-MM-DD
+    tc_booking_ref: str = Form(""),
     agent: Agent = Depends(current_agent),
     db: AsyncSession = Depends(get_db),
 ):
@@ -1135,6 +1171,7 @@ async def add_booking(
         package_id=package_id.strip() or None,
         package_title=pkg_title,
         return_date=ret_dt,
+        tc_booking_ref=tc_booking_ref.strip() or None,
     )
     db.add(b)
     await db.commit()
@@ -1166,6 +1203,7 @@ async def list_bookings(
             "feedback_status": r.feedback_status,
             "feedback_sent_at": r.feedback_sent_at.isoformat() if r.feedback_sent_at else None,
             "feedback_platforms": r.feedback_platforms,
+            "tc_booking_ref": r.tc_booking_ref,
         }
         for r in rows
     ]

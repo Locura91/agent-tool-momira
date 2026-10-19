@@ -91,6 +91,9 @@ class Booking(Base):
     package_title: Mapped[str | None] = mapped_column(String(500))
     return_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+    # TC booking reference (entered by the agent; used to auto-fill customer details)
+    tc_booking_ref: Mapped[str | None] = mapped_column(String(80), index=True)
+
     # Feedback workflow
     # status: pending | sent
     feedback_status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
