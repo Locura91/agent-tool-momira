@@ -616,6 +616,9 @@ async def admin_update_agent(
     agent = result.scalar_one_or_none()
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found.")
+    # Protect admin accounts from being deactivated or having their role changed.
+    if agent.role == "admin" and ("is_active" in body or "role" in body):
+        raise HTTPException(status_code=403, detail="Admin accounts cannot be deactivated or demoted.")
     allowed = {"is_active", "agency_name", "role"}
     for key, value in body.items():
         if key in allowed:

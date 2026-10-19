@@ -145,9 +145,10 @@
         <td><span class="pill ${a.is_active ? 'agent' : 'inactive'}">${a.is_active ? 'Active' : 'Inactive'}</span></td>
         <td>${a.created_at ? a.created_at.slice(0,10) : '—'}</td>
         <td>
-          <button class="action-btn" onclick="toggleActive('${a.id}', ${a.is_active})">
-            ${a.is_active ? 'Deactivate' : 'Activate'}
-          </button>
+          ${a.role === 'admin' ? '<span style="color:var(--muted);font-size:.8rem">—</span>' :
+            `<button class="action-btn" onclick="toggleActive('${a.id}', ${a.is_active})">
+              ${a.is_active ? 'Deactivate' : 'Activate'}
+            </button>`}
         </td>
       </tr>
     `).join('');
