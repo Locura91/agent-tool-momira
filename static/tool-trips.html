@@ -124,10 +124,9 @@
       border-radius: 8px; padding: .4rem .8rem; font-size: .82rem; cursor: pointer; margin-bottom: .6rem; }
     .btn-preview:hover { background: var(--brand-light); }
 
-    /* No review links warning */
-    .warn-strip { background: #fef3c7; border: 1px solid #fde68a; border-radius: 10px;
-      padding: .8rem 1rem; font-size: .85rem; color: #92400e; margin-bottom: 1.5rem; display: none; }
-    .warn-strip a { color: #92400e; font-weight: 700; }
+    /* Small no-review-link hint inside the send panel */
+    .hint-no-link { font-size: .75rem; color: var(--muted); margin-top: .6rem; }
+    .hint-no-link a { color: var(--muted); text-decoration: underline; }
 
     @media (max-width: 540px) {
       .form-grid { grid-template-columns: 1fr; }
@@ -158,11 +157,6 @@
       <p>Add trips manually and send feedback emails after the customer returns.</p>
     </div>
     <button class="btn-brand" onclick="toggleAdd()">+ Add trip</button>
-  </div>
-
-  <div class="warn-strip" id="warn-strip">
-    ⚠️ You haven't added your review links yet.
-    <a href="/settings#review-links">Go to Settings →</a> to add your Google or TripAdvisor link.
   </div>
 
   <!-- Add booking form -->
@@ -227,9 +221,6 @@
     .then(r => { if (!r.ok) throw new Error(); return r.json(); })
     .then(a => {
       agentProfile = a;
-      if (!a.google_review_url && !a.tripadvisor_url) {
-        document.getElementById('warn-strip').style.display = 'block';
-      }
       loadTrips();
     })
     .catch(() => { localStorage.removeItem('sk_token'); location.href = '/'; });
@@ -332,17 +323,22 @@
       ? '<div style="font-size:.75rem;color:var(--muted);margin-top:.2rem">Sent ' + fmtDate(t.feedback_sent_at.slice(0,10)) + (t.feedback_platforms ? ' · ' + t.feedback_platforms.split(',').join(' + ') : '') + '</div>'
       : '';
 
+    const hasAgentLink = agentProfile && (agentProfile.google_review_url || agentProfile.tripadvisor_url);
+    const noLinkHint = !hasAgentLink
+      ? '<p class="hint-no-link">No review link from you yet — <a href="/settings">go to Settings</a> to add one.</p>'
+      : '';
+
     const approvePanel = showApprove ? `
       <div class="approve-panel" id="panel-${t.id}">
         <p><strong>${esc(t.first_name)}</strong> is back! Choose review platforms and send the feedback email.</p>
         <div class="platform-checks">
-          ${agentProfile && agentProfile.google_review_url ? '<label><input type="checkbox" checked value="google" class="plat-' + t.id + '" onchange="clearPreview(\'' + t.id + '\')"> Google</label>' : ''}
-          ${agentProfile && agentProfile.tripadvisor_url ? '<label><input type="checkbox" value="tripadvisor" class="plat-' + t.id + '" onchange="clearPreview(\'' + t.id + '\')"> TripAdvisor</label>' : ''}
+          ${agentProfile && agentProfile.google_review_url ? '<label><input type="checkbox" checked value="google" class="plat-' + t.id + '" onchange="refreshPreview(\'' + t.id + '\')"> Google</label>' : ''}
+          ${agentProfile && agentProfile.tripadvisor_url ? '<label><input type="checkbox" value="tripadvisor" class="plat-' + t.id + '" onchange="refreshPreview(\'' + t.id + '\')"> TripAdvisor</label>' : ''}
           <label style="color:var(--muted);cursor:default"><input type="checkbox" checked disabled> Momira Travel Google</label>
         </div>
-        <button class="btn-preview" onclick="showPreview('${t.id}')">👁 Preview email</button>
         <div id="preview-${t.id}" class="email-preview"></div>
         <div class="approve-warning">The email will be sent to ${esc(t.email)} immediately after you click Send now.</div>
+        ${noLinkHint}
         <button class="btn-approve" id="send-btn-${t.id}" onclick="sendFeedback('${t.id}')">✉ Send now</button>
       </div>` : '';
 
@@ -369,13 +365,13 @@
 
   function togglePanel(id) {
     const p = document.getElementById('panel-' + id);
-    if (p) p.classList.toggle('open');
+    if (!p) return;
+    const wasOpen = p.classList.contains('open');
+    p.classList.toggle('open');
+    if (!wasOpen) showPreview(id);
   }
 
-  function clearPreview(id) {
-    const box = document.getElementById('preview-' + id);
-    if (box) { box.classList.remove('visible'); box.innerHTML = ''; }
-  }
+  function refreshPreview(id) { showPreview(id); }
 
   async function showPreview(id) {
     const checks = document.querySelectorAll('.plat-' + id + ':checked');
@@ -412,7 +408,7 @@
       await loadTrips();
     } catch(err) {
       alert('Error: ' + err.message);
-      btn.disabled = false; btn.textContent = '✓ Approve & send feedback email';
+      btn.disabled = false; btn.textContent = '✉ Send now';
     }
   }
 
