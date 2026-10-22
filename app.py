@@ -1344,6 +1344,7 @@ async def delete_booking(
     agent: Agent = Depends(current_agent),
     db: AsyncSession = Depends(get_db),
 ):
+    from models import Booking
     result = await db.execute(
         select(Booking).where(Booking.id == booking_id, Booking.agent_id == agent.id)
     )
