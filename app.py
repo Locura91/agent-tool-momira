@@ -1294,6 +1294,7 @@ async def send_feedback(
             agency_google_url=agent.google_review_url,
             agency_tripadvisor_url=agent.tripadvisor_url,
             platforms=platform_list,
+            agent_email=agent.agency_email or agent.email,
         )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Email send failed: {exc}")

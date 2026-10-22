@@ -105,6 +105,7 @@ def send_feedback_email(
     agency_google_url: str | None,
     agency_tripadvisor_url: str | None,
     platforms: list[str],   # ["google", "tripadvisor"]
+    agent_email: str | None = None,
 ) -> None:
     """Send the post-trip feedback request to the customer (HTML email)."""
     host = _cfg("SMTP_HOST")
@@ -161,7 +162,7 @@ def send_feedback_email(
   <a href="mailto:info@momira.de" style="color:#17a39b;">info@momira.de</a>.</p>
 
   <p>Warm regards,<br>
-  <strong>Momira Travel</strong></p>
+  <strong>Your Momira Travel Team</strong></p>
 </body>
 </html>"""
 
@@ -183,13 +184,15 @@ We look forward to planning your next adventure!
 For any future requests, feel free to contact us at any time at info@momira.de.
 
 Warm regards,
-Momira Travel
+Your Momira Travel Team
 """
 
     msg = EmailMessage()
     msg["Subject"] = subject
     msg["From"] = from_addr
     msg["To"] = to_email
+    if agent_email:
+        msg["Cc"] = agent_email
     msg.set_content(text_body)
     msg.add_alternative(html_body, subtype="html")
 
