@@ -1292,7 +1292,9 @@ async def preview_feedback_email(
 @app.post("/api/bookings/{booking_id}/send-feedback")
 async def send_feedback(
     booking_id: str,
-    platforms: str = Form("google"),   # comma-separated: "google,tripadvisor"
+    platforms: str = Form("google"),       # comma-separated: "google,tripadvisor"
+    lang: str = Form("en"),                # "en" or "de"
+    override_email: str = Form(""),        # non-empty = test send, do not mark as sent
     agent: Agent = Depends(current_agent),
     db: AsyncSession = Depends(get_db),
 ):
@@ -1304,30 +1306,35 @@ async def send_feedback(
     booking = result.scalar_one_or_none()
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
-    if booking.feedback_status == "sent":
+
+    is_test = bool(override_email.strip())
+    if not is_test and booking.feedback_status == "sent":
         raise HTTPException(status_code=409, detail="Feedback email already sent")
 
     platform_list = [p.strip() for p in platforms.split(",") if p.strip()]
+    to_email = override_email.strip() if is_test else booking.email
 
     try:
         mailer.send_feedback_email(
-            to_email=booking.email,
+            to_email=to_email,
             first_name=booking.first_name,
-            package_title=booking.package_title or booking.package_id or "your trip",
-            agency_name=agent.agency_name or "",
+            package_title=booking.package_title or booking.package_id or "",
+            agency_name=agent.agency_name or "Momira Travel",
             agency_google_url=agent.google_review_url,
             agency_tripadvisor_url=agent.tripadvisor_url,
             platforms=platform_list,
-            agent_email=agent.agency_email or agent.email,
+            lang=lang,
+            agent_email=None if is_test else (agent.agency_email or agent.email),
         )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Email send failed: {exc}")
 
-    booking.feedback_status = "sent"
-    booking.feedback_sent_at = datetime.now(timezone.utc)
-    booking.feedback_platforms = ",".join(platform_list)
-    await db.commit()
-    return {"ok": True}
+    if not is_test:
+        booking.feedback_status = "sent"
+        booking.feedback_sent_at = datetime.now(timezone.utc)
+        booking.feedback_platforms = ",".join(platform_list)
+        await db.commit()
+    return {"ok": True, "test": is_test}
 
 
 @app.delete("/api/bookings/{booking_id}")

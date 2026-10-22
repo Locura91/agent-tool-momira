@@ -105,6 +105,7 @@ def send_feedback_email(
     agency_google_url: str | None,
     agency_tripadvisor_url: str | None,
     platforms: list[str],   # ["google", "tripadvisor"]
+    lang: str = "en",       # "en" or "de"
     agent_email: str | None = None,
 ) -> None:
     """Send the post-trip feedback request to the customer (HTML email)."""
@@ -118,10 +119,6 @@ def send_feedback_email(
         return
 
     MOMIRA_GOOGLE = "https://g.page/r/CeqHXc2-NckXEBM/review"
-
-    subject = f"How was your trip, {first_name}? We'd love your feedback!"
-
-    # Build HTML review buttons
     btn_style = (
         "display:inline-block;margin:6px 0;padding:12px 24px;"
         "background:#17a39b;color:#ffffff;text-decoration:none;"
@@ -130,44 +127,66 @@ def send_feedback_email(
     review_buttons_html = ""
     review_lines_text = []
 
-    if "google" in platforms and agency_google_url:
-        review_buttons_html += f'<a href="{agency_google_url}" style="{btn_style}">★ Review {agency_name} on Google</a><br>'
-        review_lines_text.append(f"★ Review {agency_name} on Google: {agency_google_url}")
-    if "tripadvisor" in platforms and agency_tripadvisor_url:
-        review_buttons_html += f'<a href="{agency_tripadvisor_url}" style="{btn_style}">★ Review {agency_name} on TripAdvisor</a><br>'
-        review_lines_text.append(f"★ Review {agency_name} on TripAdvisor: {agency_tripadvisor_url}")
-    review_buttons_html += f'<a href="{MOMIRA_GOOGLE}" style="{btn_style}">★ Review Momira Travel on Google</a><br>'
-    review_lines_text.append(f"★ Review Momira Travel on Google: {MOMIRA_GOOGLE}")
+    if lang == "de":
+        subject = f"Wie war deine Reise, {first_name}? Wir freuen uns über dein Feedback!"
+        if "google" in platforms and agency_google_url:
+            review_buttons_html += f'<a href="{agency_google_url}" style="{btn_style}">★ {agency_name} auf Google bewerten</a><br>'
+            review_lines_text.append(f"★ {agency_name} auf Google bewerten: {agency_google_url}")
+        if "tripadvisor" in platforms and agency_tripadvisor_url:
+            review_buttons_html += f'<a href="{agency_tripadvisor_url}" style="{btn_style}">★ {agency_name} auf TripAdvisor bewerten</a><br>'
+            review_lines_text.append(f"★ {agency_name} auf TripAdvisor bewerten: {agency_tripadvisor_url}")
+        review_buttons_html += f'<a href="{MOMIRA_GOOGLE}" style="{btn_style}">★ Momira Travel auf Google bewerten</a><br>'
+        review_lines_text.append(f"★ Momira Travel auf Google bewerten: {MOMIRA_GOOGLE}")
+        pkg_phrase = f"deiner {package_title} " if package_title else "deiner "
+        html_body = f"""\
+<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#111827;max-width:560px;margin:0 auto;padding:24px;">
+<p>Liebe/r {first_name},</p>
+<p>wir hoffen, du hattest eine tolle {pkg_phrase}Reise! Falls du kurz eine Bewertung hinterlassen magst, würden wir uns sehr freuen — das hilft anderen Reisenden und unterstützt unser Team.</p>
+<div style="margin:20px 0;">{review_buttons_html}</div>
+<p>Danke fürs Vertrauen — wir freuen uns auf dein nächstes Abenteuer!<br>Bei Fragen erreichst du uns unter <a href="mailto:info@momira.de" style="color:#17a39b;">info@momira.de</a>.</p>
+<p>Herzliche Grüße,<br><strong>Dein Momira Travel Team</strong></p>
+</body></html>"""
+        text_body = f"""\
+Liebe/r {first_name},
 
-    html_body = f"""\
-<!DOCTYPE html>
-<html>
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#111827;max-width:560px;margin:0 auto;padding:24px;">
-  <p>Dear {first_name},</p>
-
-  <p>We hope you had a wonderful time on your <strong>{package_title}</strong> holiday! If you have a moment, we'd love to hear your feedback — it helps other travellers and supports our team.</p>
-
-  <div style="margin:20px 0;">
-    {review_buttons_html}
-  </div>
-
-  <p>{"Thank you for choosing <strong>" + agency_name + "</strong>." if agency_name == "Momira Travel" else "Thank you for choosing <strong>" + agency_name + "</strong> and Momira Travel."} For any future requests, feel free to contact us at <a href="mailto:info@momira.de" style="color:#17a39b;">info@momira.de</a>.</p>
-
-  <p>Warm regards,<br>
-  <strong>Your Momira Travel Team</strong></p>
-</body>
-</html>"""
-
-    # Plain-text fallback
-    thanks = f"Thank you for choosing {agency_name}." if agency_name == "Momira Travel" else f"Thank you for choosing {agency_name} and Momira Travel."
-    text_body = f"""\
-Dear {first_name},
-
-We hope you had a wonderful time on your {package_title} holiday! If you have a moment, we'd love to hear your feedback — it helps other travellers and supports our team.
+wir hoffen, du hattest eine tolle {pkg_phrase}Reise! Falls du kurz eine Bewertung hinterlassen magst, würden wir uns sehr freuen.
 
 {chr(10).join(review_lines_text)}
 
-{thanks} For any future requests, feel free to contact us at info@momira.de.
+Danke fürs Vertrauen! Bei Fragen erreichst du uns unter info@momira.de.
+
+Herzliche Grüße,
+Dein Momira Travel Team
+"""
+    else:
+        subject = f"How was your trip, {first_name}? We'd love your feedback!"
+        if "google" in platforms and agency_google_url:
+            review_buttons_html += f'<a href="{agency_google_url}" style="{btn_style}">★ Review {agency_name} on Google</a><br>'
+            review_lines_text.append(f"★ Review {agency_name} on Google: {agency_google_url}")
+        if "tripadvisor" in platforms and agency_tripadvisor_url:
+            review_buttons_html += f'<a href="{agency_tripadvisor_url}" style="{btn_style}">★ Review {agency_name} on TripAdvisor</a><br>'
+            review_lines_text.append(f"★ Review {agency_name} on TripAdvisor: {agency_tripadvisor_url}")
+        review_buttons_html += f'<a href="{MOMIRA_GOOGLE}" style="{btn_style}">★ Review Momira Travel on Google</a><br>'
+        review_lines_text.append(f"★ Review Momira Travel on Google: {MOMIRA_GOOGLE}")
+        pkg_phrase = f"your {package_title} " if package_title else ""
+        thanks = f"Thank you for choosing <strong>{agency_name}</strong>." if agency_name == "Momira Travel" else f"Thank you for choosing <strong>{agency_name}</strong> and Momira Travel."
+        thanks_text = f"Thank you for choosing {agency_name}." if agency_name == "Momira Travel" else f"Thank you for choosing {agency_name} and Momira Travel."
+        html_body = f"""\
+<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#111827;max-width:560px;margin:0 auto;padding:24px;">
+<p>Dear {first_name},</p>
+<p>We hope you had a wonderful time on {pkg_phrase}your holiday! If you have a moment, we'd love to hear your feedback — it helps other travellers and supports our team.</p>
+<div style="margin:20px 0;">{review_buttons_html}</div>
+<p>{thanks} For any future requests, feel free to contact us at <a href="mailto:info@momira.de" style="color:#17a39b;">info@momira.de</a>.</p>
+<p>Warm regards,<br><strong>Your Momira Travel Team</strong></p>
+</body></html>"""
+        text_body = f"""\
+Dear {first_name},
+
+We hope you had a wonderful time on {pkg_phrase}your holiday! If you have a moment, we'd love to hear your feedback — it helps other travellers and supports our team.
+
+{chr(10).join(review_lines_text)}
+
+{thanks_text} For any future requests, feel free to contact us at info@momira.de.
 
 Warm regards,
 Your Momira Travel Team
