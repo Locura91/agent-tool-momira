@@ -129,6 +129,7 @@
     /* Small no-review-link hint inside the send panel */
     .hint-no-link { font-size: .75rem; color: var(--muted); margin-top: .6rem; }
     .hint-no-link a { color: var(--muted); text-decoration: underline; }
+    .lang-btn.active { background: var(--brand) !important; color: #fff !important; border-color: var(--brand) !important; font-weight: 600; }
 
     @media (max-width: 540px) {
       .form-grid { grid-template-columns: 1fr; }
@@ -330,6 +331,10 @@
           ${agentProfile && agentProfile.google_review_url ? '<label><input type="checkbox" checked value="google" class="plat-' + t.id + '" onchange="refreshPreview(\'' + t.id + '\')"> Google</label>' : ''}
           ${agentProfile && agentProfile.tripadvisor_url ? '<label><input type="checkbox" value="tripadvisor" class="plat-' + t.id + '" onchange="refreshPreview(\'' + t.id + '\')"> TripAdvisor</label>' : ''}
           <label style="color:var(--muted);cursor:default"><input type="checkbox" checked disabled> Momira Travel Google</label>
+          <span style="margin-left:auto;display:flex;gap:4px;">
+            <button class="lang-btn active" id="lang-en-${t.id}" onclick="setLang('${t.id}','en')" style="padding:2px 8px;font-size:.75rem;border:1px solid var(--border);border-radius:4px;background:var(--card);cursor:pointer;">EN</button>
+            <button class="lang-btn" id="lang-de-${t.id}" onclick="setLang('${t.id}','de')" style="padding:2px 8px;font-size:.75rem;border:1px solid var(--border);border-radius:4px;background:transparent;cursor:pointer;">DE</button>
+          </span>
         </div>
         <div id="preview-${t.id}" class="email-preview"></div>
         <div class="approve-warning">The email will be sent to ${esc(t.email)} immediately after you click Send now.</div>
@@ -356,6 +361,15 @@
     </div>`;
   }
 
+  const _previewLang = {};  // bookingId -> 'en' | 'de'
+
+  function setLang(id, lang) {
+    _previewLang[id] = lang;
+    document.getElementById('lang-en-' + id).classList.toggle('active', lang === 'en');
+    document.getElementById('lang-de-' + id).classList.toggle('active', lang === 'de');
+    showPreview(id);
+  }
+
   function togglePanel(id) {
     const p = document.getElementById('panel-' + id);
     if (!p) return;
@@ -369,17 +383,23 @@
   async function showPreview(id) {
     const checks = document.querySelectorAll('.plat-' + id + ':checked');
     const platforms = Array.from(checks).map(c => c.value).join(',') || 'google';
+    const lang = _previewLang[id] || 'en';
     const box = document.getElementById('preview-' + id);
-    box.innerHTML = '<em style="color:var(--muted)">Loading preview…</em>';
     box.classList.add('visible');
     try {
-      const r = await fetch('/api/bookings/' + id + '/preview-email?platforms=' + encodeURIComponent(platforms), { headers });
+      const r = await fetch('/api/bookings/' + id + '/preview-email?platforms=' + encodeURIComponent(platforms) + '&lang=' + lang, { headers });
       if (!r.ok) throw new Error(await r.text());
       const d = await r.json();
       box.innerHTML =
         '<div class="preview-to">To: ' + esc(d.to_email) + '</div>' +
         '<div class="preview-subject">Subject: ' + esc(d.subject) + '</div>' +
-        '<pre style="white-space:pre-wrap;font-family:inherit;font-size:.82rem;margin:0">' + esc(d.body) + '</pre>';
+        '<iframe id="preview-frame-' + id + '" style="width:100%;border:none;min-height:280px;border-radius:6px;margin-top:6px;" sandbox="allow-same-origin"></iframe>';
+      const frame = document.getElementById('preview-frame-' + id);
+      const doc = frame.contentDocument || frame.contentWindow.document;
+      doc.open(); doc.write(d.html_body); doc.close();
+      setTimeout(() => {
+        try { frame.style.height = (frame.contentWindow.document.body.scrollHeight + 16) + 'px'; } catch(e) {}
+      }, 100);
     } catch(err) {
       box.innerHTML = '<span style="color:#dc2626">Could not load preview: ' + esc(err.message) + '</span>';
     }
@@ -388,7 +408,7 @@
   async function sendFeedback(id) {
     const checks = document.querySelectorAll('.plat-' + id + ':checked');
     const platforms = Array.from(checks).map(c => c.value).join(',') || 'google';
-    const btn = event.target;
+    const btn = document.getElementById('send-btn-' + id);
     btn.disabled = true; btn.textContent = 'Sending…';
     const fd = new FormData();
     fd.append('platforms', platforms);
@@ -398,7 +418,9 @@
         const d = await r.json();
         throw new Error(d.detail || 'Failed');
       }
-      await loadTrips();
+      btn.textContent = '✓ Sent';
+      btn.style.background = '#6b7280';
+      setTimeout(() => loadTrips(), 1500);
     } catch(err) {
       alert('Error: ' + err.message);
       btn.disabled = false; btn.textContent = '✉ Send now';

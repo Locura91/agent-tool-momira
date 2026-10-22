@@ -1226,10 +1226,11 @@ async def list_bookings(
 async def preview_feedback_email(
     booking_id: str,
     platforms: str = "google",   # comma-separated: "google,tripadvisor"
+    lang: str = "en",            # "en" or "de"
     agent: Agent = Depends(current_agent),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return the feedback email subject + body text without sending it."""
+    """Return the feedback email subject + HTML body without sending it."""
     from models import Booking
     result = await db.execute(
         select(Booking).where(Booking.id == booking_id, Booking.agent_id == agent.id)
@@ -1240,29 +1241,58 @@ async def preview_feedback_email(
 
     platform_list = [p.strip() for p in platforms.split(",") if p.strip()]
     MOMIRA_GOOGLE = "https://g.page/r/CeqHXc2-NckXEBM/review"
-    review_lines = []
-    if "google" in platform_list and agent.google_review_url:
-        review_lines.append(f"★ Review {agent.agency_name or 'us'} on Google: {agent.google_review_url}")
-    if "tripadvisor" in platform_list and agent.tripadvisor_url:
-        review_lines.append(f"★ Review {agent.agency_name or 'us'} on TripAdvisor: {agent.tripadvisor_url}")
-    review_lines.append(f"★ Review Momira Travel on Google: {MOMIRA_GOOGLE}")
-
-    pkg = booking.package_title or booking.package_id or "your trip"
-    agency = agent.agency_name or "Momira Travel"
-    subject = f"How was your trip, {booking.first_name}? We'd love your feedback!"
-    body = (
-        f"Dear {booking.first_name},\n\n"
-        f"We hope you had a wonderful time on your {pkg} holiday!\n\n"
-        f"Your experience and feedback mean a lot to us. If you have a moment, "
-        f"we would be incredibly grateful if you could share a short review — "
-        f"it helps other travellers and supports our team.\n\n"
-        + "\n".join(review_lines) +
-        f"\n\nThank you for choosing {agency} and Momira Travel.\n"
-        f"We look forward to planning your next adventure!\n\n"
-        f"For any future requests, feel free to contact us at any time at info@momira.de.\n\n"
-        f"Warm regards,\nMomira Travel"
+    btn_style = (
+        "display:inline-block;margin:6px 0;padding:12px 24px;"
+        "background:#17a39b;color:#ffffff;text-decoration:none;"
+        "border-radius:8px;font-size:15px;font-weight:600;"
     )
-    return {"subject": subject, "body": body, "to_email": booking.email}
+    agency = agent.agency_name or "Momira Travel"
+    first = booking.first_name
+    pkg = booking.package_title or booking.package_id or ""
+
+    if lang == "de":
+        pkg_phrase = f"Ihre {pkg}-" if pkg else "Ihre "
+        subject = f"Wie war Ihre Reise, {first}? Wir freuen uns über Ihr Feedback!"
+        btn_google_agency = f"★ {agency} auf Google bewerten"
+        btn_tripadvisor_agency = f"★ {agency} auf TripAdvisor bewerten"
+        btn_google_momira = "★ Momira Travel auf Google bewerten"
+        review_buttons_html = ""
+        if "google" in platform_list and agent.google_review_url:
+            review_buttons_html += f'<a href="{agent.google_review_url}" style="{btn_style}">{btn_google_agency}</a><br>'
+        if "tripadvisor" in platform_list and agent.tripadvisor_url:
+            review_buttons_html += f'<a href="{agent.tripadvisor_url}" style="{btn_style}">{btn_tripadvisor_agency}</a><br>'
+        review_buttons_html += f'<a href="{MOMIRA_GOOGLE}" style="{btn_style}">{btn_google_momira}</a><br>'
+        html_body = f"""\
+<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#111827;max-width:560px;margin:0 auto;padding:24px;">
+<p>Liebe/r {first},</p>
+<p>wir hoffen, dass Sie eine wunderbare Zeit auf {pkg_phrase}Reise hatten!</p>
+<p>Ihre Erfahrung und Ihr Feedback bedeuten uns sehr viel. Falls Sie einen Moment Zeit haben, würden wir uns sehr freuen, wenn Sie eine kurze Bewertung hinterlassen würden — das hilft anderen Reisenden und unterstützt unser Team.</p>
+<div style="margin:24px 0;">{review_buttons_html}</div>
+<p>Vielen Dank, dass Sie sich für <strong>{agency}</strong> und Momira Travel entschieden haben.<br>Wir freuen uns darauf, Ihr nächstes Abenteuer zu planen!</p>
+<p>Für zukünftige Anfragen stehen wir Ihnen jederzeit gerne unter <a href="mailto:info@momira.de" style="color:#17a39b;">info@momira.de</a> zur Verfügung.</p>
+<p>Mit freundlichen Grüßen,<br><strong>Ihr Momira Travel Team</strong></p>
+</body></html>"""
+    else:
+        pkg_phrase = f"your {pkg} " if pkg else ""
+        subject = f"How was your trip, {first}? We'd love your feedback!"
+        review_buttons_html = ""
+        if "google" in platform_list and agent.google_review_url:
+            review_buttons_html += f'<a href="{agent.google_review_url}" style="{btn_style}">★ Review {agency} on Google</a><br>'
+        if "tripadvisor" in platform_list and agent.tripadvisor_url:
+            review_buttons_html += f'<a href="{agent.tripadvisor_url}" style="{btn_style}">★ Review {agency} on TripAdvisor</a><br>'
+        review_buttons_html += f'<a href="{MOMIRA_GOOGLE}" style="{btn_style}">★ Review Momira Travel on Google</a><br>'
+        html_body = f"""\
+<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#111827;max-width:560px;margin:0 auto;padding:24px;">
+<p>Dear {first},</p>
+<p>We hope you had a wonderful time on {pkg_phrase}your holiday!</p>
+<p>Your experience and feedback mean a lot to us. If you have a moment, we would be incredibly grateful if you could share a short review — it helps other travellers and supports our team.</p>
+<div style="margin:24px 0;">{review_buttons_html}</div>
+<p>Thank you for choosing <strong>{agency}</strong> and Momira Travel.<br>We look forward to planning your next adventure!</p>
+<p>For any future requests, feel free to contact us at any time at <a href="mailto:info@momira.de" style="color:#17a39b;">info@momira.de</a>.</p>
+<p>Warm regards,<br><strong>Your Momira Travel Team</strong></p>
+</body></html>"""
+
+    return {"subject": subject, "html_body": html_body, "to_email": booking.email}
 
 
 @app.post("/api/bookings/{booking_id}/send-feedback")

@@ -155,7 +155,7 @@ def send_feedback_email(
     {review_buttons_html}
   </div>
 
-  <p>Thank you for choosing <strong>{agency_name}</strong> and Momira Travel.<br>
+  <p>Thank you for choosing <strong>{agency_name}</strong>{" and Momira Travel" if agency_name != "Momira Travel" else ""}.<br>
   We look forward to planning your next adventure!</p>
 
   <p>For any future requests, feel free to contact us at any time at
@@ -178,7 +178,7 @@ it helps other travellers and supports our team.
 
 {chr(10).join(review_lines_text)}
 
-Thank you for choosing {agency_name} and Momira Travel.
+Thank you for choosing {agency_name}{" and Momira Travel" if agency_name != "Momira Travel" else ""}.
 We look forward to planning your next adventure!
 
 For any future requests, feel free to contact us at any time at info@momira.de.
