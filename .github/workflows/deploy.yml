@@ -1,8 +1,9 @@
-name: Deploy to Hetzner
+name: Deploy to server
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
 
 jobs:
   deploy:
@@ -11,10 +12,10 @@ jobs:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: 188.245.10.216
-          username: root
-          key: ${{ secrets.HETZNER_SSH_KEY }}
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
             cd /opt/momira-agent-tool
-            git pull origin main
+            git pull
             systemctl restart momira-agent
