@@ -82,3 +82,4 @@ agent-tool-momira/
 ├── requirements.txt
 └── .gitignore
 ```
+# auto-deploy active
