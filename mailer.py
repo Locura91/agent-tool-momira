@@ -18,9 +18,40 @@ import smtplib
 import ssl
 from email.message import EmailMessage
 
+try:
+    import requests as _requests
+except ImportError:
+    _requests = None  # type: ignore
+
 
 def _cfg(key: str, default: str = "") -> str:
     return os.environ.get(key, default).strip()
+
+
+def _resend_send(subject: str, from_addr: str, to_email: str, html_body: str,
+                 text_body: str, cc: str | None = None) -> None:
+    payload: dict = {
+        "from": from_addr,
+        "to": [to_email],
+        "subject": subject,
+        "html": html_body,
+        "text": text_body,
+    }
+    if cc:
+        payload["cc"] = [cc]
+    res = _requests.post(
+        "https://api.resend.com/emails",
+        headers={"Authorization": f"Bearer {_cfg('RESEND_API_KEY')}",
+                 "Content-Type": "application/json"},
+        json=payload,
+        timeout=20,
+    )
+    if res.status_code >= 400:
+        try:
+            err = res.json()
+            raise RuntimeError(err.get("message") or str(err))
+        except ValueError:
+            raise RuntimeError(f"Resend HTTP {res.status_code}: {res.text[:200]}")
 
 
 def send_registration_email(
@@ -109,13 +140,12 @@ def send_feedback_email(
     agent_email: str | None = None,
 ) -> None:
     """Send the post-trip feedback request to the customer (HTML email)."""
-    host = _cfg("SMTP_HOST")
-    user = _cfg("SMTP_USER")
-    password = _cfg("SMTP_PASS")
-    from_addr = _cfg("SMTP_FROM") or user
+    has_resend = bool(_cfg("RESEND_API_KEY") and _requests is not None)
+    has_smtp = bool(_cfg("SMTP_HOST") and _cfg("SMTP_USER") and _cfg("SMTP_PASS"))
+    from_addr = _cfg("EMAIL_FROM") or _cfg("SMTP_FROM") or _cfg("SMTP_USER") or "info@momira.de"
 
-    if not host or not user or not password:
-        print("[mailer] SMTP not configured — feedback email skipped")
+    if not has_resend and not has_smtp:
+        print("[mailer] No email provider configured — feedback email skipped")
         return
 
     MOMIRA_GOOGLE = "https://g.page/r/CeqHXc2-NckXEBM/review"
@@ -192,16 +222,8 @@ Warm regards,
 Your Momira Travel Team
 """
 
-    msg = EmailMessage()
-    msg["Subject"] = subject
-    msg["From"] = from_addr
-    msg["To"] = to_email
-    if agent_email:
-        msg["Cc"] = agent_email
-    msg.set_content(text_body)
-    msg.add_alternative(html_body, subtype="html")
-
-    _smtp_send(msg)
+    _send(subject=subject, to_email=to_email, html_body=html_body,
+          text_body=text_body, from_addr=from_addr, cc=agent_email)
 
 
 def _smtp_send(msg: EmailMessage) -> None:
@@ -220,3 +242,20 @@ def _smtp_send(msg: EmailMessage) -> None:
             s.starttls(context=ctx)
             s.login(user, password)
             s.send_message(msg)
+
+
+def _send(*, subject: str, to_email: str, html_body: str, text_body: str,
+          from_addr: str, cc: str | None = None) -> None:
+    """Send via Resend if configured, otherwise SMTP."""
+    if _cfg("RESEND_API_KEY") and _requests is not None:
+        _resend_send(subject, from_addr, to_email, html_body, text_body, cc)
+        return
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = from_addr
+    msg["To"] = to_email
+    if cc:
+        msg["Cc"] = cc
+    msg.set_content(text_body)
+    msg.add_alternative(html_body, subtype="html")
+    _smtp_send(msg)
