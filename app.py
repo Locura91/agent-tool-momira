@@ -1276,14 +1276,13 @@ async def preview_feedback_email(
         if "tripadvisor" in platform_list and agent.tripadvisor_url:
             review_buttons_html += f'<a href="{agent.tripadvisor_url}" style="{btn_style}">★ Review {agency} on TripAdvisor</a><br>'
         review_buttons_html += f'<a href="{MOMIRA_GOOGLE}" style="{btn_style}">★ Review Momira Travel on Google</a><br>'
+        thanks_line = f"Thank you for choosing <strong>{agency}</strong>." if agency == "Momira Travel" else f"Thank you for choosing <strong>{agency}</strong> and Momira Travel."
         html_body = f"""\
 <!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#111827;max-width:560px;margin:0 auto;padding:24px;">
 <p>Dear {first},</p>
-<p>We hope you had a wonderful time on {pkg_phrase}your holiday!</p>
-<p>Your experience and feedback mean a lot to us. If you have a moment, we would be incredibly grateful if you could share a short review — it helps other travellers and supports our team.</p>
-<div style="margin:24px 0;">{review_buttons_html}</div>
-<p>Thank you for choosing <strong>{agency}</strong> and Momira Travel.<br>We look forward to planning your next adventure!</p>
-<p>For any future requests, feel free to contact us at any time at <a href="mailto:info@momira.de" style="color:#17a39b;">info@momira.de</a>.</p>
+<p>We hope you had a wonderful time on {pkg_phrase}your holiday! If you have a moment, we'd love to hear your feedback — it helps other travellers and supports our team.</p>
+<div style="margin:20px 0;">{review_buttons_html}</div>
+<p>{thanks_line} For any future requests, feel free to contact us at <a href="mailto:info@momira.de" style="color:#17a39b;">info@momira.de</a>.</p>
 <p>Warm regards,<br><strong>Your Momira Travel Team</strong></p>
 </body></html>"""
 

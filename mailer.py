@@ -145,21 +145,13 @@ def send_feedback_email(
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#111827;max-width:560px;margin:0 auto;padding:24px;">
   <p>Dear {first_name},</p>
 
-  <p>We hope you had a wonderful time on your <strong>{package_title}</strong> holiday!</p>
+  <p>We hope you had a wonderful time on your <strong>{package_title}</strong> holiday! If you have a moment, we'd love to hear your feedback — it helps other travellers and supports our team.</p>
 
-  <p>Your experience and feedback mean a lot to us. If you have a moment, we would be
-  incredibly grateful if you could share a short review — it helps other travellers
-  and supports our team.</p>
-
-  <div style="margin:24px 0;">
+  <div style="margin:20px 0;">
     {review_buttons_html}
   </div>
 
-  <p>Thank you for choosing <strong>{agency_name}</strong>{" and Momira Travel" if agency_name != "Momira Travel" else ""}.<br>
-  We look forward to planning your next adventure!</p>
-
-  <p>For any future requests, feel free to contact us at any time at
-  <a href="mailto:info@momira.de" style="color:#17a39b;">info@momira.de</a>.</p>
+  <p>{"Thank you for choosing <strong>" + agency_name + "</strong>." if agency_name == "Momira Travel" else "Thank you for choosing <strong>" + agency_name + "</strong> and Momira Travel."} For any future requests, feel free to contact us at <a href="mailto:info@momira.de" style="color:#17a39b;">info@momira.de</a>.</p>
 
   <p>Warm regards,<br>
   <strong>Your Momira Travel Team</strong></p>
@@ -167,21 +159,15 @@ def send_feedback_email(
 </html>"""
 
     # Plain-text fallback
+    thanks = f"Thank you for choosing {agency_name}." if agency_name == "Momira Travel" else f"Thank you for choosing {agency_name} and Momira Travel."
     text_body = f"""\
 Dear {first_name},
 
-We hope you had a wonderful time on your {package_title} holiday!
-
-Your experience and feedback mean a lot to us. If you have a moment,
-we would be incredibly grateful if you could share a short review —
-it helps other travellers and supports our team.
+We hope you had a wonderful time on your {package_title} holiday! If you have a moment, we'd love to hear your feedback — it helps other travellers and supports our team.
 
 {chr(10).join(review_lines_text)}
 
-Thank you for choosing {agency_name}{" and Momira Travel" if agency_name != "Momira Travel" else ""}.
-We look forward to planning your next adventure!
-
-For any future requests, feel free to contact us at any time at info@momira.de.
+{thanks} For any future requests, feel free to contact us at info@momira.de.
 
 Warm regards,
 Your Momira Travel Team
