@@ -1251,26 +1251,21 @@ async def preview_feedback_email(
     pkg = booking.package_title or booking.package_id or ""
 
     if lang == "de":
-        pkg_phrase = f"Ihre {pkg}-" if pkg else "Ihre "
-        subject = f"Wie war Ihre Reise, {first}? Wir freuen uns über Ihr Feedback!"
-        btn_google_agency = f"★ {agency} auf Google bewerten"
-        btn_tripadvisor_agency = f"★ {agency} auf TripAdvisor bewerten"
-        btn_google_momira = "★ Momira Travel auf Google bewerten"
+        pkg_phrase = f"deiner {pkg}-" if pkg else "deiner "
+        subject = f"Wie war deine Reise, {first}? Wir freuen uns über dein Feedback!"
         review_buttons_html = ""
         if "google" in platform_list and agent.google_review_url:
-            review_buttons_html += f'<a href="{agent.google_review_url}" style="{btn_style}">{btn_google_agency}</a><br>'
+            review_buttons_html += f'<a href="{agent.google_review_url}" style="{btn_style}">★ {agency} auf Google bewerten</a><br>'
         if "tripadvisor" in platform_list and agent.tripadvisor_url:
-            review_buttons_html += f'<a href="{agent.tripadvisor_url}" style="{btn_style}">{btn_tripadvisor_agency}</a><br>'
-        review_buttons_html += f'<a href="{MOMIRA_GOOGLE}" style="{btn_style}">{btn_google_momira}</a><br>'
+            review_buttons_html += f'<a href="{agent.tripadvisor_url}" style="{btn_style}">★ {agency} auf TripAdvisor bewerten</a><br>'
+        review_buttons_html += f'<a href="{MOMIRA_GOOGLE}" style="{btn_style}">★ Momira Travel auf Google bewerten</a><br>'
         html_body = f"""\
 <!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#111827;max-width:560px;margin:0 auto;padding:24px;">
 <p>Liebe/r {first},</p>
-<p>wir hoffen, dass Sie eine wunderbare Zeit auf {pkg_phrase}Reise hatten!</p>
-<p>Ihre Erfahrung und Ihr Feedback bedeuten uns sehr viel. Falls Sie einen Moment Zeit haben, würden wir uns sehr freuen, wenn Sie eine kurze Bewertung hinterlassen würden — das hilft anderen Reisenden und unterstützt unser Team.</p>
-<div style="margin:24px 0;">{review_buttons_html}</div>
-<p>Vielen Dank, dass Sie sich für <strong>{agency}</strong> und Momira Travel entschieden haben.<br>Wir freuen uns darauf, Ihr nächstes Abenteuer zu planen!</p>
-<p>Für zukünftige Anfragen stehen wir Ihnen jederzeit gerne unter <a href="mailto:info@momira.de" style="color:#17a39b;">info@momira.de</a> zur Verfügung.</p>
-<p>Mit freundlichen Grüßen,<br><strong>Ihr Momira Travel Team</strong></p>
+<p>wir hoffen, du hattest eine tolle {pkg_phrase}Reise! Falls du kurz eine Bewertung hinterlassen magst, würden wir uns sehr freuen — das hilft anderen Reisenden und unterstützt unser Team.</p>
+<div style="margin:20px 0;">{review_buttons_html}</div>
+<p>Danke fürs Vertrauen — wir freuen uns auf dein nächstes Abenteuer!<br>Bei Fragen erreichst du uns unter <a href="mailto:info@momira.de" style="color:#17a39b;">info@momira.de</a>.</p>
+<p>Herzliche Grüße,<br><strong>Dein Momira Travel Team</strong></p>
 </body></html>"""
     else:
         pkg_phrase = f"your {pkg} " if pkg else ""
