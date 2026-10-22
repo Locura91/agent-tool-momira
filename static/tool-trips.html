@@ -113,6 +113,17 @@
     .btn-lookup:disabled { opacity: .5; cursor: not-allowed; }
     .lookup-hint { font-size: .75rem; color: var(--muted); margin-top: .25rem; }
 
+    /* Email preview */
+    .email-preview { background: #f8fafc; border: 1px solid var(--border); border-radius: 8px;
+      padding: .9rem 1rem; margin: .6rem 0 .8rem; font-size: .82rem; line-height: 1.55;
+      color: var(--ink); white-space: pre-wrap; font-family: inherit; display: none; }
+    .email-preview.visible { display: block; }
+    .preview-subject { font-weight: 700; font-size: .85rem; margin-bottom: .5rem; color: var(--ink); }
+    .preview-to { font-size: .78rem; color: var(--muted); margin-bottom: .6rem; }
+    .btn-preview { background: none; border: 1px solid var(--brand); color: var(--brand);
+      border-radius: 8px; padding: .4rem .8rem; font-size: .82rem; cursor: pointer; margin-bottom: .6rem; }
+    .btn-preview:hover { background: var(--brand-light); }
+
     /* No review links warning */
     .warn-strip { background: #fef3c7; border: 1px solid #fde68a; border-radius: 10px;
       padding: .8rem 1rem; font-size: .85rem; color: #92400e; margin-bottom: 1.5rem; display: none; }
@@ -162,7 +173,7 @@
         <div class="full">
           <label>TC Booking Number <span style="color:var(--muted);font-weight:400">(auto-fills details below)</span></label>
           <div class="lookup-row">
-            <input type="text" name="tc_booking_ref" id="tc-ref-input" placeholder="e.g. MOM-123456" autocomplete="off">
+            <input type="text" name="tc_booking_ref" id="tc-ref-input" placeholder="e.g. BNR-1014" autocomplete="off">
             <button type="button" class="btn-lookup" id="lookup-btn" onclick="lookupBooking()">Look up →</button>
           </div>
           <div class="lookup-hint" id="lookup-hint"></div>
@@ -178,6 +189,10 @@
         <div class="full">
           <label>Customer e-mail <span class="req">*</span></label>
           <input type="email" name="email" id="field-email" required>
+        </div>
+        <div class="full">
+          <label>Trip / Package title <span style="color:var(--muted);font-weight:400">(auto-filled from BNR lookup)</span></label>
+          <input type="text" name="package_title" id="field-package-title" placeholder="e.g. Bali Discovery 8 Days">
         </div>
         <div>
           <label>Holiday Package ID <span style="color:var(--muted);font-weight:400">(optional)</span></label>
@@ -247,10 +262,11 @@
         return;
       }
       const d = await r.json();
-      if (d.first_name) document.getElementById('field-first-name').value = d.first_name;
-      if (d.last_name)  document.getElementById('field-last-name').value  = d.last_name;
-      if (d.email)      document.getElementById('field-email').value       = d.email;
-      if (d.return_date) document.getElementById('field-return-date').value = d.return_date;
+      if (d.first_name)     document.getElementById('field-first-name').value     = d.first_name;
+      if (d.last_name)      document.getElementById('field-last-name').value      = d.last_name;
+      if (d.email)          document.getElementById('field-email').value           = d.email;
+      if (d.return_date)    document.getElementById('field-return-date').value    = d.return_date;
+      if (d.package_title)  document.getElementById('field-package-title').value  = d.package_title;
       hint.textContent = '✓ Details filled in from TC booking';
       hint.style.color = 'var(--green)';
     } catch(err) {
@@ -308,6 +324,9 @@
     const retStr = retDate
       ? '<div class="trip-return">Return: <strong>' + fmtDate(retDate) + '</strong></div>'
       : '';
+    const bnrStr = t.tc_booking_ref
+      ? '<div style="font-size:.78rem;color:var(--muted);margin-top:.1rem">Ref: ' + esc(t.tc_booking_ref) + '</div>'
+      : '';
 
     const sentStr = t.feedback_sent_at
       ? '<div style="font-size:.75rem;color:var(--muted);margin-top:.2rem">Sent ' + fmtDate(t.feedback_sent_at.slice(0,10)) + (t.feedback_platforms ? ' · ' + t.feedback_platforms.split(',').join(' + ') : '') + '</div>'
@@ -317,12 +336,14 @@
       <div class="approve-panel" id="panel-${t.id}">
         <p><strong>${esc(t.first_name)}</strong> is back! Choose review platforms and send the feedback email.</p>
         <div class="platform-checks">
-          ${agentProfile && agentProfile.google_review_url ? '<label><input type="checkbox" checked value="google" class="plat-' + t.id + '"> Google</label>' : ''}
-          ${agentProfile && agentProfile.tripadvisor_url ? '<label><input type="checkbox" value="tripadvisor" class="plat-' + t.id + '"> TripAdvisor</label>' : ''}
+          ${agentProfile && agentProfile.google_review_url ? '<label><input type="checkbox" checked value="google" class="plat-' + t.id + '" onchange="clearPreview(\'' + t.id + '\')"> Google</label>' : ''}
+          ${agentProfile && agentProfile.tripadvisor_url ? '<label><input type="checkbox" value="tripadvisor" class="plat-' + t.id + '" onchange="clearPreview(\'' + t.id + '\')"> TripAdvisor</label>' : ''}
           <label style="color:var(--muted);cursor:default"><input type="checkbox" checked disabled> Momira Travel Google</label>
         </div>
-        <div class="approve-warning">The email will be sent to ${esc(t.email)} immediately after you click Approve.</div>
-        <button class="btn-approve" onclick="sendFeedback('${t.id}')">✓ Approve &amp; send feedback email</button>
+        <button class="btn-preview" onclick="showPreview('${t.id}')">👁 Preview email</button>
+        <div id="preview-${t.id}" class="email-preview"></div>
+        <div class="approve-warning">The email will be sent to ${esc(t.email)} immediately after you click Send now.</div>
+        <button class="btn-approve" id="send-btn-${t.id}" onclick="sendFeedback('${t.id}')">✉ Send now</button>
       </div>` : '';
 
     const toggleBtn = showApprove
@@ -335,6 +356,7 @@
         <div class="trip-pkg">${pkg}</div>
         <div class="trip-email">${esc(t.email)}</div>
         ${retStr}
+        ${bnrStr}
         ${sentStr}
       </div>
       <div class="trip-side">
@@ -348,6 +370,30 @@
   function togglePanel(id) {
     const p = document.getElementById('panel-' + id);
     if (p) p.classList.toggle('open');
+  }
+
+  function clearPreview(id) {
+    const box = document.getElementById('preview-' + id);
+    if (box) { box.classList.remove('visible'); box.innerHTML = ''; }
+  }
+
+  async function showPreview(id) {
+    const checks = document.querySelectorAll('.plat-' + id + ':checked');
+    const platforms = Array.from(checks).map(c => c.value).join(',') || 'google';
+    const box = document.getElementById('preview-' + id);
+    box.innerHTML = '<em style="color:var(--muted)">Loading preview…</em>';
+    box.classList.add('visible');
+    try {
+      const r = await fetch('/api/bookings/' + id + '/preview-email?platforms=' + encodeURIComponent(platforms), { headers });
+      if (!r.ok) throw new Error(await r.text());
+      const d = await r.json();
+      box.innerHTML =
+        '<div class="preview-to">To: ' + esc(d.to_email) + '</div>' +
+        '<div class="preview-subject">Subject: ' + esc(d.subject) + '</div>' +
+        '<pre style="white-space:pre-wrap;font-family:inherit;font-size:.82rem;margin:0">' + esc(d.body) + '</pre>';
+    } catch(err) {
+      box.innerHTML = '<span style="color:#dc2626">Could not load preview: ' + esc(err.message) + '</span>';
+    }
   }
 
   async function sendFeedback(id) {
