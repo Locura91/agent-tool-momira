@@ -1305,6 +1305,23 @@ async def send_feedback(
     return {"ok": True}
 
 
+@app.delete("/api/bookings/{booking_id}")
+async def delete_booking(
+    booking_id: str,
+    agent: Agent = Depends(current_agent),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Booking).where(Booking.id == booking_id, Booking.agent_id == agent.id)
+    )
+    booking = result.scalar_one_or_none()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    await db.delete(booking)
+    await db.commit()
+    return {"ok": True}
+
+
 # --------------------------------------------------------------------------
 # Registration: agent tool — generate + list links
 # --------------------------------------------------------------------------

@@ -58,20 +58,19 @@
       padding: .6rem 1rem; font-size: .88rem; color: var(--muted); cursor: pointer; }
 
     /* Trip list */
-    .trips-list { display: flex; flex-direction: column; gap: .8rem; }
+    .trips-list { display: flex; flex-direction: column; gap: .6rem; }
     .trip-card {
-      background: var(--white); border: 1px solid var(--border); border-radius: 14px;
-      padding: 1.2rem 1.4rem; display: grid;
-      grid-template-columns: 1fr auto; gap: .6rem .8rem; align-items: start;
+      background: var(--white); border: 1px solid var(--border); border-radius: 12px;
+      padding: 1rem 1.2rem; display: grid;
+      grid-template-columns: 1fr auto; gap: .4rem .8rem; align-items: center;
     }
-    .trip-main {}
-    .trip-name { font-weight: 700; font-size: .95rem; }
-    .trip-pkg { font-size: .82rem; color: var(--muted); margin-top: .15rem; }
-    .trip-email { font-size: .82rem; color: var(--muted); }
-    .trip-return { font-size: .82rem; margin-top: .3rem; }
+    .trip-main { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+    .trip-name { font-weight: 700; font-size: .92rem; white-space: nowrap; }
+    .trip-pkg { font-size: .82rem; color: var(--muted); }
+    .trip-return { font-size: .82rem; color: var(--muted); white-space: nowrap; }
     .trip-return strong { color: var(--ink); }
 
-    .trip-side { display: flex; flex-direction: column; align-items: flex-end; gap: .5rem; }
+    .trip-side { display: flex; align-items: center; gap: .5rem; flex-wrap: nowrap; }
     .badge {
       font-size: .72rem; font-weight: 700; padding: .2rem .55rem;
       border-radius: 99px; white-space: nowrap;
@@ -79,6 +78,9 @@
     .badge-pending { background: var(--amber-bg); color: var(--amber); }
     .badge-sent    { background: var(--green-bg); color: var(--green); }
     .badge-future  { background: var(--blue-bg); color: var(--blue); }
+    .btn-delete { background: none; border: none; color: #dc2626; cursor: pointer;
+      font-size: .8rem; padding: .3rem .5rem; border-radius: 6px; opacity: .6; }
+    .btn-delete:hover { background: #fee2e2; opacity: 1; }
 
     /* Feedback approval panel */
     .approve-panel {
@@ -198,7 +200,7 @@
         </div>
       </div>
       <div class="form-actions">
-        <button type="submit" class="btn-brand" id="add-submit-btn">Save trip</button>
+        <button type="submit" class="btn-brand" id="add-submit-btn">Add to review list</button>
         <button type="button" class="btn-cancel" onclick="toggleAdd()">Cancel</button>
       </div>
     </form>
@@ -271,7 +273,7 @@
   document.getElementById('add-form').addEventListener('submit', async e => {
     e.preventDefault();
     const btn = document.getElementById('add-submit-btn');
-    btn.disabled = true; btn.textContent = 'Saving…';
+    btn.disabled = true; btn.textContent = 'Adding…';
     const fd = new FormData(e.target);
     try {
       const r = await fetch('/api/bookings', { method: 'POST', headers, body: fd });
@@ -280,7 +282,7 @@
       document.getElementById('add-card').classList.remove('open');
       await loadTrips();
     } catch(err) { alert('Error: ' + err.message); }
-    btn.disabled = false; btn.textContent = 'Save trip';
+    btn.disabled = false; btn.textContent = 'Add to review list';
   });
 
   async function loadTrips() {
@@ -300,27 +302,20 @@
     const pkg = t.package_title ? esc(t.package_title) : (t.package_id ? 'Package ' + esc(t.package_id) : '—');
     const retDate = t.return_date || null;
 
+    // Sent trips: hide from list (clean slate)
+    if (t.feedback_status === 'sent') return '';
+
     let badge, showApprove;
-    if (t.feedback_status === 'sent') {
-      badge = '<span class="badge badge-sent">✓ Feedback sent</span>';
-      showApprove = false;
-    } else if (!retDate || retDate > today) {
+    if (!retDate || retDate > today) {
       badge = '<span class="badge badge-future">Upcoming</span>';
       showApprove = false;
     } else {
-      badge = '<span class="badge badge-pending">Awaiting feedback</span>';
+      badge = '<span class="badge badge-pending">Due</span>';
       showApprove = true;
     }
 
     const retStr = retDate
-      ? '<div class="trip-return">Return: <strong>' + fmtDate(retDate) + '</strong></div>'
-      : '';
-    const bnrStr = t.tc_booking_ref
-      ? '<div style="font-size:.78rem;color:var(--muted);margin-top:.1rem">Ref: ' + esc(t.tc_booking_ref) + '</div>'
-      : '';
-
-    const sentStr = t.feedback_sent_at
-      ? '<div style="font-size:.75rem;color:var(--muted);margin-top:.2rem">Sent ' + fmtDate(t.feedback_sent_at.slice(0,10)) + (t.feedback_platforms ? ' · ' + t.feedback_platforms.split(',').join(' + ') : '') + '</div>'
+      ? '<span class="trip-return">↩ <strong>' + fmtDate(retDate) + '</strong></span>'
       : '';
 
     const hasAgentLink = agentProfile && (agentProfile.google_review_url || agentProfile.tripadvisor_url);
@@ -329,7 +324,7 @@
       : '';
 
     const approvePanel = showApprove ? `
-      <div class="approve-panel" id="panel-${t.id}">
+      <div class="approve-panel" id="panel-${t.id}" style="grid-column:1/-1">
         <p><strong>${esc(t.first_name)}</strong> is back! Choose review platforms and send the feedback email.</p>
         <div class="platform-checks">
           ${agentProfile && agentProfile.google_review_url ? '<label><input type="checkbox" checked value="google" class="plat-' + t.id + '" onchange="refreshPreview(\'' + t.id + '\')"> Google</label>' : ''}
@@ -342,22 +337,20 @@
         <button class="btn-approve" id="send-btn-${t.id}" onclick="sendFeedback('${t.id}')">✉ Send now</button>
       </div>` : '';
 
-    const toggleBtn = showApprove
-      ? `<button class="btn-ghost" style="font-size:.78rem" onclick="togglePanel('${t.id}')">Send feedback →</button>`
-      : '';
+    const actionBtns = showApprove
+      ? `<button class="btn-ghost" style="font-size:.78rem" onclick="togglePanel('${t.id}')">Send feedback →</button>
+         <button class="btn-delete" title="Delete booking" onclick="deleteTrip('${t.id}')">✕</button>`
+      : `<button class="btn-delete" title="Delete booking" onclick="deleteTrip('${t.id}')">✕</button>`;
 
     return `<div class="trip-card">
       <div class="trip-main">
-        <div class="trip-name">${name}</div>
-        <div class="trip-pkg">${pkg}</div>
-        <div class="trip-email">${esc(t.email)}</div>
+        <span class="trip-name">${name}</span>
+        <span class="trip-pkg">${pkg}</span>
         ${retStr}
-        ${bnrStr}
-        ${sentStr}
       </div>
       <div class="trip-side">
         ${badge}
-        ${toggleBtn}
+        ${actionBtns}
       </div>
       ${approvePanel}
     </div>`;
@@ -410,6 +403,15 @@
       alert('Error: ' + err.message);
       btn.disabled = false; btn.textContent = '✉ Send now';
     }
+  }
+
+  async function deleteTrip(id) {
+    if (!confirm('Remove this booking from the review list?')) return;
+    try {
+      const r = await fetch('/api/bookings/' + id, { method: 'DELETE', headers });
+      if (!r.ok) throw new Error(await r.text());
+      await loadTrips();
+    } catch(err) { alert('Error: ' + err.message); }
   }
 
   function fmtDate(iso) {
