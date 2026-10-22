@@ -32,6 +32,12 @@ async def _migrate(conn) -> None:
         "ALTER TABLE registrations ADD COLUMN city TEXT",
         "ALTER TABLE registrations ADD COLUMN country_of_residence TEXT",
         "ALTER TABLE registrations ADD COLUMN passengers_json TEXT",
+        # bookings table — added incrementally, ensure all columns exist
+        "ALTER TABLE bookings ADD COLUMN tc_booking_ref TEXT",
+        "ALTER TABLE bookings ADD COLUMN package_title TEXT",
+        "ALTER TABLE bookings ADD COLUMN feedback_status TEXT NOT NULL DEFAULT 'pending'",
+        "ALTER TABLE bookings ADD COLUMN feedback_sent_at DATETIME",
+        "ALTER TABLE bookings ADD COLUMN feedback_platforms TEXT",
     ]
     for sql in migrations:
         try:

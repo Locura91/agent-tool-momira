@@ -58,20 +58,19 @@
       padding: .6rem 1rem; font-size: .88rem; color: var(--muted); cursor: pointer; }
 
     /* Trip list */
-    .trips-list { display: flex; flex-direction: column; gap: .8rem; }
+    .trips-list { display: flex; flex-direction: column; gap: .6rem; }
     .trip-card {
-      background: var(--white); border: 1px solid var(--border); border-radius: 14px;
-      padding: 1.2rem 1.4rem; display: grid;
-      grid-template-columns: 1fr auto; gap: .6rem .8rem; align-items: start;
+      background: var(--white); border: 1px solid var(--border); border-radius: 12px;
+      padding: 1rem 1.2rem; display: grid;
+      grid-template-columns: 1fr auto; gap: .4rem .8rem; align-items: center;
     }
-    .trip-main {}
-    .trip-name { font-weight: 700; font-size: .95rem; }
-    .trip-pkg { font-size: .82rem; color: var(--muted); margin-top: .15rem; }
-    .trip-email { font-size: .82rem; color: var(--muted); }
-    .trip-return { font-size: .82rem; margin-top: .3rem; }
+    .trip-main { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+    .trip-name { font-weight: 700; font-size: .92rem; white-space: nowrap; }
+    .trip-pkg { font-size: .82rem; color: var(--muted); }
+    .trip-return { font-size: .82rem; color: var(--muted); white-space: nowrap; }
     .trip-return strong { color: var(--ink); }
 
-    .trip-side { display: flex; flex-direction: column; align-items: flex-end; gap: .5rem; }
+    .trip-side { display: flex; align-items: center; gap: .5rem; flex-wrap: nowrap; }
     .badge {
       font-size: .72rem; font-weight: 700; padding: .2rem .55rem;
       border-radius: 99px; white-space: nowrap;
@@ -79,6 +78,9 @@
     .badge-pending { background: var(--amber-bg); color: var(--amber); }
     .badge-sent    { background: var(--green-bg); color: var(--green); }
     .badge-future  { background: var(--blue-bg); color: var(--blue); }
+    .btn-delete { background: none; border: none; color: #dc2626; cursor: pointer;
+      font-size: .8rem; padding: .3rem .5rem; border-radius: 6px; opacity: .6; }
+    .btn-delete:hover { background: #fee2e2; opacity: 1; }
 
     /* Feedback approval panel */
     .approve-panel {
@@ -113,10 +115,20 @@
     .btn-lookup:disabled { opacity: .5; cursor: not-allowed; }
     .lookup-hint { font-size: .75rem; color: var(--muted); margin-top: .25rem; }
 
-    /* No review links warning */
-    .warn-strip { background: #fef3c7; border: 1px solid #fde68a; border-radius: 10px;
-      padding: .8rem 1rem; font-size: .85rem; color: #92400e; margin-bottom: 1.5rem; display: none; }
-    .warn-strip a { color: #92400e; font-weight: 700; }
+    /* Email preview */
+    .email-preview { background: #f8fafc; border: 1px solid var(--border); border-radius: 8px;
+      padding: .9rem 1rem; margin: .6rem 0 .8rem; font-size: .82rem; line-height: 1.55;
+      color: var(--ink); white-space: pre-wrap; font-family: inherit; display: none; }
+    .email-preview.visible { display: block; }
+    .preview-subject { font-weight: 700; font-size: .85rem; margin-bottom: .5rem; color: var(--ink); }
+    .preview-to { font-size: .78rem; color: var(--muted); margin-bottom: .6rem; }
+    .btn-preview { background: none; border: 1px solid var(--brand); color: var(--brand);
+      border-radius: 8px; padding: .4rem .8rem; font-size: .82rem; cursor: pointer; margin-bottom: .6rem; }
+    .btn-preview:hover { background: var(--brand-light); }
+
+    /* Small no-review-link hint inside the send panel */
+    .hint-no-link { font-size: .75rem; color: var(--muted); margin-top: .6rem; }
+    .hint-no-link a { color: var(--muted); text-decoration: underline; }
 
     @media (max-width: 540px) {
       .form-grid { grid-template-columns: 1fr; }
@@ -149,11 +161,6 @@
     <button class="btn-brand" onclick="toggleAdd()">+ Add trip</button>
   </div>
 
-  <div class="warn-strip" id="warn-strip">
-    ⚠️ You haven't added your review links yet.
-    <a href="/settings#review-links">Go to Settings →</a> to add your Google or TripAdvisor link.
-  </div>
-
   <!-- Add booking form -->
   <div class="add-card" id="add-card">
     <h2>Add new trip</h2>
@@ -162,7 +169,7 @@
         <div class="full">
           <label>TC Booking Number <span style="color:var(--muted);font-weight:400">(auto-fills details below)</span></label>
           <div class="lookup-row">
-            <input type="text" name="tc_booking_ref" id="tc-ref-input" placeholder="e.g. MOM-123456" autocomplete="off">
+            <input type="text" name="tc_booking_ref" id="tc-ref-input" placeholder="e.g. BNR-1014" autocomplete="off">
             <button type="button" class="btn-lookup" id="lookup-btn" onclick="lookupBooking()">Look up →</button>
           </div>
           <div class="lookup-hint" id="lookup-hint"></div>
@@ -179,6 +186,10 @@
           <label>Customer e-mail <span class="req">*</span></label>
           <input type="email" name="email" id="field-email" required>
         </div>
+        <div class="full">
+          <label>Trip / Package title <span style="color:var(--muted);font-weight:400">(auto-filled from BNR lookup)</span></label>
+          <input type="text" name="package_title" id="field-package-title" placeholder="e.g. Bali Discovery 8 Days">
+        </div>
         <div>
           <label>Holiday Package ID <span style="color:var(--muted);font-weight:400">(optional)</span></label>
           <input type="text" name="package_id" placeholder="e.g. 33959712">
@@ -189,7 +200,7 @@
         </div>
       </div>
       <div class="form-actions">
-        <button type="submit" class="btn-brand" id="add-submit-btn">Save trip</button>
+        <button type="submit" class="btn-brand" id="add-submit-btn">Add to review list</button>
         <button type="button" class="btn-cancel" onclick="toggleAdd()">Cancel</button>
       </div>
     </form>
@@ -212,9 +223,6 @@
     .then(r => { if (!r.ok) throw new Error(); return r.json(); })
     .then(a => {
       agentProfile = a;
-      if (!a.google_review_url && !a.tripadvisor_url) {
-        document.getElementById('warn-strip').style.display = 'block';
-      }
       loadTrips();
     })
     .catch(() => { localStorage.removeItem('sk_token'); location.href = '/'; });
@@ -247,10 +255,11 @@
         return;
       }
       const d = await r.json();
-      if (d.first_name) document.getElementById('field-first-name').value = d.first_name;
-      if (d.last_name)  document.getElementById('field-last-name').value  = d.last_name;
-      if (d.email)      document.getElementById('field-email').value       = d.email;
-      if (d.return_date) document.getElementById('field-return-date').value = d.return_date;
+      if (d.first_name)     document.getElementById('field-first-name').value     = d.first_name;
+      if (d.last_name)      document.getElementById('field-last-name').value      = d.last_name;
+      if (d.email)          document.getElementById('field-email').value           = d.email;
+      if (d.return_date)    document.getElementById('field-return-date').value    = d.return_date;
+      if (d.package_title)  document.getElementById('field-package-title').value  = d.package_title;
       hint.textContent = '✓ Details filled in from TC booking';
       hint.style.color = 'var(--green)';
     } catch(err) {
@@ -264,7 +273,7 @@
   document.getElementById('add-form').addEventListener('submit', async e => {
     e.preventDefault();
     const btn = document.getElementById('add-submit-btn');
-    btn.disabled = true; btn.textContent = 'Saving…';
+    btn.disabled = true; btn.textContent = 'Adding…';
     const fd = new FormData(e.target);
     try {
       const r = await fetch('/api/bookings', { method: 'POST', headers, body: fd });
@@ -273,7 +282,7 @@
       document.getElementById('add-card').classList.remove('open');
       await loadTrips();
     } catch(err) { alert('Error: ' + err.message); }
-    btn.disabled = false; btn.textContent = 'Save trip';
+    btn.disabled = false; btn.textContent = 'Add to review list';
   });
 
   async function loadTrips() {
@@ -293,53 +302,55 @@
     const pkg = t.package_title ? esc(t.package_title) : (t.package_id ? 'Package ' + esc(t.package_id) : '—');
     const retDate = t.return_date || null;
 
+    // Sent trips: hide from list (clean slate)
+    if (t.feedback_status === 'sent') return '';
+
     let badge, showApprove;
-    if (t.feedback_status === 'sent') {
-      badge = '<span class="badge badge-sent">✓ Feedback sent</span>';
-      showApprove = false;
-    } else if (!retDate || retDate > today) {
+    if (!retDate || retDate > today) {
       badge = '<span class="badge badge-future">Upcoming</span>';
       showApprove = false;
     } else {
-      badge = '<span class="badge badge-pending">Awaiting feedback</span>';
+      badge = '<span class="badge badge-pending">Due</span>';
       showApprove = true;
     }
 
     const retStr = retDate
-      ? '<div class="trip-return">Return: <strong>' + fmtDate(retDate) + '</strong></div>'
+      ? '<span class="trip-return">↩ <strong>' + fmtDate(retDate) + '</strong></span>'
       : '';
 
-    const sentStr = t.feedback_sent_at
-      ? '<div style="font-size:.75rem;color:var(--muted);margin-top:.2rem">Sent ' + fmtDate(t.feedback_sent_at.slice(0,10)) + (t.feedback_platforms ? ' · ' + t.feedback_platforms.split(',').join(' + ') : '') + '</div>'
+    const hasAgentLink = agentProfile && (agentProfile.google_review_url || agentProfile.tripadvisor_url);
+    const noLinkHint = !hasAgentLink
+      ? '<p class="hint-no-link">No review link from you yet — <a href="/settings">go to Settings</a> to add one.</p>'
       : '';
 
     const approvePanel = showApprove ? `
-      <div class="approve-panel" id="panel-${t.id}">
+      <div class="approve-panel" id="panel-${t.id}" style="grid-column:1/-1">
         <p><strong>${esc(t.first_name)}</strong> is back! Choose review platforms and send the feedback email.</p>
         <div class="platform-checks">
-          ${agentProfile && agentProfile.google_review_url ? '<label><input type="checkbox" checked value="google" class="plat-' + t.id + '"> Google</label>' : ''}
-          ${agentProfile && agentProfile.tripadvisor_url ? '<label><input type="checkbox" value="tripadvisor" class="plat-' + t.id + '"> TripAdvisor</label>' : ''}
+          ${agentProfile && agentProfile.google_review_url ? '<label><input type="checkbox" checked value="google" class="plat-' + t.id + '" onchange="refreshPreview(\'' + t.id + '\')"> Google</label>' : ''}
+          ${agentProfile && agentProfile.tripadvisor_url ? '<label><input type="checkbox" value="tripadvisor" class="plat-' + t.id + '" onchange="refreshPreview(\'' + t.id + '\')"> TripAdvisor</label>' : ''}
           <label style="color:var(--muted);cursor:default"><input type="checkbox" checked disabled> Momira Travel Google</label>
         </div>
-        <div class="approve-warning">The email will be sent to ${esc(t.email)} immediately after you click Approve.</div>
-        <button class="btn-approve" onclick="sendFeedback('${t.id}')">✓ Approve &amp; send feedback email</button>
+        <div id="preview-${t.id}" class="email-preview"></div>
+        <div class="approve-warning">The email will be sent to ${esc(t.email)} immediately after you click Send now.</div>
+        ${noLinkHint}
+        <button class="btn-approve" id="send-btn-${t.id}" onclick="sendFeedback('${t.id}')">✉ Send now</button>
       </div>` : '';
 
-    const toggleBtn = showApprove
-      ? `<button class="btn-ghost" style="font-size:.78rem" onclick="togglePanel('${t.id}')">Send feedback →</button>`
-      : '';
+    const actionBtns = showApprove
+      ? `<button class="btn-ghost" style="font-size:.78rem" onclick="togglePanel('${t.id}')">Send feedback →</button>
+         <button class="btn-delete" title="Delete booking" onclick="deleteTrip('${t.id}')">✕</button>`
+      : `<button class="btn-delete" title="Delete booking" onclick="deleteTrip('${t.id}')">✕</button>`;
 
     return `<div class="trip-card">
       <div class="trip-main">
-        <div class="trip-name">${name}</div>
-        <div class="trip-pkg">${pkg}</div>
-        <div class="trip-email">${esc(t.email)}</div>
+        <span class="trip-name">${name}</span>
+        <span class="trip-pkg">${pkg}</span>
         ${retStr}
-        ${sentStr}
       </div>
       <div class="trip-side">
         ${badge}
-        ${toggleBtn}
+        ${actionBtns}
       </div>
       ${approvePanel}
     </div>`;
@@ -347,7 +358,31 @@
 
   function togglePanel(id) {
     const p = document.getElementById('panel-' + id);
-    if (p) p.classList.toggle('open');
+    if (!p) return;
+    const wasOpen = p.classList.contains('open');
+    p.classList.toggle('open');
+    if (!wasOpen) showPreview(id);
+  }
+
+  function refreshPreview(id) { showPreview(id); }
+
+  async function showPreview(id) {
+    const checks = document.querySelectorAll('.plat-' + id + ':checked');
+    const platforms = Array.from(checks).map(c => c.value).join(',') || 'google';
+    const box = document.getElementById('preview-' + id);
+    box.innerHTML = '<em style="color:var(--muted)">Loading preview…</em>';
+    box.classList.add('visible');
+    try {
+      const r = await fetch('/api/bookings/' + id + '/preview-email?platforms=' + encodeURIComponent(platforms), { headers });
+      if (!r.ok) throw new Error(await r.text());
+      const d = await r.json();
+      box.innerHTML =
+        '<div class="preview-to">To: ' + esc(d.to_email) + '</div>' +
+        '<div class="preview-subject">Subject: ' + esc(d.subject) + '</div>' +
+        '<pre style="white-space:pre-wrap;font-family:inherit;font-size:.82rem;margin:0">' + esc(d.body) + '</pre>';
+    } catch(err) {
+      box.innerHTML = '<span style="color:#dc2626">Could not load preview: ' + esc(err.message) + '</span>';
+    }
   }
 
   async function sendFeedback(id) {
@@ -366,8 +401,17 @@
       await loadTrips();
     } catch(err) {
       alert('Error: ' + err.message);
-      btn.disabled = false; btn.textContent = '✓ Approve & send feedback email';
+      btn.disabled = false; btn.textContent = '✉ Send now';
     }
+  }
+
+  async function deleteTrip(id) {
+    if (!confirm('Remove this booking from the review list?')) return;
+    try {
+      const r = await fetch('/api/bookings/' + id, { method: 'DELETE', headers });
+      if (!r.ok) throw new Error(await r.text());
+      await loadTrips();
+    } catch(err) { alert('Error: ' + err.message); }
   }
 
   function fmtDate(iso) {

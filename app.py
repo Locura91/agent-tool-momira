@@ -1124,11 +1124,20 @@ async def lookup_booking(
         raise HTTPException(status_code=404, detail="Booking not found")
 
     cp = data.get("contactPerson") or {}
+    # TC may surface the trip name under several keys depending on version
+    pkg_title = (
+        data.get("name")
+        or data.get("title")
+        or data.get("packageName")
+        or data.get("productName")
+        or ""
+    )
     return {
         "first_name": cp.get("name") or "",
         "last_name": cp.get("lastName") or "",
         "email": cp.get("email") or "",
         "return_date": data.get("endDate") or "",  # YYYY-MM-DD
+        "package_title": pkg_title,
         "booking_ref": ref.strip(),
     }
 
@@ -1139,14 +1148,15 @@ async def add_booking(
     last_name: str = Form(...),
     email: str = Form(...),
     package_id: str = Form(""),
-    return_date: str = Form(""),   # YYYY-MM-DD
+    package_title: str = Form(""),   # pre-filled from BNR lookup; skips TC fetch when provided
+    return_date: str = Form(""),     # YYYY-MM-DD
     tc_booking_ref: str = Form(""),
     agent: Agent = Depends(current_agent),
     db: AsyncSession = Depends(get_db),
 ):
     from datetime import date as _date
-    pkg_title = None
-    if package_id.strip():
+    pkg_title = package_title.strip() or None
+    if not pkg_title and package_id.strip():
         try:
             tc_user = os.getenv("TC_USERNAME", "")
             tc_pass = os.getenv("TC_PASSWORD", "")
@@ -1212,6 +1222,49 @@ async def list_bookings(
     ]
 
 
+@app.get("/api/bookings/{booking_id}/preview-email")
+async def preview_feedback_email(
+    booking_id: str,
+    platforms: str = "google",   # comma-separated: "google,tripadvisor"
+    agent: Agent = Depends(current_agent),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the feedback email subject + body text without sending it."""
+    from models import Booking
+    result = await db.execute(
+        select(Booking).where(Booking.id == booking_id, Booking.agent_id == agent.id)
+    )
+    booking = result.scalar_one_or_none()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+
+    platform_list = [p.strip() for p in platforms.split(",") if p.strip()]
+    MOMIRA_GOOGLE = "https://g.page/r/CeqHXc2-NckXEBM/review"
+    review_lines = []
+    if "google" in platform_list and agent.google_review_url:
+        review_lines.append(f"  ★ Review {agent.agency_name or 'us'} on Google:\n    {agent.google_review_url}")
+    if "tripadvisor" in platform_list and agent.tripadvisor_url:
+        review_lines.append(f"  ★ Review {agent.agency_name or 'us'} on TripAdvisor:\n    {agent.tripadvisor_url}")
+    review_lines.append(f"  ★ Review Momira Travel on Google:\n    {MOMIRA_GOOGLE}")
+    review_block = "\n\n".join(review_lines)
+
+    pkg = booking.package_title or booking.package_id or "your trip"
+    agency = agent.agency_name or ""
+    subject = f"How was your trip, {booking.first_name}? We'd love your feedback!"
+    body = (
+        f"Dear {booking.first_name},\n\n"
+        f"We hope you had a wonderful time on your {pkg} holiday!\n\n"
+        f"Your experience and feedback mean a lot to us. If you have a moment, "
+        f"we would be incredibly grateful if you could share a short review — "
+        f"it helps other travellers and supports our team.\n\n"
+        f"{review_block}\n\n"
+        f"Thank you for choosing {agency} and Momira Travel.\n"
+        f"We look forward to planning your next adventure!\n\n"
+        f"Warm regards,\n{agency}"
+    )
+    return {"subject": subject, "body": body, "to_email": booking.email}
+
+
 @app.post("/api/bookings/{booking_id}/send-feedback")
 async def send_feedback(
     booking_id: str,
@@ -1248,6 +1301,23 @@ async def send_feedback(
     booking.feedback_status = "sent"
     booking.feedback_sent_at = datetime.now(timezone.utc)
     booking.feedback_platforms = ",".join(platform_list)
+    await db.commit()
+    return {"ok": True}
+
+
+@app.delete("/api/bookings/{booking_id}")
+async def delete_booking(
+    booking_id: str,
+    agent: Agent = Depends(current_agent),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Booking).where(Booking.id == booking_id, Booking.agent_id == agent.id)
+    )
+    booking = result.scalar_one_or_none()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    await db.delete(booking)
     await db.commit()
     return {"ok": True}
 
