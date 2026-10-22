@@ -339,12 +339,7 @@
         <div id="preview-${t.id}" class="email-preview"></div>
         <div class="approve-warning">The email will be sent to ${esc(t.email)} immediately after you click Send now.</div>
         ${noLinkHint}
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-          <button class="btn-approve" id="send-btn-${t.id}" onclick="sendFeedback('${t.id}')">✉ Send now</button>
-          <span style="color:var(--muted);font-size:.78rem">or test:</span>
-          <input id="test-email-${t.id}" type="email" placeholder="your@email.com" style="flex:1;min-width:160px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:.82rem;background:var(--card);color:var(--ink);">
-          <button class="btn-ghost" id="test-btn-${t.id}" onclick="sendTestEmail('${t.id}')" style="font-size:.78rem;white-space:nowrap;">Send test ↗</button>
-        </div>
+        <button class="btn-approve" id="send-btn-${t.id}" onclick="sendFeedback('${t.id}')">✉ Send now</button>
       </div>` : '';
 
     const actionBtns = showApprove
@@ -429,29 +424,6 @@
     } catch(err) {
       alert('Error: ' + err.message);
       btn.disabled = false; btn.textContent = '✉ Send now';
-    }
-  }
-
-  async function sendTestEmail(id) {
-    const checks = document.querySelectorAll('.plat-' + id + ':checked');
-    const platforms = Array.from(checks).map(c => c.value).join(',') || 'google';
-    const lang = _previewLang[id] || 'en';
-    const email = document.getElementById('test-email-' + id).value.trim();
-    if (!email) { alert('Please enter a test email address.'); return; }
-    const btn = document.getElementById('test-btn-' + id);
-    btn.disabled = true; btn.textContent = 'Sending…';
-    const fd = new FormData();
-    fd.append('platforms', platforms);
-    fd.append('lang', lang);
-    fd.append('override_email', email);
-    try {
-      const r = await fetch('/api/bookings/' + id + '/send-feedback', { method: 'POST', headers, body: fd });
-      if (!r.ok) { const d = await r.json(); throw new Error(d.detail || 'Failed'); }
-      btn.textContent = '✓ Test sent';
-      setTimeout(() => { btn.disabled = false; btn.textContent = 'Send test ↗'; }, 3000);
-    } catch(err) {
-      alert('Error: ' + err.message);
-      btn.disabled = false; btn.textContent = 'Send test ↗';
     }
   }
 

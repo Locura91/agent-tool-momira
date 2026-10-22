@@ -1315,6 +1315,7 @@ async def send_feedback(
     to_email = override_email.strip() if is_test else booking.email
 
     try:
+        cc = None if is_test else (agent.agency_email or agent.email or "info@momira.de")
         mailer.send_feedback_email(
             to_email=to_email,
             first_name=booking.first_name,
@@ -1324,7 +1325,7 @@ async def send_feedback(
             agency_tripadvisor_url=agent.tripadvisor_url,
             platforms=platform_list,
             lang=lang,
-            agent_email=None if is_test else (agent.agency_email or agent.email),
+            agent_email=cc,
         )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Email send failed: {exc}")

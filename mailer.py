@@ -222,8 +222,9 @@ Warm regards,
 Your Momira Travel Team
 """
 
+    cc = agent_email or "info@momira.de"
     _send(subject=subject, to_email=to_email, html_body=html_body,
-          text_body=text_body, from_addr=from_addr, cc=agent_email)
+          text_body=text_body, from_addr=from_addr, cc=cc)
 
 
 def _smtp_send(msg: EmailMessage) -> None:
