@@ -106,7 +106,7 @@ def send_feedback_email(
     agency_tripadvisor_url: str | None,
     platforms: list[str],   # ["google", "tripadvisor"]
 ) -> None:
-    """Send the post-trip feedback request to the customer."""
+    """Send the post-trip feedback request to the customer (HTML email)."""
     host = _cfg("SMTP_HOST")
     user = _cfg("SMTP_USER")
     password = _cfg("SMTP_PASS")
@@ -118,40 +118,80 @@ def send_feedback_email(
 
     MOMIRA_GOOGLE = "https://g.page/r/CeqHXc2-NckXEBM/review"
 
-    # Build review links block
-    review_lines = []
-    if "google" in platforms and agency_google_url:
-        review_lines.append(f"  ★ Review {agency_name} on Google:\n    {agency_google_url}")
-    if "tripadvisor" in platforms and agency_tripadvisor_url:
-        review_lines.append(f"  ★ Review {agency_name} on TripAdvisor:\n    {agency_tripadvisor_url}")
-    review_lines.append(f"  ★ Review Momira Travel on Google:\n    {MOMIRA_GOOGLE}")
-    review_block = "\n\n".join(review_lines)
-
     subject = f"How was your trip, {first_name}? We'd love your feedback!"
 
-    body = f"""\
+    # Build HTML review buttons
+    btn_style = (
+        "display:inline-block;margin:6px 0;padding:12px 24px;"
+        "background:#17a39b;color:#ffffff;text-decoration:none;"
+        "border-radius:8px;font-size:15px;font-weight:600;"
+    )
+    review_buttons_html = ""
+    review_lines_text = []
+
+    if "google" in platforms and agency_google_url:
+        review_buttons_html += f'<a href="{agency_google_url}" style="{btn_style}">★ Review {agency_name} on Google</a><br>'
+        review_lines_text.append(f"★ Review {agency_name} on Google: {agency_google_url}")
+    if "tripadvisor" in platforms and agency_tripadvisor_url:
+        review_buttons_html += f'<a href="{agency_tripadvisor_url}" style="{btn_style}">★ Review {agency_name} on TripAdvisor</a><br>'
+        review_lines_text.append(f"★ Review {agency_name} on TripAdvisor: {agency_tripadvisor_url}")
+    review_buttons_html += f'<a href="{MOMIRA_GOOGLE}" style="{btn_style}">★ Review Momira Travel on Google</a><br>'
+    review_lines_text.append(f"★ Review Momira Travel on Google: {MOMIRA_GOOGLE}")
+
+    html_body = f"""\
+<!DOCTYPE html>
+<html>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#111827;max-width:560px;margin:0 auto;padding:24px;">
+  <p>Dear {first_name},</p>
+
+  <p>We hope you had a wonderful time on your <strong>{package_title}</strong> holiday!</p>
+
+  <p>Your experience and feedback mean a lot to us. If you have a moment, we would be
+  incredibly grateful if you could share a short review — it helps other travellers
+  and supports our team.</p>
+
+  <div style="margin:24px 0;">
+    {review_buttons_html}
+  </div>
+
+  <p>Thank you for choosing <strong>{agency_name}</strong> and Momira Travel.<br>
+  We look forward to planning your next adventure!</p>
+
+  <p>For any future requests, feel free to contact us at any time at
+  <a href="mailto:info@momira.de" style="color:#17a39b;">info@momira.de</a>.</p>
+
+  <p>Warm regards,<br>
+  <strong>Momira Travel</strong></p>
+</body>
+</html>"""
+
+    # Plain-text fallback
+    text_body = f"""\
 Dear {first_name},
 
 We hope you had a wonderful time on your {package_title} holiday!
 
-Your experience and feedback mean a lot to us. If you have a moment, \
-we would be incredibly grateful if you could share a short review — \
+Your experience and feedback mean a lot to us. If you have a moment,
+we would be incredibly grateful if you could share a short review —
 it helps other travellers and supports our team.
 
-{review_block}
+{chr(10).join(review_lines_text)}
 
 Thank you for choosing {agency_name} and Momira Travel.
 We look forward to planning your next adventure!
 
+For any future requests, feel free to contact us at any time at info@momira.de.
+
 Warm regards,
-{agency_name}
+Momira Travel
 """
 
     msg = EmailMessage()
     msg["Subject"] = subject
     msg["From"] = from_addr
     msg["To"] = to_email
-    msg.set_content(body)
+    msg.set_content(text_body)
+    msg.add_alternative(html_body, subtype="html")
 
     _smtp_send(msg)
 

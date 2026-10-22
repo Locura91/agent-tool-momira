@@ -1242,14 +1242,13 @@ async def preview_feedback_email(
     MOMIRA_GOOGLE = "https://g.page/r/CeqHXc2-NckXEBM/review"
     review_lines = []
     if "google" in platform_list and agent.google_review_url:
-        review_lines.append(f"  ★ Review {agent.agency_name or 'us'} on Google:\n    {agent.google_review_url}")
+        review_lines.append(f"★ Review {agent.agency_name or 'us'} on Google: {agent.google_review_url}")
     if "tripadvisor" in platform_list and agent.tripadvisor_url:
-        review_lines.append(f"  ★ Review {agent.agency_name or 'us'} on TripAdvisor:\n    {agent.tripadvisor_url}")
-    review_lines.append(f"  ★ Review Momira Travel on Google:\n    {MOMIRA_GOOGLE}")
-    review_block = "\n\n".join(review_lines)
+        review_lines.append(f"★ Review {agent.agency_name or 'us'} on TripAdvisor: {agent.tripadvisor_url}")
+    review_lines.append(f"★ Review Momira Travel on Google: {MOMIRA_GOOGLE}")
 
     pkg = booking.package_title or booking.package_id or "your trip"
-    agency = agent.agency_name or ""
+    agency = agent.agency_name or "Momira Travel"
     subject = f"How was your trip, {booking.first_name}? We'd love your feedback!"
     body = (
         f"Dear {booking.first_name},\n\n"
@@ -1257,10 +1256,11 @@ async def preview_feedback_email(
         f"Your experience and feedback mean a lot to us. If you have a moment, "
         f"we would be incredibly grateful if you could share a short review — "
         f"it helps other travellers and supports our team.\n\n"
-        f"{review_block}\n\n"
-        f"Thank you for choosing {agency} and Momira Travel.\n"
+        + "\n".join(review_lines) +
+        f"\n\nThank you for choosing {agency} and Momira Travel.\n"
         f"We look forward to planning your next adventure!\n\n"
-        f"Warm regards,\n{agency}"
+        f"For any future requests, feel free to contact us at any time at info@momira.de.\n\n"
+        f"Warm regards,\nMomira Travel"
     )
     return {"subject": subject, "body": body, "to_email": booking.email}
 
