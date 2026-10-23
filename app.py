@@ -1008,11 +1008,54 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
                 "detail": _clean_html(spot.get("text") or spot.get("body") or ""),
             })
 
-        # 7. Fallback: pack.activities if nothing from raw yet
-        if not items and pack.activities:
-            for a in pack.activities:
+        # 7. Guaranteed fallback from pack.* fields when raw detail yielded nothing
+        if not items:
+            # Flights summary from transport_counts
+            flight_n = pack.transport_counts.get("flights", 0) if pack.transport_counts else 0
+            if flight_n:
                 items.append({
-                    "sort_key": "ZZZD",
+                    "sort_key": "AAA",
+                    "date_label": "",
+                    "kind": "flight",
+                    "chip": "Flight",
+                    "title": f"Flights included ({flight_n})",
+                    "detail": "Exact times confirmed upon booking",
+                })
+            # Hotels from pack.hotel_names
+            for idx2, h_name in enumerate(pack.hotel_names or []):
+                nights2 = pack.hotel_nights[idx2] if idx2 < len(pack.hotel_nights or []) else 0
+                stars2 = pack.hotel_stars[idx2] if idx2 < len(pack.hotel_stars or []) else 0
+                board2 = pack.hotel_boards[idx2] if idx2 < len(pack.hotel_boards or []) else ""
+                parts2 = []
+                if nights2:
+                    parts2.append(f"{nights2} night{'s' if nights2 != 1 else ''}")
+                board_lbl2 = sk._board_label(board2)
+                if board_lbl2:
+                    parts2.append(board_lbl2)
+                items.append({
+                    "sort_key": f"BBB{idx2:03d}",
+                    "date_label": "",
+                    "kind": "hotel",
+                    "chip": "Hotel",
+                    "title": h_name,
+                    "stars": stars2,
+                    "detail": " · ".join(parts2),
+                })
+            # Transfers
+            t_count = pack.transport_counts.get("transfers", 0) if pack.transport_counts else 0
+            if t_count:
+                items.append({
+                    "sort_key": "CCC",
+                    "date_label": "",
+                    "kind": "transfer",
+                    "chip": "Transfer",
+                    "title": f"Transfers included ({t_count})",
+                    "detail": "",
+                })
+            # Activities / tickets
+            for a in (pack.activities or []):
+                items.append({
+                    "sort_key": "DDD",
                     "date_label": "",
                     "kind": "activity",
                     "chip": "Included",
@@ -1021,14 +1064,15 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
                 })
 
         # Sort chronologically; items without a date float to their natural position
-        items.sort(key=lambda x: (x["sort_key"] or "ZZZZ"))
+        items.sort(key=lambda x: (x.get("sort_key") or "ZZZZ"))
 
         itinerary = {
             "items": items,
             "days": pack.days,
             "nights": pack.nights,
         }
-        itinerary_json = _json.dumps(itinerary, ensure_ascii=False)
+        # Use ensure_ascii=False so names render correctly; HTML-escape < > & for safe embedding
+        itinerary_json = _json.dumps(itinerary, ensure_ascii=False).replace("</", "<\\/")
 
     except Exception as exc:
         print(f"[registration_form] TC fetch failed: {exc}")

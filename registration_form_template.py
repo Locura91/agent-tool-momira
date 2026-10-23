@@ -333,11 +333,12 @@ TEMPLATE = """<!doctype html>
   </form>
 </div>
 
+<script type="application/json" id="itin-data">{{ITINERARY_JSON}}</script>
 <script>
   const NUM_ADULTS   = parseInt("{{NUM_ADULTS}}", 10)  || 2;
   const NUM_CHILDREN = parseInt("{{NUM_CHILDREN}}", 10) || 0;
   const ITIN = (function(){
-    try{ return JSON.parse('{{ITINERARY_JSON}}'); } catch(e){ return null; }
+    try{ return JSON.parse(document.getElementById('itin-data').textContent); } catch(e){ return null; }
   })();
 
   /* ── Header meta strip ── */
