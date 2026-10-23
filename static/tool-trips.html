@@ -159,7 +159,10 @@
       <h1>✈️ Customer Trips</h1>
       <p>Add trips manually and send feedback emails after the customer returns.</p>
     </div>
-    <button class="btn-brand" onclick="toggleAdd()">+ Add trip</button>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button class="btn-ghost" id="sync-btn" onclick="syncFromTC()" title="Import bookings from Travel Compositor matching your agency">↻ Sync from TC</button>
+      <button class="btn-brand" onclick="toggleAdd()">+ Add trip</button>
+    </div>
   </div>
 
   <!-- Add booking form -->
@@ -424,6 +427,28 @@
     } catch(err) {
       alert('Error: ' + err.message);
       btn.disabled = false; btn.textContent = '✉ Send now';
+    }
+  }
+
+  async function syncFromTC() {
+    const btn = document.getElementById('sync-btn');
+    btn.disabled = true;
+    btn.textContent = '↻ Syncing…';
+    try {
+      const r = await fetch('/api/sync/tc-bookings/me', { method: 'POST', headers });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+      const msg = `Sync complete: ${d.imported} imported, ${d.skipped} already existed.`;
+      btn.textContent = '✓ Synced';
+      btn.style.color = '#17a39b';
+      alert(msg);
+      await loadTrips();
+    } catch(err) {
+      btn.textContent = '↻ Sync from TC';
+      alert('Sync error: ' + err.message);
+    } finally {
+      btn.disabled = false;
+      setTimeout(() => { btn.textContent = '↻ Sync from TC'; btn.style.color = ''; }, 3000);
     }
   }
 

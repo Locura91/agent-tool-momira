@@ -28,6 +28,7 @@ import r2_upload
 import flyer_engine
 import video_kit as vk
 import mailer
+import tc_sync
 import re as _re
 
 
@@ -65,10 +66,33 @@ from schemas import (
 # App setup
 # --------------------------------------------------------------------------
 
+_sync_task: asyncio.Task | None = None
+
+
+async def _weekly_tc_sync_loop() -> None:
+    """Background task: run TC booking sync every 7 days."""
+    INTERVAL = 7 * 24 * 3600  # weekly
+    await asyncio.sleep(60)  # short startup delay so DB is ready
+    while True:
+        try:
+            from database import AsyncSessionLocal
+        async with AsyncSessionLocal() as db:
+                await tc_sync.sync_tc_bookings(db)
+        except Exception as e:
+            print(f"[tc_sync] Weekly sync error: {e}")
+        await asyncio.sleep(INTERVAL)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _sync_task
     await init_db()
-    yield
+    _sync_task = asyncio.create_task(_weekly_tc_sync_loop())
+    try:
+        yield
+    finally:
+        if _sync_task:
+            _sync_task.cancel()
 
 
 app = FastAPI(
@@ -1354,6 +1378,32 @@ async def delete_booking(
     await db.delete(booking)
     await db.commit()
     return {"ok": True}
+
+
+# --------------------------------------------------------------------------
+# TC booking sync
+# --------------------------------------------------------------------------
+
+@app.post("/api/sync/tc-bookings")
+async def trigger_tc_sync(
+    agent: Agent = Depends(current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin-only: manually trigger a TC booking sync across all agents."""
+    stats = await tc_sync.sync_tc_bookings(db)
+    return {"ok": True, **stats}
+
+
+@app.post("/api/sync/tc-bookings/me")
+async def trigger_tc_sync_me(
+    agent: Agent = Depends(current_agent),
+    db: AsyncSession = Depends(get_db),
+):
+    """Agent: sync TC bookings that belong to this agent's agency."""
+    if not agent.agency_name:
+        raise HTTPException(status_code=400, detail="No agency_name set in your profile — set it first so TC bookings can be matched.")
+    stats = await tc_sync.sync_tc_bookings_for_agent(db, agent)
+    return {"ok": True, **stats}
 
 
 # --------------------------------------------------------------------------
