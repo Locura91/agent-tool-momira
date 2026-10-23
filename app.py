@@ -28,6 +28,7 @@ import r2_upload
 import flyer_engine
 import video_kit as vk
 import mailer
+import tc_sync
 import re as _re
 
 
@@ -65,10 +66,33 @@ from schemas import (
 # App setup
 # --------------------------------------------------------------------------
 
+_sync_task: asyncio.Task | None = None
+
+
+async def _weekly_tc_sync_loop() -> None:
+    """Background task: run TC booking sync every 7 days."""
+    INTERVAL = 7 * 24 * 3600  # weekly
+    await asyncio.sleep(60)  # short startup delay so DB is ready
+    while True:
+        try:
+            from database import AsyncSessionLocal
+        async with AsyncSessionLocal() as db:
+                await tc_sync.sync_tc_bookings(db)
+        except Exception as e:
+            print(f"[tc_sync] Weekly sync error: {e}")
+        await asyncio.sleep(INTERVAL)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _sync_task
     await init_db()
-    yield
+    _sync_task = asyncio.create_task(_weekly_tc_sync_loop())
+    try:
+        yield
+    finally:
+        if _sync_task:
+            _sync_task.cancel()
 
 
 app = FastAPI(
@@ -322,20 +346,43 @@ async def debug_package(
         calendar = {"error": str(e)}
 
     # Also show what normalise extracted
+    pack = None
+    pack_fields = {}
     try:
         pack = sk.normalise(pkg_id, info if not isinstance(info, dict) or "error" not in info else {},
                             detail if not isinstance(detail, dict) or "error" not in detail else {},
                             calendar if not isinstance(calendar, dict) or "error" not in calendar else {})
-        extracted_gallery = pack.gallery
+        pack_fields = {
+            "id": pack.id,
+            "title": pack.title,
+            "description": pack.description,
+            "days": pack.days,
+            "nights": pack.nights,
+            "price": pack.price,
+            "currency": pack.currency,
+            "destinations": pack.destinations,
+            "themes": pack.themes,
+            "gallery": pack.gallery,
+            "departures": [str(d) for d in (pack.departures or [])],
+            "hotel_names": pack.hotel_names,
+            "hotel_nights": pack.hotel_nights,
+            "hotel_stars": pack.hotel_stars,
+            "hotel_boards": pack.hotel_boards,
+            "transport_counts": pack.transport_counts,
+            "activities": pack.activities,
+            "is_round_trip": pack.is_round_trip,
+        }
     except Exception as ex:
-        extracted_gallery = [f"normalise error: {ex}"]
+        pack_fields = {"normalise_error": str(ex)}
 
     return {
-        "extracted_gallery": extracted_gallery,
+        "package": pack_fields,
         "info_keys": list(info.keys()) if isinstance(info, dict) else type(info).__name__,
         "detail_keys": list(detail.keys()) if isinstance(detail, dict) else type(detail).__name__,
+        "calendar_keys": list(calendar.keys()) if isinstance(calendar, dict) else type(calendar).__name__,
         "info": info,
         "detail": detail,
+        "calendar": calendar,
     }
 
 
@@ -794,16 +841,7 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
             return str(b).strip() if b else ""
 
         def _board_label(board: str) -> str:
-            b = str(board or "").strip().lower()
-            mapping = {
-                "ro": "Room only", "room only": "Room only", "roomonly": "Room only",
-                "bb": "Breakfast included", "b&b": "Breakfast included", "breakfast": "Breakfast included",
-                "hb": "Half board", "half board": "Half board", "halfboard": "Half board",
-                "fb": "Full board", "full board": "Full board", "fullboard": "Full board",
-                "ai": "All inclusive", "all inclusive": "All inclusive", "allinclusive": "All inclusive",
-                "all-inclusive": "All inclusive",
-            }
-            return mapping.get(b, board.title() if board else "")
+            return sk._board_label(board)
 
         TRANSPORT_LABELS = {
             "FLIGHT": ("Flight", "flight"),
@@ -815,9 +853,46 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
             "CRUISE": ("Cruise", "cruise"),
         }
 
-        items = []  # each: {sort_key, date_label, kind, chip, title, detail}
+        import html as _html_mod, re as _re_mod
+        def _clean_html(s):
+            return " ".join(_html_mod.unescape(_re_mod.sub(r"<[^>]+>", " ", str(s or ""))).split())
 
-        # 1. Transports (all types)
+        def _room_name(h_raw):
+            """Extract room type string from a raw TC hotel object."""
+            if not isinstance(h_raw, dict):
+                return ""
+            for rk in ("rooms", "room", "roomList", "roomOptions"):
+                rooms = h_raw.get(rk)
+                if isinstance(rooms, list) and rooms:
+                    r = rooms[0]
+                    if isinstance(r, dict):
+                        n = r.get("name") or r.get("roomType") or r.get("type") or r.get("description") or ""
+                        n = _clean_html(n)
+                        if n:
+                            return n
+                elif isinstance(rooms, dict):
+                    n = rooms.get("name") or rooms.get("roomType") or rooms.get("type") or ""
+                    n = _clean_html(n)
+                    if n:
+                        return n
+            n = h_raw.get("roomName") or h_raw.get("roomType") or h_raw.get("roomDescription") or ""
+            return _clean_html(n)
+
+        def _stops_str(t):
+            s = t.get("stops") or t.get("numberOfStops") or t.get("numStops") or t.get("layovers") or 0
+            try:
+                n = int(s)
+                return "Direct" if n == 0 else f"{n} stop{'s' if n > 1 else ''}"
+            except Exception:
+                return str(s).strip() if s else ""
+
+        def _provider_str(t):
+            return str(t.get("airline") or t.get("carrier") or t.get("company") or
+                       t.get("operator") or t.get("provider") or "").strip()
+
+        items = []  # each: {sort_key, date_label, kind, chip, title, detail, ...}
+
+        # 1. Transports (flights, ferries, buses, trains — detail.transports)
         transports_raw = _pick_raw(raw_detail, ["transports", "transport"], []) or []
         for t in (transports_raw or []):
             if not isinstance(t, dict):
@@ -831,127 +906,197 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
             if not dep_time and dep_raw and "T" in str(dep_raw):
                 dep_time = str(dep_raw).split("T")[1][:5]
             arr_time = str(t.get("arrivalTime") or t.get("arrivalHour") or "")
-            origin = str(t.get("originCode") or t.get("origin") or t.get("originCity") or t.get("from") or "")
-            dest_c = str(t.get("targetCode") or t.get("target") or t.get("destinationCode") or
-                         t.get("destination") or t.get("to") or "")
-            def _is_code(s):
-                return bool(s) and " " not in str(s).strip() and (
-                    "_" in str(s) or (any(c.isdigit() for c in str(s)) and str(s).upper() == str(s)))
-            raw_name = t.get("name") or t.get("title") or ""
-            display_name = "" if _is_code(raw_name) else str(raw_name).strip()
-            if not display_name:
-                display_name = str(t.get("description") or "").strip() or None
-            title = f"{origin} → {dest_c}" if (origin and dest_c) else (
-                display_name or chip_label)
+            arr_raw  = (t.get("arrivalDate") or t.get("arrivalDateTime") or "")
+            # detect next-day arrival
+            arr_suffix = ""
+            if arr_raw and dep_raw:
+                arr_day = _fmt_date_iso(arr_raw)
+                dep_day = _fmt_date_iso(dep_raw)
+                if arr_day and dep_day and arr_day > dep_day:
+                    try:
+                        from datetime import date as _date_cls
+                        diff = (_date_cls.fromisoformat(arr_day) - _date_cls.fromisoformat(dep_day)).days
+                        arr_suffix = f" +{diff}" if diff > 0 else ""
+                    except Exception:
+                        pass
 
-            parts = []
+            origin  = str(t.get("originCode") or t.get("originAirport") or t.get("originCity") or t.get("origin") or t.get("from") or "")
+            dest_c  = str(t.get("targetCode") or t.get("destinationCode") or t.get("destinationAirport") or t.get("destinationCity") or t.get("destination") or t.get("target") or t.get("to") or "")
+            title   = f"{origin} → {dest_c}" if (origin and dest_c) else chip_label
+
+            time_str = ""
             if dep_time and dep_time[:5]:
-                parts.append(f"{dep_time[:5]}{(' → ' + arr_time[:5]) if arr_time else ''}")
-            dur = _duration_str(t.get("duration") or t.get("flightDuration") or 0)
-            if dur:
-                parts.append(dur)
-            bag = _baggage_str(t)
-            if bag:
-                parts.append(f"🧳 {bag}")
-            airline = str(t.get("airline") or t.get("carrier") or t.get("company") or "")
+                time_str = dep_time[:5]
+                if arr_time and arr_time[:5]:
+                    time_str += f" → {arr_time[:5]}{arr_suffix}"
+
+            dur     = _duration_str(t.get("duration") or t.get("flightDuration") or 0)
+            stops   = _stops_str(t)
+            bag     = _baggage_str(t)
+            provider = _provider_str(t)
             flight_no = str(t.get("flightNumber") or t.get("flightNo") or t.get("serviceNumber") or "")
-            if airline:
-                parts.append(airline + (f" {flight_no}" if flight_no else ""))
-            elif flight_no:
-                parts.append(flight_no)
 
             items.append({
-                "sort_key": _fmt_date_iso(dep_raw) + "A",
+                "sort_key":   _fmt_date_iso(dep_raw) + "A",
                 "date_label": _fmt_date(dep_raw),
-                "kind": chip_kind,
-                "chip": chip_label,
-                "title": str(title),
-                "detail": " · ".join(p for p in parts if p),
+                "kind":       chip_kind,
+                "chip":       chip_label,
+                "title":      title,
+                "time":       time_str,
+                "duration":   dur,
+                "stops":      stops,
+                "baggage":    bag,
+                "provider":   (provider + (f" {flight_no}" if flight_no else "")).strip(),
             })
 
-        # 2. Hotels
+        # 2. Hotels (detail.hotels) — name, stars, room, board, nights, check-in
+        raw_hotels = _pick_raw(raw_detail, ["hotels", "accommodations", "hotel"], []) or []
         for idx, h_name in enumerate(pack.hotel_names):
-            nights = pack.hotel_nights[idx] if idx < len(pack.hotel_nights) else 0
-            stars = pack.hotel_stars[idx] if idx < len(pack.hotel_stars) else 0
-            board = pack.hotel_boards[idx] if idx < len(pack.hotel_boards) else ""
-            # Try to get check-in date from raw
-            raw_hotels = _pick_raw(raw_detail, ["hotels", "accommodations", "hotel"], []) or []
-            hotel_raw = raw_hotels[idx] if isinstance(raw_hotels, list) and idx < len(raw_hotels) else {}
-            checkin_raw = (hotel_raw.get("checkIn") or hotel_raw.get("checkInDate") or
-                           hotel_raw.get("startDate") or hotel_raw.get("arrivalDate") or "") if isinstance(hotel_raw, dict) else ""
-            parts = []
-            if nights:
-                parts.append(f"{nights} night{'s' if nights != 1 else ''}")
+            nights   = pack.hotel_nights[idx] if idx < len(pack.hotel_nights) else 0
+            stars    = pack.hotel_stars[idx]   if idx < len(pack.hotel_stars)  else 0
+            board    = pack.hotel_boards[idx]  if idx < len(pack.hotel_boards) else ""
+            h_raw    = raw_hotels[idx] if isinstance(raw_hotels, list) and idx < len(raw_hotels) else {}
+            checkin_raw = ""
+            if isinstance(h_raw, dict):
+                checkin_raw = (h_raw.get("checkIn") or h_raw.get("checkInDate") or
+                               h_raw.get("startDate") or h_raw.get("arrivalDate") or "")
+            room_name = _room_name(h_raw) if isinstance(h_raw, dict) else ""
             board_label = _board_label(board)
-            if board_label:
-                parts.append(board_label)
             items.append({
-                "sort_key": _fmt_date_iso(checkin_raw) + "B",
+                "sort_key":   _fmt_date_iso(checkin_raw) + "B",
                 "date_label": _fmt_date(checkin_raw),
-                "kind": "hotel",
-                "chip": "Hotel",
-                "title": h_name,
-                "stars": stars,
-                "detail": " · ".join(p for p in parts if p),
+                "kind":       "hotel",
+                "chip":       "Stay",
+                "title":      h_name,
+                "stars":      stars,
+                "nights":     nights,
+                "board":      board_label,
+                "room":       room_name,
             })
 
-        # 3. Transfers (separate from transport)
+        # 3. Transfers (detail.transfers) — airport ↔ hotel
         for t in (_pick_raw(raw_detail, ["transfers", "transfer"], []) or []):
             if not isinstance(t, dict):
                 continue
-            _raw_name = t.get("name") or t.get("title") or ""
-            name = (str(_raw_name).strip()
-                    if _raw_name and " " in str(_raw_name)
-                    else (str(t.get("description") or "").strip() or "Transfer"))
-            date_raw = t.get("date") or t.get("startDate") or t.get("departureDate") or ""
+            origin_t = str(t.get("originCode") or t.get("origin") or t.get("from") or t.get("pickup") or "")
+            dest_t   = str(t.get("targetCode") or t.get("destination") or t.get("to") or t.get("dropoff") or "")
+            if origin_t and dest_t:
+                title_t = f"{origin_t} → {dest_t}"
+            else:
+                title_t = _clean_html(t.get("name") or t.get("title") or t.get("description") or "Airport Transfer")
+            dep_raw  = t.get("date") or t.get("startDate") or t.get("departureDate") or ""
+            dep_time_t = str(t.get("departureTime") or t.get("pickupTime") or "")
+            arr_time_t = str(t.get("arrivalTime") or t.get("dropoffTime") or "")
+            time_t = ""
+            if dep_time_t and dep_time_t[:5]:
+                time_t = dep_time_t[:5]
+                if arr_time_t and arr_time_t[:5]:
+                    time_t += f" → {arr_time_t[:5]}"
             items.append({
-                "sort_key": _fmt_date_iso(date_raw) + "C",
-                "date_label": _fmt_date(date_raw),
-                "kind": "transfer",
-                "chip": "Transfer",
-                "title": name,
-                "detail": "",
+                "sort_key":   _fmt_date_iso(dep_raw) + "C",
+                "date_label": _fmt_date(dep_raw),
+                "kind":       "transfer",
+                "chip":       "Transfer",
+                "title":      title_t,
+                "time":       time_t,
+                "provider":   _provider_str(t),
             })
 
-        # 4. Activities / excursions / tickets
-        raw_activities = _pick_raw(raw_detail, ["activities", "tickets", "excursions", "services"], []) or []
-        for a in (raw_activities or []):
-            if isinstance(a, str):
-                name, date_raw = a, ""
-            elif isinstance(a, dict):
-                name = str(a.get("name") or a.get("title") or a.get("description") or "Activity").strip()
-                date_raw = a.get("date") or a.get("startDate") or a.get("activityDate") or ""
-            else:
+        # 4. Tickets / excursions (detail.tickets)
+        for ticket in (_pick_raw(raw_detail, ["tickets"], []) or []):
+            if not isinstance(ticket, dict):
                 continue
+            name = _clean_html(ticket.get("name") or ticket.get("title") or ticket.get("description") or "")
+            if not name:
+                continue
+            date_raw = ticket.get("date") or ticket.get("startDate") or ticket.get("ticketDate") or ""
             items.append({
-                "sort_key": _fmt_date_iso(date_raw) + "D",
+                "sort_key":   _fmt_date_iso(date_raw) + "D",
                 "date_label": _fmt_date(date_raw),
-                "kind": "activity",
-                "chip": "Activity",
-                "title": name,
-                "detail": "",
+                "kind":       "activity",
+                "chip":       "Ticket",
+                "title":      name,
             })
-        # Fallback: pack.activities (plain strings)
-        if not raw_activities and pack.activities:
-            for a in pack.activities:
+
+        # 5. Cruises (detail.cruises)
+        for cruise in (_pick_raw(raw_detail, ["cruises"], []) or []):
+            if not isinstance(cruise, dict):
+                continue
+            name    = _clean_html(cruise.get("name") or cruise.get("title") or cruise.get("shipName") or "Cruise")
+            date_raw = cruise.get("departureDate") or cruise.get("date") or cruise.get("startDate") or ""
+            nights_c = cruise.get("nights") or cruise.get("duration") or 0
+            items.append({
+                "sort_key":   _fmt_date_iso(date_raw) + "E",
+                "date_label": _fmt_date(date_raw),
+                "kind":       "cruise",
+                "chip":       "Cruise",
+                "title":      name,
+                "nights":     int(nights_c) if nights_c else 0,
+                "provider":   _provider_str(cruise),
+            })
+
+        # 6. Closed tours / tripSpots (detail.closedTours / detail.tripSpots)
+        for spot in (_pick_raw(raw_detail, ["closedTours", "tripSpots"], []) or []):
+            if not isinstance(spot, dict):
+                continue
+            name = _clean_html(spot.get("name") or spot.get("title") or spot.get("description") or "")
+            if not name:
+                continue
+            date_raw = spot.get("date") or spot.get("startDate") or ""
+            items.append({
+                "sort_key":   _fmt_date_iso(date_raw) + "F",
+                "date_label": _fmt_date(date_raw),
+                "kind":       "activity",
+                "chip":       "Tour",
+                "title":      name,
+            })
+
+        # 7. Guaranteed fallback from pack.* fields when raw detail yielded nothing
+        if not items:
+            flight_n = pack.transport_counts.get("flights", 0) if pack.transport_counts else 0
+            if flight_n:
                 items.append({
-                    "sort_key": "ZZZD",
-                    "date_label": "",
-                    "kind": "activity",
-                    "chip": "Included",
+                    "sort_key": "AAA", "date_label": "",
+                    "kind": "flight", "chip": "Flight",
+                    "title": f"Flights included ({flight_n})",
+                    "time": "", "duration": "", "stops": "",
+                    "baggage": "", "provider": "",
+                })
+            for idx2, h_name in enumerate(pack.hotel_names or []):
+                nights2 = pack.hotel_nights[idx2] if idx2 < len(pack.hotel_nights or []) else 0
+                stars2  = pack.hotel_stars[idx2]   if idx2 < len(pack.hotel_stars or [])  else 0
+                board2  = pack.hotel_boards[idx2]  if idx2 < len(pack.hotel_boards or []) else ""
+                items.append({
+                    "sort_key": f"BBB{idx2:03d}", "date_label": "",
+                    "kind": "hotel", "chip": "Stay",
+                    "title": h_name, "stars": stars2,
+                    "nights": nights2, "board": _board_label(board2), "room": "",
+                })
+            t_count = pack.transport_counts.get("transfers", 0) if pack.transport_counts else 0
+            if t_count:
+                items.append({
+                    "sort_key": "CCC", "date_label": "",
+                    "kind": "transfer", "chip": "Transfer",
+                    "title": f"Transfers included ({t_count})",
+                    "time": "", "provider": "",
+                })
+            for a in (pack.activities or []):
+                items.append({
+                    "sort_key": "DDD", "date_label": "",
+                    "kind": "activity", "chip": "Included",
                     "title": str(a),
-                    "detail": "",
                 })
 
         # Sort chronologically; items without a date float to their natural position
-        items.sort(key=lambda x: (x["sort_key"] or "ZZZZ"))
+        items.sort(key=lambda x: (x.get("sort_key") or "ZZZZ"))
 
         itinerary = {
             "items": items,
             "days": pack.days,
             "nights": pack.nights,
         }
-        itinerary_json = _json.dumps(itinerary, ensure_ascii=False)
+        # Use ensure_ascii=False so names render correctly; HTML-escape < > & for safe embedding
+        itinerary_json = _json.dumps(itinerary, ensure_ascii=False).replace("</", "<\\/")
 
     except Exception as exc:
         print(f"[registration_form] TC fetch failed: {exc}")
@@ -962,6 +1107,40 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
         if agent.logo_url else ""
     )
 
+    # Hero image — use first gallery photo if available
+    hero_img_html = ""
+    if pack and pack.gallery:
+        hero_url = pack.gallery[0]
+        hero_img_html = f'<img src="{hero_url}" alt="{pkg_title}" class="hero-img" loading="lazy">'
+    if not hero_img_html:
+        hero_img_html = '<div class="hero-img-placeholder">✈️</div>'
+
+    # Package description
+    pkg_desc = (pack.description or "") if pack else ""
+
+    # Route chips: destination names joined as a strip
+    route_html = ""
+    if pack and pack.destinations:
+        chips = []
+        for i, d in enumerate(pack.destinations):
+            name = d.get("name", "")
+            if name:
+                arrow = " <span class='route-arrow'>→</span> " if i > 0 else ""
+                chips.append(f"{arrow}<span class='route-chip'>{name}</span>")
+        if chips:
+            route_html = "".join(chips)
+
+    # Upcoming departures (up to 3 nearest)
+    departures_html = ""
+    if pack and pack.departures:
+        import json as _json2
+        from datetime import date as _today_cls
+        today_str = _today_cls.today().isoformat()
+        upcoming = sorted([d for d in pack.departures if str(d) >= today_str])[:3]
+        if upcoming:
+            dep_parts = [f"<span class='dep-chip'>{d}</span>" for d in upcoming]
+            departures_html = "Departures: " + " &nbsp; ".join(dep_parts)
+
     import registration_form_template as _rft
     tmpl = _rft.TEMPLATE
 
@@ -971,6 +1150,10 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
             .replace("{{PKG_TITLE}}", pkg_title)
             .replace("{{PKG_DEST}}", pkg_dest)
             .replace("{{PRICE_STR}}", price_str)
+            .replace("{{PKG_DESC}}", pkg_desc)
+            .replace("{{HERO_IMG_HTML}}", hero_img_html)
+            .replace("{{ROUTE_HTML}}", route_html)
+            .replace("{{DEPARTURES_HTML}}", departures_html)
             .replace("{{AGENCY_NAME}}", agency_name)
             .replace("{{LOGO_HTML}}", logo_html)
             .replace("{{NUM_ADULTS}}", str(num_adults))
@@ -1354,6 +1537,32 @@ async def delete_booking(
     await db.delete(booking)
     await db.commit()
     return {"ok": True}
+
+
+# --------------------------------------------------------------------------
+# TC booking sync
+# --------------------------------------------------------------------------
+
+@app.post("/api/sync/tc-bookings")
+async def trigger_tc_sync(
+    agent: Agent = Depends(current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin-only: manually trigger a TC booking sync across all agents."""
+    stats = await tc_sync.sync_tc_bookings(db)
+    return {"ok": True, **stats}
+
+
+@app.post("/api/sync/tc-bookings/me")
+async def trigger_tc_sync_me(
+    agent: Agent = Depends(current_agent),
+    db: AsyncSession = Depends(get_db),
+):
+    """Agent: sync TC bookings that belong to this agent's agency."""
+    if not agent.agency_name:
+        raise HTTPException(status_code=400, detail="No agency_name set in your profile — set it first so TC bookings can be matched.")
+    stats = await tc_sync.sync_tc_bookings_for_agent(db, agent)
+    return {"ok": True, **stats}
 
 
 # --------------------------------------------------------------------------
