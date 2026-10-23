@@ -732,11 +732,10 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
     itinerary_json = "null"
 
     try:
-        tc_user = os.getenv("TC_USERNAME") or os.getenv("TRAVELC_USERNAME", "")
-        tc_pass = os.getenv("TC_PASSWORD") or os.getenv("TRAVELC_PASSWORD", "")
-        tc_micro = os.getenv("TC_MICROSITE") or os.getenv("TRAVELC_MICROSITE_ID", "momiratravel")
-        tc_base = os.getenv("TC_BASE_URL") or os.getenv("TRAVELC_BASE_URL", "https://online.travelcompositor.com/resources")
-        pack = sk.fetch_package(package_id, tc_user, tc_pass, tc_micro, tc_base, lang="EN")
+        # Use TCClient() directly so it reads TRAVELC_USERNAME/PASSWORD from env
+        # via TCConfig.from_env() — passing empty strings as explicit args breaks auth
+        _tc_client = sk.TCClient()
+        pack = sk.fetch(_tc_client, package_id, lang="EN")
         pkg_title = pack.title or pkg_title
         # Destination: first destination name
         if pack.destinations:
