@@ -26,7 +26,7 @@
       align-items: center;
       justify-content: space-between;
     }
-    .logo { display: flex; align-items: center; gap: .6rem; }
+    .logo { display: flex; align-items: center; gap: .6rem; text-decoration: none; color: inherit; }
     .logo img { height: 36px; width: 36px; border-radius: 50%; object-fit: contain; }
     .logo-text { font-weight: 700; font-size: 1rem; }
     .badge { background: #fef3c7; color: #92400e; font-size: .75rem; font-weight: 700; padding: .2rem .55rem; border-radius: 99px; }
@@ -61,10 +61,10 @@
 </head>
 <body>
 <header>
-  <div class="logo">
+  <a class="logo" href="/dashboard">
     <img src="/static/momira-logo.png" alt="Momira Travel">
     <span class="logo-text">Travel Agent Kit</span>
-  </div>
+  </a>
   <div style="display:flex;align-items:center;gap:.75rem">
     <span class="badge">ADMIN</span>
     <button class="logout-btn" onclick="logout()">Log out</button>
