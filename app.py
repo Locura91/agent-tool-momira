@@ -761,6 +761,13 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
         adults_fields = ["adults", "adultsCount", "numAdults", "numberAdults"]
         children_fields = ["children", "childrenCount", "numChildren", "numberChildren", "kids"]
 
+        # TC HolidayPackageVO has a top-level "travelers" int field
+        tc_travelers = raw_info.get("travelers") or raw_info.get("travellers") or raw_detail.get("travelers") or 0
+        try:
+            tc_travelers = int(tc_travelers)
+        except Exception:
+            tc_travelers = 0
+
         raw_adults = _pick_raw(raw_info, adults_fields) or _pick_raw(raw_detail, adults_fields)
         raw_children = _pick_raw(raw_info, children_fields) or _pick_raw(raw_detail, children_fields)
 
@@ -775,6 +782,11 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
                 num_children = max(0, int(raw_children))
             except (ValueError, TypeError):
                 pass
+
+        # If TC gives a total traveler count but no adult/child split, use it as adults
+        if tc_travelers > 0 and raw_adults is None and raw_children is None:
+            num_adults = tc_travelers
+            num_children = 0
 
         # Fallback: look inside occupancy / rooms arrays
         if num_adults == 2 and num_children == 0:
@@ -831,13 +843,35 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
                 return ""
 
         def _baggage_str(t) -> str:
+            # TC can return baggage as: bool, int (kg), string, list of {type,weight} dicts
             b = (t.get("baggage") or t.get("luggageIncluded") or t.get("baggageIncluded") or
-                 t.get("includedBaggage") or t.get("handLuggage") or t.get("checkedBaggage") or "")
+                 t.get("includedBaggage") or t.get("checkedBaggage") or t.get("luggage") or "")
             if isinstance(b, bool):
-                return "Luggage included" if b else ""
+                return "Luggage incl." if b else ""
             if isinstance(b, (int, float)):
-                return f"{int(b)} kg luggage" if b else ""
-            return str(b).strip() if b else ""
+                return f"{int(b)} kg" if b else ""
+            if isinstance(b, list) and b:
+                parts = []
+                for item in b:
+                    if isinstance(item, dict):
+                        w = item.get("weight") or item.get("kg") or ""
+                        pc = item.get("pieces") or item.get("quantity") or item.get("pcs") or ""
+                        label = item.get("type") or item.get("name") or ""
+                        if pc:
+                            parts.append(f"{pc}PC" + (f" {int(w)}kg" if w else ""))
+                        elif w:
+                            parts.append(f"{int(w)}kg")
+                        elif label:
+                            parts.append(str(label))
+                    else:
+                        parts.append(str(item))
+                return " + ".join(p for p in parts if p) or ""
+            s = str(b).strip()
+            # If it looks like a raw number treat as kg
+            try:
+                return f"{int(float(s))} kg" if s and float(s) > 0 else ""
+            except Exception:
+                return s if s and s not in ("0", "false", "False", "null") else ""
 
         def _board_label(board: str) -> str:
             return sk._board_label(board)
@@ -889,6 +923,16 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
             return str(t.get("airline") or t.get("carrier") or t.get("company") or
                        t.get("operator") or t.get("provider") or "").strip()
 
+        def _loc_name(val) -> str:
+            """TC location fields can be a plain string, an airport code, or a
+            dict like {'latitude':1.35,'longitude':103.99,'name':'Changi Intl'}.
+            Always return a human-readable name."""
+            if not val:
+                return ""
+            if isinstance(val, dict):
+                return str(val.get("name") or val.get("code") or val.get("iata") or "").strip()
+            return str(val).strip()
+
         items = []  # each: {sort_key, date_label, kind, chip, title, detail, ...}
 
         # 1. Transports (flights, ferries, buses, trains — detail.transports)
@@ -919,8 +963,8 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
                     except Exception:
                         pass
 
-            origin  = str(t.get("originCode") or t.get("originAirport") or t.get("originCity") or t.get("origin") or t.get("from") or "")
-            dest_c  = str(t.get("targetCode") or t.get("destinationCode") or t.get("destinationAirport") or t.get("destinationCity") or t.get("destination") or t.get("target") or t.get("to") or "")
+            origin  = (_loc_name(t.get("originCode") or t.get("originAirport") or t.get("originCity") or t.get("origin") or t.get("from")) or "")
+            dest_c  = (_loc_name(t.get("targetCode") or t.get("destinationCode") or t.get("destinationAirport") or t.get("destinationCity") or t.get("destination") or t.get("target") or t.get("to")) or "")
             title   = f"{origin} → {dest_c}" if (origin and dest_c) else chip_label
 
             time_str = ""
@@ -977,13 +1021,14 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
         for t in (_pick_raw(raw_detail, ["transfers", "transfer"], []) or []):
             if not isinstance(t, dict):
                 continue
-            origin_t = str(t.get("originCode") or t.get("origin") or t.get("from") or t.get("pickup") or "")
-            dest_t   = str(t.get("targetCode") or t.get("destination") or t.get("to") or t.get("dropoff") or "")
+            # TC location fields can be dicts {latitude, longitude, name}
+            origin_t = _loc_name(t.get("origin") or t.get("originCode") or t.get("from") or t.get("pickup"))
+            dest_t   = _loc_name(t.get("destination") or t.get("target") or t.get("targetCode") or t.get("to") or t.get("dropoff"))
             if origin_t and dest_t:
                 title_t = f"{origin_t} → {dest_t}"
             else:
                 title_t = _clean_html(t.get("name") or t.get("title") or t.get("description") or "Airport Transfer")
-            dep_raw  = t.get("date") or t.get("startDate") or t.get("departureDate") or ""
+            dep_raw    = t.get("date") or t.get("startDate") or t.get("departureDate") or ""
             dep_time_t = str(t.get("departureTime") or t.get("pickupTime") or "")
             arr_time_t = str(t.get("arrivalTime") or t.get("dropoffTime") or "")
             time_t = ""
@@ -991,6 +1036,7 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
                 time_t = dep_time_t[:5]
                 if arr_time_t and arr_time_t[:5]:
                     time_t += f" → {arr_time_t[:5]}"
+            # Use a sort key that places transfers after flights/hotels on the same day
             items.append({
                 "sort_key":   _fmt_date_iso(dep_raw) + "C",
                 "date_label": _fmt_date(dep_raw),
