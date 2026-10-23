@@ -69,41 +69,48 @@ TEMPLATE = """<!doctype html>
 
     /* ── Itinerary timeline ── */
     .timeline{display:flex;flex-direction:column;gap:0}
-    .tl-row{display:flex;gap:0;position:relative}
-    .tl-row:not(:last-child) .tl-line::after{
+    .tl-row{display:flex;gap:0;position:relative;padding-bottom:1.1rem}
+    .tl-row:not(:last-child)::before{
       content:'';position:absolute;
-      left:50%;top:44px;transform:translateX(-50%);
-      width:2px;bottom:-1px;background:var(--border);z-index:0}
-    .tl-left{width:52px;flex-shrink:0;display:flex;flex-direction:column;
-      align-items:center;padding-top:6px;position:relative}
-    .tl-line{position:relative;display:flex;flex-direction:column;align-items:center;width:100%}
-    .tl-icon{width:36px;height:36px;border-radius:50%;
-      display:flex;align-items:center;justify-content:center;
-      font-size:.95rem;flex-shrink:0;z-index:1;position:relative}
-    .icon-flight  {background:#dbeafe;color:#1d4ed8}
-    .icon-bus     {background:#e0f2fe;color:#0369a1}
-    .icon-ferry   {background:#cffafe;color:#0e7490}
-    .icon-train   {background:#dcfce7;color:#166534}
-    .icon-car     {background:#fef9c3;color:#854d0e}
-    .icon-hotel   {background:#fef3c7;color:#92400e}
-    .icon-transfer{background:#d1fae5;color:#065f46}
-    .icon-activity{background:#ede9fe;color:#5b21b6}
-    .icon-cruise  {background:#e0e7ff;color:#3730a3}
-    .tl-date-side{font-size:.58rem;font-weight:700;color:var(--muted);
-      text-align:center;margin-top:.25rem;text-transform:uppercase;line-height:1.2}
+      left:30px;top:54px;
+      width:2px;bottom:0;background:var(--border);z-index:0}
 
-    .tl-body{flex:1;min-width:0;padding:.2rem 0 1.1rem .85rem}
-    .tl-type{font-size:.62rem;font-weight:700;text-transform:uppercase;
-      letter-spacing:.06em;color:var(--brand);margin-bottom:.2rem}
-    .tl-title{font-size:.92rem;font-weight:700;color:var(--ink);margin-bottom:.2rem}
-    .tl-stars{color:#f59e0b;font-size:.78rem;letter-spacing:1px;margin-bottom:.2rem}
-    .tl-chips{display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.25rem}
-    .chip{font-size:.67rem;padding:.18rem .5rem;border-radius:4px;font-weight:600}
+    /* Date badge column */
+    .tl-left{width:62px;flex-shrink:0;display:flex;flex-direction:column;
+      align-items:center;padding-top:4px;position:relative;z-index:1}
+    .tl-date-badge{
+      width:44px;height:44px;border-radius:8px;
+      background:var(--white);border:1.5px solid var(--border);
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      line-height:1}
+    .tl-date-day{font-size:.95rem;font-weight:800;color:var(--ink);line-height:1}
+    .tl-date-mon{font-size:.55rem;font-weight:700;text-transform:uppercase;
+      color:var(--muted);letter-spacing:.04em;margin-top:.15rem}
+    .tl-no-date{width:44px;height:44px;border-radius:8px;
+      background:var(--bg);border:1.5px dashed var(--border);
+      display:flex;align-items:center;justify-content:center;
+      font-size:1rem;color:var(--muted)}
+
+    /* Body column */
+    .tl-body{flex:1;min-width:0;padding:.0rem 0 0 .9rem;
+      background:var(--white);border:1px solid var(--border);
+      border-radius:10px;padding:0.7rem 0.9rem;margin-left:.7rem;
+      box-shadow:0 1px 3px rgba(0,0,0,.04)}
+    .tl-type{font-size:.6rem;font-weight:800;text-transform:uppercase;
+      letter-spacing:.09em;color:var(--brand);margin-bottom:.25rem}
+    .tl-title{font-size:.92rem;font-weight:700;color:var(--ink);margin-bottom:.2rem;line-height:1.3}
+    .tl-stars{color:#f59e0b;font-size:.82rem;letter-spacing:1px;margin-bottom:.25rem}
+    .tl-detail{font-size:.78rem;color:var(--muted);margin-bottom:.25rem;line-height:1.4}
+    .tl-chips{display:flex;flex-wrap:wrap;gap:.3rem;margin-top:.3rem}
+    .chip{font-size:.67rem;padding:.18rem .55rem;border-radius:4px;font-weight:600;line-height:1.4}
     .chip-board   {background:#dcfce7;color:#166534}
     .chip-nights  {background:#fef3c7;color:#92400e}
     .chip-luggage {background:#dbeafe;color:#1d4ed8}
     .chip-time    {background:#f3f4f6;color:var(--ink)}
     .chip-dur     {background:#f3f4f6;color:var(--muted)}
+    .chip-stops   {background:#f0fdf4;color:#166534}
+    .chip-provider{background:#f5f3ff;color:#5b21b6}
+    .chip-room    {background:#fff7ed;color:#c2410c}
 
     .no-itin{background:var(--white);border:1px solid var(--border);
       border-radius:10px;padding:1rem 1.2rem;font-size:.85rem;color:var(--muted);
@@ -353,14 +360,79 @@ TEMPLATE = """<!doctype html>
     '<span class="meta-pill">&#128100; ' + paxLabel + '</span>';
 
   /* ── Itinerary timeline ── */
-  const ICONS = {
+  const TYPE_LABELS = {
+    flight:'Flight', bus:'Transport', ferry:'Ferry', train:'Train', car:'Car Rental',
+    hotel:'Stay', transfer:'Transfer', activity:'Included', cruise:'Cruise'
+  };
+  const TYPE_ICONS = {
     flight:'✈️', bus:'🚌', ferry:'⛴️', train:'🚂', car:'🚗',
     hotel:'🏨', transfer:'🚐', activity:'🎯', cruise:'🛳️'
   };
-  const TYPE_LABELS = {
-    flight:'Flight', bus:'Bus', ferry:'Ferry', train:'Train', car:'Car rental',
-    hotel:'Stay', transfer:'Transfer', activity:'Included', cruise:'Cruise'
-  };
+
+  function dateBadge(label){
+    // label may be "29 Jan", "Mon 29 Jan", or empty
+    if(!label) return '<div class="tl-no-date">📅</div>';
+    const parts = label.trim().split(/\s+/);
+    // find the numeric day part
+    let day = '', mon = '';
+    for(let p of parts){
+      if(/^\d+$/.test(p)){ day = p; }
+      else if(/^[A-Za-z]{3}/.test(p) && p.length >= 3){ mon = p.slice(0,3).toUpperCase(); }
+    }
+    if(day && mon){
+      return `<div class="tl-date-badge"><span class="tl-date-day">${day}</span><span class="tl-date-mon">${mon}</span></div>`;
+    }
+    // fallback: just show the label
+    return `<div class="tl-date-badge" style="font-size:.6rem;font-weight:700;color:var(--muted);text-align:center;padding:.15rem">${esc(label)}</div>`;
+  }
+
+  function renderItem(it){
+    const kind = it.kind || 'activity';
+    const typeLabel = (TYPE_LABELS[kind] || it.chip || kind).toUpperCase();
+
+    let titleHtml = `<div class="tl-title">${esc(it.title || '')}</div>`;
+    let starsHtml = '';
+    if(it.stars && parseInt(it.stars) > 0){
+      starsHtml = `<div class="tl-stars">${'★'.repeat(Math.min(parseInt(it.stars),5))}</div>`;
+    }
+
+    let chips = [];
+
+    if(kind === 'flight' || kind === 'ferry' || kind === 'bus' || kind === 'train'){
+      // Transport row: time · duration · stops · provider · baggage
+      if(it.time)     chips.push(`<span class="chip chip-time">🕐 ${esc(it.time)}</span>`);
+      if(it.duration) chips.push(`<span class="chip chip-dur">⏱ ${esc(it.duration)}</span>`);
+      if(it.stops)    chips.push(`<span class="chip chip-stops">${esc(it.stops)}</span>`);
+      if(it.provider) chips.push(`<span class="chip chip-provider">${esc(it.provider)}</span>`);
+      if(it.baggage)  chips.push(`<span class="chip chip-luggage">🧳 ${esc(it.baggage)}</span>`);
+    } else if(kind === 'hotel'){
+      // Hotel row: nights · board · room
+      if(it.nights && it.nights > 0)
+        chips.push(`<span class="chip chip-nights">${it.nights} night${it.nights!==1?'s':''}</span>`);
+      if(it.board)  chips.push(`<span class="chip chip-board">${esc(it.board)}</span>`);
+      if(it.room)   chips.push(`<span class="chip chip-room">${esc(it.room)}</span>`);
+    } else if(kind === 'transfer'){
+      if(it.time)     chips.push(`<span class="chip chip-time">🕐 ${esc(it.time)}</span>`);
+      if(it.provider) chips.push(`<span class="chip chip-provider">${esc(it.provider)}</span>`);
+    } else if(kind === 'cruise'){
+      if(it.nights && it.nights > 0)
+        chips.push(`<span class="chip chip-nights">${it.nights} night${it.nights!==1?'s':''}</span>`);
+      if(it.provider) chips.push(`<span class="chip chip-provider">${esc(it.provider)}</span>`);
+    }
+
+    const chipsHtml = chips.length ? `<div class="tl-chips">${chips.join('')}</div>` : '';
+
+    return `
+      <div class="tl-row">
+        <div class="tl-left">${dateBadge(it.date_label)}</div>
+        <div class="tl-body">
+          <div class="tl-type">${esc(typeLabel)}</div>
+          ${titleHtml}
+          ${starsHtml}
+          ${chipsHtml}
+        </div>
+      </div>`;
+  }
 
   (function(){
     const tl = document.getElementById('timeline');
@@ -368,43 +440,7 @@ TEMPLATE = """<!doctype html>
       tl.innerHTML = '<div class="no-itin">Detailed itinerary is not available for this package in the online system. Your travel agent will provide the full day-by-day programme upon confirmation.</div>';
       return;
     }
-    tl.innerHTML = ITIN.items.map((it, i) => {
-      const kind = it.kind || 'activity';
-      const icon = ICONS[kind] || '📌';
-      const typeLabel = TYPE_LABELS[kind] || it.chip || kind;
-
-      let chips = '';
-      if(it.detail){
-        const parts = it.detail.split(' · ').filter(Boolean);
-        chips = parts.map(p => {
-          if(/^\d+:\d+/.test(p) || p.includes('→')) return `<span class="chip chip-time">${esc(p)}</span>`;
-          if(/\d+h|\d+m/.test(p)) return `<span class="chip chip-dur">${esc(p)}</span>`;
-          if(/luggage|baggage|kg/i.test(p)) return `<span class="chip chip-luggage">🧳 ${esc(p)}</span>`;
-          if(/board|inclusive|breakfast|half|full|room only/i.test(p)) return `<span class="chip chip-board">${esc(p)}</span>`;
-          if(/night/i.test(p)) return `<span class="chip chip-nights">${esc(p)}</span>`;
-          return `<span class="chip chip-dur">${esc(p)}</span>`;
-        }).join('');
-      }
-
-      const starsHtml = it.stars && parseInt(it.stars) > 0
-        ? `<div class="tl-stars">${'★'.repeat(Math.min(parseInt(it.stars),5))}</div>` : '';
-
-      return `
-        <div class="tl-row">
-          <div class="tl-left">
-            <div class="tl-line">
-              <div class="tl-icon icon-${kind}">${icon}</div>
-              ${it.date_label ? `<div class="tl-date-side">${esc(it.date_label)}</div>` : ''}
-            </div>
-          </div>
-          <div class="tl-body">
-            <div class="tl-type">${esc(typeLabel)}</div>
-            <div class="tl-title">${esc(it.title)}</div>
-            ${starsHtml}
-            ${chips ? `<div class="tl-chips">${chips}</div>` : ''}
-          </div>
-        </div>`;
-    }).join('');
+    tl.innerHTML = ITIN.items.map(renderItem).join('');
   })();
 
   /* ── Passenger sections ── */
