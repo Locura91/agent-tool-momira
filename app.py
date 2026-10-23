@@ -841,16 +841,7 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
             return str(b).strip() if b else ""
 
         def _board_label(board: str) -> str:
-            b = str(board or "").strip().lower()
-            mapping = {
-                "ro": "Room only", "room only": "Room only", "roomonly": "Room only",
-                "bb": "Breakfast included", "b&b": "Breakfast included", "breakfast": "Breakfast included",
-                "hb": "Half board", "half board": "Half board", "halfboard": "Half board",
-                "fb": "Full board", "full board": "Full board", "fullboard": "Full board",
-                "ai": "All inclusive", "all inclusive": "All inclusive", "allinclusive": "All inclusive",
-                "all-inclusive": "All inclusive",
-            }
-            return mapping.get(b, board.title() if board else "")
+            return sk._board_label(board)
 
         TRANSPORT_LABELS = {
             "FLIGHT": ("Flight", "flight"),
@@ -960,26 +951,65 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
                 "detail": "",
             })
 
-        # 4. Activities / excursions / tickets
-        raw_activities = _pick_raw(raw_detail, ["activities", "tickets", "excursions", "services"], []) or []
-        for a in (raw_activities or []):
-            if isinstance(a, str):
-                name, date_raw = a, ""
-            elif isinstance(a, dict):
-                name = str(a.get("name") or a.get("title") or a.get("description") or "Activity").strip()
-                date_raw = a.get("date") or a.get("startDate") or a.get("activityDate") or ""
-            else:
+        # 4. Tickets / excursions (TC field: detail.tickets)
+        import html as _html_mod, re as _re_mod
+        def _clean_html(s):
+            return " ".join(_html_mod.unescape(_re_mod.sub(r"<[^>]+>", " ", str(s or ""))).split())
+
+        for ticket in (_pick_raw(raw_detail, ["tickets"], []) or []):
+            if not isinstance(ticket, dict):
                 continue
+            name = _clean_html(ticket.get("name") or ticket.get("title") or ticket.get("description") or "")
+            if not name:
+                continue
+            date_raw = ticket.get("date") or ticket.get("startDate") or ticket.get("ticketDate") or ""
             items.append({
                 "sort_key": _fmt_date_iso(date_raw) + "D",
                 "date_label": _fmt_date(date_raw),
                 "kind": "activity",
-                "chip": "Activity",
+                "chip": "Ticket",
                 "title": name,
                 "detail": "",
             })
-        # Fallback: pack.activities (plain strings)
-        if not raw_activities and pack.activities:
+
+        # 5. Cruises (TC field: detail.cruises)
+        for cruise in (_pick_raw(raw_detail, ["cruises"], []) or []):
+            if not isinstance(cruise, dict):
+                continue
+            name = _clean_html(cruise.get("name") or cruise.get("title") or cruise.get("shipName") or "Cruise")
+            date_raw = cruise.get("departureDate") or cruise.get("date") or cruise.get("startDate") or ""
+            nights_c = cruise.get("nights") or cruise.get("duration") or 0
+            parts_c = []
+            if nights_c:
+                parts_c.append(f"{nights_c} night{'s' if int(nights_c) != 1 else ''}")
+            items.append({
+                "sort_key": _fmt_date_iso(date_raw) + "E",
+                "date_label": _fmt_date(date_raw),
+                "kind": "cruise",
+                "chip": "Cruise",
+                "title": name,
+                "detail": " · ".join(parts_c),
+            })
+
+        # 6. Day-by-day text spots (TC field: detail.tripSpots)
+        for spot in (_pick_raw(raw_detail, ["tripSpots"], []) or []):
+            if not isinstance(spot, dict):
+                continue
+            name = _clean_html(spot.get("name") or spot.get("title") or spot.get("description") or "")
+            if not name:
+                continue
+            date_raw = spot.get("date") or spot.get("startDate") or ""
+            items.append({
+                "sort_key": _fmt_date_iso(date_raw) + "F",
+                "date_label": _fmt_date(date_raw),
+                "kind": "activity",
+                "chip": "Day",
+                "title": name,
+                "detail": _clean_html(spot.get("text") or spot.get("body") or ""),
+            })
+
+        # 7. Fallback: pack.activities if nothing from raw yet
+        if not items and pack.activities:
             for a in pack.activities:
                 items.append({
                     "sort_key": "ZZZD",
