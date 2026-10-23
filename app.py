@@ -76,7 +76,7 @@ async def _weekly_tc_sync_loop() -> None:
     while True:
         try:
             from database import AsyncSessionLocal
-        async with AsyncSessionLocal() as db:
+            async with AsyncSessionLocal() as db:
                 await tc_sync.sync_tc_bookings(db)
         except Exception as e:
             print(f"[tc_sync] Weekly sync error: {e}")
