@@ -986,6 +986,40 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
         if agent.logo_url else ""
     )
 
+    # Hero image — use first gallery photo if available
+    hero_img_html = ""
+    if pack and pack.gallery:
+        hero_url = pack.gallery[0]
+        hero_img_html = f'<img src="{hero_url}" alt="{pkg_title}" class="hero-img" loading="lazy">'
+    if not hero_img_html:
+        hero_img_html = '<div class="hero-img-placeholder">✈️</div>'
+
+    # Package description
+    pkg_desc = (pack.description or "") if pack else ""
+
+    # Route chips: destination names joined as a strip
+    route_html = ""
+    if pack and pack.destinations:
+        chips = []
+        for i, d in enumerate(pack.destinations):
+            name = d.get("name", "")
+            if name:
+                arrow = " <span class='route-arrow'>→</span> " if i > 0 else ""
+                chips.append(f"{arrow}<span class='route-chip'>{name}</span>")
+        if chips:
+            route_html = "".join(chips)
+
+    # Upcoming departures (up to 3 nearest)
+    departures_html = ""
+    if pack and pack.departures:
+        import json as _json2
+        from datetime import date as _today_cls
+        today_str = _today_cls.today().isoformat()
+        upcoming = sorted([d for d in pack.departures if str(d) >= today_str])[:3]
+        if upcoming:
+            dep_parts = [f"<span class='dep-chip'>{d}</span>" for d in upcoming]
+            departures_html = "Departures: " + " &nbsp; ".join(dep_parts)
+
     import registration_form_template as _rft
     tmpl = _rft.TEMPLATE
 
@@ -995,6 +1029,10 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
             .replace("{{PKG_TITLE}}", pkg_title)
             .replace("{{PKG_DEST}}", pkg_dest)
             .replace("{{PRICE_STR}}", price_str)
+            .replace("{{PKG_DESC}}", pkg_desc)
+            .replace("{{HERO_IMG_HTML}}", hero_img_html)
+            .replace("{{ROUTE_HTML}}", route_html)
+            .replace("{{DEPARTURES_HTML}}", departures_html)
             .replace("{{AGENCY_NAME}}", agency_name)
             .replace("{{LOGO_HTML}}", logo_html)
             .replace("{{NUM_ADULTS}}", str(num_adults))
