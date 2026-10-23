@@ -375,13 +375,21 @@ async def debug_package(
     except Exception as ex:
         pack_fields = {"normalise_error": str(ex)}
 
+    # Extract first transport and first transfer so we can see all field names
+    detail_dict = detail if isinstance(detail, dict) else {}
+    transports_sample = (detail_dict.get("transports") or [])[:2]
+    transfers_sample  = (detail_dict.get("transfers")  or [])[:2]
+    hotels_sample     = (detail_dict.get("hotels")     or [])[:1]
+
     return {
         "package": pack_fields,
-        "info_keys": list(info.keys()) if isinstance(info, dict) else type(info).__name__,
-        "detail_keys": list(detail.keys()) if isinstance(detail, dict) else type(detail).__name__,
-        "calendar_keys": list(calendar.keys()) if isinstance(calendar, dict) else type(calendar).__name__,
-        "info": info,
-        "detail": detail,
+        "info_keys":    list(info.keys())    if isinstance(info, dict)    else type(info).__name__,
+        "detail_keys":  list(detail.keys())  if isinstance(detail, dict)  else type(detail).__name__,
+        "transports_sample": transports_sample,
+        "transfers_sample":  transfers_sample,
+        "hotels_sample":     hotels_sample,
+        "info":     info,
+        "detail":   detail,
         "calendar": calendar,
     }
 
@@ -912,7 +920,16 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
             return _clean_html(n)
 
         def _stops_str(t):
-            s = t.get("stops") or t.get("numberOfStops") or t.get("numStops") or t.get("layovers") or 0
+            # IMPORTANT: only show "Direct" when TC explicitly returns 0.
+            # If the field is missing/None we return "" — never assume direct.
+            s = (t.get("stops") if t.get("stops") is not None else
+                 t.get("numberOfStops") if t.get("numberOfStops") is not None else
+                 t.get("numStops") if t.get("numStops") is not None else
+                 t.get("stopCount") if t.get("stopCount") is not None else
+                 t.get("layovers") if t.get("layovers") is not None else
+                 None)
+            if s is None:
+                return ""
             try:
                 n = int(s)
                 return "Direct" if n == 0 else f"{n} stop{'s' if n > 1 else ''}"
