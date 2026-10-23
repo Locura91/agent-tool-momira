@@ -346,20 +346,43 @@ async def debug_package(
         calendar = {"error": str(e)}
 
     # Also show what normalise extracted
+    pack = None
+    pack_fields = {}
     try:
         pack = sk.normalise(pkg_id, info if not isinstance(info, dict) or "error" not in info else {},
                             detail if not isinstance(detail, dict) or "error" not in detail else {},
                             calendar if not isinstance(calendar, dict) or "error" not in calendar else {})
-        extracted_gallery = pack.gallery
+        pack_fields = {
+            "id": pack.id,
+            "title": pack.title,
+            "description": pack.description,
+            "days": pack.days,
+            "nights": pack.nights,
+            "price": pack.price,
+            "currency": pack.currency,
+            "destinations": pack.destinations,
+            "themes": pack.themes,
+            "gallery": pack.gallery,
+            "departures": [str(d) for d in (pack.departures or [])],
+            "hotel_names": pack.hotel_names,
+            "hotel_nights": pack.hotel_nights,
+            "hotel_stars": pack.hotel_stars,
+            "hotel_boards": pack.hotel_boards,
+            "transport_counts": pack.transport_counts,
+            "activities": pack.activities,
+            "is_round_trip": pack.is_round_trip,
+        }
     except Exception as ex:
-        extracted_gallery = [f"normalise error: {ex}"]
+        pack_fields = {"normalise_error": str(ex)}
 
     return {
-        "extracted_gallery": extracted_gallery,
+        "package": pack_fields,
         "info_keys": list(info.keys()) if isinstance(info, dict) else type(info).__name__,
         "detail_keys": list(detail.keys()) if isinstance(detail, dict) else type(detail).__name__,
+        "calendar_keys": list(calendar.keys()) if isinstance(calendar, dict) else type(calendar).__name__,
         "info": info,
         "detail": detail,
+        "calendar": calendar,
     }
 
 
