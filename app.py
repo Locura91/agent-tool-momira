@@ -922,19 +922,23 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
         def _stops_str(t):
             # IMPORTANT: only show "Direct" when TC explicitly returns 0.
             # If the field is missing/None we return "" — never assume direct.
-            s = (t.get("stops") if t.get("stops") is not None else
-                 t.get("numberOfStops") if t.get("numberOfStops") is not None else
-                 t.get("numStops") if t.get("numStops") is not None else
-                 t.get("stopCount") if t.get("stopCount") is not None else
-                 t.get("layovers") if t.get("layovers") is not None else
-                 None)
-            if s is None:
-                return ""
-            try:
-                n = int(s)
-                return "Direct" if n == 0 else f"{n} stop{'s' if n > 1 else ''}"
-            except Exception:
-                return str(s).strip() if s else ""
+            for field in ("stops", "numberOfStops", "numStops", "stopCount",
+                          "layovers", "stopovers", "numberOfLayovers", "connectionsCount"):
+                v = t.get(field)
+                if v is not None:
+                    try:
+                        n = int(v)
+                        return "Direct" if n == 0 else f"{n} stop{'s' if n > 1 else ''}"
+                    except Exception:
+                        s = str(v).strip()
+                        return s if s else ""
+            # Fall back: count segments/legs — N segments means N-1 stops
+            for seg_field in ("segments", "flightSegments", "legs", "itinerary"):
+                segs = t.get(seg_field)
+                if isinstance(segs, list) and len(segs) > 1:
+                    n = len(segs) - 1
+                    return f"{n} stop{'s' if n > 1 else ''}"
+            return ""
 
         def _provider_str(t):
             return str(t.get("airline") or t.get("carrier") or t.get("company") or
@@ -949,6 +953,31 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
             if isinstance(val, dict):
                 return str(val.get("name") or val.get("code") or val.get("iata") or "").strip()
             return str(val).strip()
+
+        def _dt_sort(date_iso: str, time_str: str, kind_default: str) -> str:
+            """Return a sortable ISO-like string: YYYY-MM-DDThh:mm<kind>.
+            kind_default is used as tiebreaker when times are equal and as
+            fallback time when time_str is empty:
+              flights   → T06:00 (early — depart early day)
+              transfers → T08:00 (usually morning or afternoon, but explicit time wins)
+              hotels    → T18:00 (check-in after arrival; sorts after transfers/flights)
+              activities→ T10:00
+              cruises   → T08:00
+            """
+            if not date_iso:
+                return "ZZZZ" + kind_default
+            t = time_str.strip()[:5] if time_str and len(time_str.strip()) >= 5 else ""
+            if t and ":" in t:
+                return date_iso + "T" + t + kind_default
+            defaults = {
+                "A": "T06:00",  # flight
+                "B": "T18:00",  # hotel
+                "C": "T08:00",  # transfer
+                "D": "T10:00",  # ticket
+                "E": "T08:00",  # cruise
+                "F": "T09:00",  # tour
+            }
+            return date_iso + defaults.get(kind_default, "T12:00") + kind_default
 
         items = []  # each: {sort_key, date_label, kind, chip, title, detail, ...}
 
@@ -997,7 +1026,7 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
             flight_no = str(t.get("flightNumber") or t.get("flightNo") or t.get("serviceNumber") or "")
 
             items.append({
-                "sort_key":   _fmt_date_iso(dep_raw) + "A",
+                "sort_key":   _dt_sort(_fmt_date_iso(dep_raw), dep_time, "A"),
                 "date_label": _fmt_date(dep_raw),
                 "kind":       chip_kind,
                 "chip":       chip_label,
@@ -1023,7 +1052,7 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
             room_name = _room_name(h_raw) if isinstance(h_raw, dict) else ""
             board_label = _board_label(board)
             items.append({
-                "sort_key":   _fmt_date_iso(checkin_raw) + "B",
+                "sort_key":   _dt_sort(_fmt_date_iso(checkin_raw), "", "B"),
                 "date_label": _fmt_date(checkin_raw),
                 "kind":       "hotel",
                 "chip":       "Stay",
@@ -1045,17 +1074,23 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
                 title_t = f"{origin_t} → {dest_t}"
             else:
                 title_t = _clean_html(t.get("name") or t.get("title") or t.get("description") or "Airport Transfer")
-            dep_raw    = t.get("date") or t.get("startDate") or t.get("departureDate") or ""
-            dep_time_t = str(t.get("departureTime") or t.get("pickupTime") or "")
+            dep_raw    = (t.get("date") or t.get("startDate") or t.get("departureDate") or
+                          t.get("pickupDate") or t.get("transferDate") or
+                          t.get("startDateTime") or t.get("pickupDateTime") or "")
+            # If dep_raw contains a datetime, split out the time part
+            dep_time_t = str(t.get("departureTime") or t.get("pickupTime") or
+                             t.get("startTime") or t.get("pickupHour") or "")
+            if not dep_time_t and dep_raw and "T" in str(dep_raw):
+                dep_time_t = str(dep_raw).split("T")[1][:5]
             arr_time_t = str(t.get("arrivalTime") or t.get("dropoffTime") or "")
             time_t = ""
             if dep_time_t and dep_time_t[:5]:
                 time_t = dep_time_t[:5]
                 if arr_time_t and arr_time_t[:5]:
                     time_t += f" → {arr_time_t[:5]}"
-            # Use a sort key that places transfers after flights/hotels on the same day
+            # Sort by actual pickup time; default T08:00 keeps transfer before hotel (T18:00)
             items.append({
-                "sort_key":   _fmt_date_iso(dep_raw) + "C",
+                "sort_key":   _dt_sort(_fmt_date_iso(dep_raw), dep_time_t, "C"),
                 "date_label": _fmt_date(dep_raw),
                 "kind":       "transfer",
                 "chip":       "Transfer",
@@ -1073,7 +1108,7 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
                 continue
             date_raw = ticket.get("date") or ticket.get("startDate") or ticket.get("ticketDate") or ""
             items.append({
-                "sort_key":   _fmt_date_iso(date_raw) + "D",
+                "sort_key":   _dt_sort(_fmt_date_iso(date_raw), "", "D"),
                 "date_label": _fmt_date(date_raw),
                 "kind":       "activity",
                 "chip":       "Ticket",
@@ -1088,7 +1123,7 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
             date_raw = cruise.get("departureDate") or cruise.get("date") or cruise.get("startDate") or ""
             nights_c = cruise.get("nights") or cruise.get("duration") or 0
             items.append({
-                "sort_key":   _fmt_date_iso(date_raw) + "E",
+                "sort_key":   _dt_sort(_fmt_date_iso(date_raw), "", "E"),
                 "date_label": _fmt_date(date_raw),
                 "kind":       "cruise",
                 "chip":       "Cruise",
@@ -1106,7 +1141,7 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
                 continue
             date_raw = spot.get("date") or spot.get("startDate") or ""
             items.append({
-                "sort_key":   _fmt_date_iso(date_raw) + "F",
+                "sort_key":   _dt_sort(_fmt_date_iso(date_raw), "", "F"),
                 "date_label": _fmt_date(date_raw),
                 "kind":       "activity",
                 "chip":       "Tour",
