@@ -123,6 +123,17 @@
     /* Video section */
     .video-section { margin-top: 2.5rem; padding-top: 2rem; border-top: 1px solid var(--border); }
     .vid-intro { font-size: .85rem; color: var(--muted); line-height: 1.5; margin-bottom: 1.2rem; max-width: 620px; }
+    .vid-tabs { display: flex; gap: .4rem; margin-bottom: 1.2rem; }
+    .vid-tab { padding: .38rem .9rem; border: 1px solid var(--border); border-radius: 7px; font-size: .82rem; font-weight: 600; cursor: pointer; background: var(--white); color: var(--muted); }
+    .vid-tab.active { background: var(--brand-light); border-color: var(--brand); color: var(--brand); }
+    .upload-slots { display: flex; gap: .75rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .upload-slot { position: relative; width: 120px; height: 213px; border: 2px dashed var(--border); border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; overflow: hidden; background: #f9fafb; flex-shrink: 0; }
+    .upload-slot:hover { border-color: var(--brand); background: var(--brand-light); }
+    .upload-slot.has-file { border-style: solid; border-color: var(--brand); }
+    .upload-slot video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
+    .upload-slot .slot-label { font-size: .75rem; color: var(--muted); text-align: center; line-height: 1.4; pointer-events: none; }
+    .upload-slot .slot-num { font-size: 1.4rem; color: var(--border); margin-bottom: .3rem; pointer-events: none; }
+    .upload-slot .slot-clear { position: absolute; top: 4px; right: 5px; background: rgba(0,0,0,.6); color: #fff; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: .7rem; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 2; }
     .vid-controls { display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: flex-end; margin-bottom: 1.2rem; }
     .vid-fmt-btns { display: flex; gap: .5rem; }
     .vid-fmt-btn { padding: .4rem .85rem; border: 1px solid var(--border); border-radius: 7px; font-size: .82rem; font-weight: 600; cursor: pointer; background: var(--white); color: var(--muted); }
@@ -233,33 +244,67 @@
 
   <!-- Video post (optional) -->
   <div class="video-section" id="video-section" style="display:none">
-    <div class="results-title">🎬 Video post <span style="font-weight:400;color:var(--muted);font-size:.85rem;">— optional, a 5-second branded clip</span></div>
-    <p class="vid-intro">Prefer a moving post for Reels, Stories or TikTok? Pick a free stock clip of the destination and we'll add your branding. The image above stays the default — this is an extra option. The clip comes <strong>without sound</strong>, so you can add a trending track or voiceover yourself when you post.</p>
+    <div class="results-title">🎬 Video post <span style="font-weight:400;color:var(--muted);font-size:.85rem;">— optional, a 15-second branded clip</span></div>
+    <p class="vid-intro">Prefer a moving post for Reels, Stories or TikTok? Use stock clips from our library <strong>or upload 3 of your own</strong>. Each is trimmed to 5 seconds and combined into one 15-second video. No sound is added — add your own track when you post.</p>
 
-    <div class="vid-controls">
-      <div class="ctrl-group">
-        <div class="ctrl-label">Format</div>
-        <div class="vid-fmt-btns">
-          <button class="vid-fmt-btn active" data-vfmt="story">Story / Reel  9:16</button>
-          <button class="vid-fmt-btn" data-vfmt="square">Square  1:1</button>
+    <!-- Source tabs -->
+    <div class="vid-tabs">
+      <button class="vid-tab active" id="tab-stock">🔍 Stock clips</button>
+      <button class="vid-tab" id="tab-upload">📁 Upload your clips</button>
+    </div>
+
+    <!-- Stock tab content -->
+    <div id="vid-stock-panel">
+      <div class="vid-controls">
+        <div class="ctrl-group">
+          <div class="ctrl-label">Format</div>
+          <div class="vid-fmt-btns">
+            <button class="vid-fmt-btn active" data-vfmt="story">Story / Reel  9:16</button>
+            <button class="vid-fmt-btn" data-vfmt="square">Square  1:1</button>
+          </div>
+        </div>
+        <div class="ctrl-group" style="flex:1">
+          <div class="ctrl-label">Search clips for</div>
+          <div class="vid-search-row">
+            <input type="text" id="vid-query" placeholder="e.g. Santorini Greece">
+            <button class="btn-apply" id="vid-search-btn">Find clips →</button>
+          </div>
         </div>
       </div>
-      <div class="ctrl-group" style="flex:1">
-        <div class="ctrl-label">Search clips for</div>
-        <div class="vid-search-row">
-          <input type="text" id="vid-query" placeholder="e.g. Santorini Greece">
-          <button class="btn-apply" id="vid-search-btn">Find clips →</button>
+      <div class="vid-clips" id="vid-clips"></div>
+      <div class="vid-render" id="vid-render" style="display:none">
+        <button class="btn-generate" id="vid-create-btn" style="align-self:flex-start">Create 5-sec video →</button>
+        <div class="vid-result" id="vid-result" style="display:none">
+          <video id="vid-player" controls playsinline style="width:100%;max-width:380px;border-radius:12px;background:#000;display:block;margin:1rem 0;"></video>
+          <button class="btn-sm btn-dl" id="vid-dl-btn">⬇ Download video</button>
         </div>
       </div>
     </div>
 
-    <div class="vid-clips" id="vid-clips"></div>
-
-    <div class="vid-render" id="vid-render" style="display:none">
-      <button class="btn-generate" id="vid-create-btn" style="align-self:flex-start">Create 5-sec video →</button>
-      <div class="vid-result" id="vid-result" style="display:none">
-        <video id="vid-player" controls playsinline style="width:100%;max-width:380px;border-radius:12px;background:#000;display:block;margin:1rem 0;"></video>
-        <button class="btn-sm btn-dl" id="vid-dl-btn">⬇ Download video</button>
+    <!-- Upload tab content -->
+    <div id="vid-upload-panel" style="display:none">
+      <p style="font-size:.83rem;color:var(--muted);margin-bottom:.9rem;">Select 3 video files. Each will be trimmed to its first 5 seconds and joined into one 15-second video. MP4, MOV and most formats are accepted.</p>
+      <div class="upload-slots">
+        <div class="upload-slot" id="slot-0" onclick="document.getElementById('file-0').click()">
+          <div class="slot-num">1</div>
+          <div class="slot-label">Clip 1<br><span style="font-size:.68rem">tap to select</span></div>
+          <input type="file" id="file-0" accept="video/*" style="display:none">
+        </div>
+        <div class="upload-slot" id="slot-1" onclick="document.getElementById('file-1').click()">
+          <div class="slot-num">2</div>
+          <div class="slot-label">Clip 2<br><span style="font-size:.68rem">tap to select</span></div>
+          <input type="file" id="file-1" accept="video/*" style="display:none">
+        </div>
+        <div class="upload-slot" id="slot-2" onclick="document.getElementById('file-2').click()">
+          <div class="slot-num">3</div>
+          <div class="slot-label">Clip 3<br><span style="font-size:.68rem">tap to select</span></div>
+          <input type="file" id="file-2" accept="video/*" style="display:none">
+        </div>
+      </div>
+      <button class="btn-generate" id="upload-combine-btn" disabled style="align-self:flex-start;margin-bottom:.75rem">Combine 3 clips →</button>
+      <div id="upload-result" style="display:none">
+        <video id="upload-player" controls playsinline style="width:100%;max-width:380px;border-radius:12px;background:#000;display:block;margin:1rem 0;"></video>
+        <button class="btn-sm btn-dl" id="upload-dl-btn">⬇ Download combined video</button>
       </div>
     </div>
   </div>
@@ -586,6 +631,100 @@
       document.getElementById('vid-clips').innerHTML = '';
       document.getElementById('vid-render').style.display = 'none';
     });
+  });
+
+  // Tab switching
+  document.getElementById('tab-stock').addEventListener('click', () => {
+    document.getElementById('tab-stock').classList.add('active');
+    document.getElementById('tab-upload').classList.remove('active');
+    document.getElementById('vid-stock-panel').style.display = '';
+    document.getElementById('vid-upload-panel').style.display = 'none';
+  });
+  document.getElementById('tab-upload').addEventListener('click', () => {
+    document.getElementById('tab-upload').classList.add('active');
+    document.getElementById('tab-stock').classList.remove('active');
+    document.getElementById('vid-upload-panel').style.display = '';
+    document.getElementById('vid-stock-panel').style.display = 'none';
+  });
+
+  // Upload slots
+  const uploadFiles = [null, null, null];
+  let _uploadBlobUrl = null;
+
+  function refreshCombineBtn() {
+    document.getElementById('upload-combine-btn').disabled = uploadFiles.some(f => !f);
+  }
+
+  [0, 1, 2].forEach(i => {
+    document.getElementById('file-' + i).addEventListener('change', function () {
+      const file = this.files[0];
+      if (!file) return;
+      uploadFiles[i] = file;
+      const slot = document.getElementById('slot-' + i);
+      slot.classList.add('has-file');
+      // Show inline preview
+      let vid = slot.querySelector('video');
+      if (!vid) { vid = document.createElement('video'); vid.muted = true; vid.loop = true; vid.playsInline = true; slot.prepend(vid); }
+      if (vid._blobUrl) URL.revokeObjectURL(vid._blobUrl);
+      vid._blobUrl = URL.createObjectURL(file);
+      vid.src = vid._blobUrl;
+      vid.play().catch(() => {});
+      // Clear button
+      let clr = slot.querySelector('.slot-clear');
+      if (!clr) {
+        clr = document.createElement('button');
+        clr.className = 'slot-clear'; clr.textContent = '×';
+        clr.addEventListener('click', e => {
+          e.stopPropagation();
+          uploadFiles[i] = null;
+          slot.classList.remove('has-file');
+          if (vid._blobUrl) { URL.revokeObjectURL(vid._blobUrl); vid._blobUrl = null; }
+          vid.removeAttribute('src'); vid.load();
+          clr.remove();
+          refreshCombineBtn();
+        });
+        slot.appendChild(clr);
+      }
+      refreshCombineBtn();
+      // Reset previous result
+      document.getElementById('upload-result').style.display = 'none';
+      const player = document.getElementById('upload-player');
+      player.removeAttribute('src'); player.load();
+      if (_uploadBlobUrl) { URL.revokeObjectURL(_uploadBlobUrl); _uploadBlobUrl = null; }
+    });
+  });
+
+  document.getElementById('upload-combine-btn').addEventListener('click', async () => {
+    if (uploadFiles.some(f => !f)) return;
+    hideError();
+    const btn = document.getElementById('upload-combine-btn');
+    btn.disabled = true; btn.textContent = 'Processing… (up to ~30s)';
+    document.getElementById('upload-result').style.display = 'none';
+    const fd = new FormData();
+    fd.append('clip1', uploadFiles[0]);
+    fd.append('clip2', uploadFiles[1]);
+    fd.append('clip3', uploadFiles[2]);
+    try {
+      const res = await fetch('/generate/video/combine', { method: 'POST', headers: H, body: fd });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.detail || 'Combining failed.');
+      }
+      const blob = await res.blob();
+      if (_uploadBlobUrl) URL.revokeObjectURL(_uploadBlobUrl);
+      _uploadBlobUrl = URL.createObjectURL(blob);
+      const player = document.getElementById('upload-player');
+      player.src = _uploadBlobUrl;
+      document.getElementById('upload-result').style.display = 'block';
+      document.getElementById('upload-dl-btn').onclick = () => {
+        const a = document.createElement('a'); a.href = _uploadBlobUrl;
+        a.download = `${packageTitleSlug()}-${agencySlug}-combined.mp4`; a.click();
+      };
+    } catch (e) {
+      showError(e.message || 'Could not combine the clips.');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Combine 3 clips →';
+    }
   });
 
   document.getElementById('vid-search-btn').addEventListener('click', searchClips);

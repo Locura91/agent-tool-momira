@@ -630,6 +630,89 @@ async def generate_video(
 
 
 # --------------------------------------------------------------------------
+# Upload-your-own-clips video combining
+# --------------------------------------------------------------------------
+
+@app.post("/generate/video/combine")
+async def combine_uploaded_clips(
+    clip1: UploadFile = File(...),
+    clip2: UploadFile = File(...),
+    clip3: UploadFile = File(...),
+    current_agent: Agent = Depends(get_current_agent),
+):
+    """Accept up to 3 user-uploaded video files, trim each to 5 seconds,
+    concatenate them and return a single 15-second MP4."""
+    import tempfile, os, subprocess as _sp
+
+    ffmpeg = vk.ffmpeg_bin()
+    if not ffmpeg:
+        raise HTTPException(status_code=503, detail="FFmpeg is not installed on this server.")
+
+    clips = [clip1, clip2, clip3]
+    loop = asyncio.get_running_loop()
+
+    # Read all uploads into memory
+    raw_clips: list[bytes] = []
+    for c in clips:
+        data = await c.read()
+        if not data:
+            raise HTTPException(status_code=400, detail=f"File '{c.filename}' is empty.")
+        if len(data) > 200 * 1024 * 1024:  # 200 MB per clip
+            raise HTTPException(status_code=413, detail=f"File '{c.filename}' exceeds 200 MB limit.")
+        raw_clips.append(data)
+
+    def _work() -> bytes:
+        with tempfile.TemporaryDirectory() as tmp:
+            trimmed = []
+            for i, data in enumerate(raw_clips):
+                src = os.path.join(tmp, f"in{i}.mp4")
+                out = os.path.join(tmp, f"trim{i}.mp4")
+                with open(src, "wb") as f:
+                    f.write(data)
+                # Trim to first 5 seconds, normalize to 1080x1920 portrait at 30fps
+                r = _sp.run(
+                    [ffmpeg, "-y", "-i", src, "-t", "5",
+                     "-vf", "scale=1080:1920:force_original_aspect_ratio=decrease,"
+                            "pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black",
+                     "-r", "30", "-c:v", "libx264", "-preset", "fast",
+                     "-crf", "23", "-an", out],
+                    capture_output=True, timeout=120,
+                )
+                if r.returncode != 0:
+                    raise vk.VideoError(f"Trim failed for clip {i+1}: {r.stderr.decode()[-400:]}")
+                trimmed.append(out)
+
+            # Write concat list
+            list_file = os.path.join(tmp, "list.txt")
+            with open(list_file, "w") as f:
+                for p in trimmed:
+                    f.write(f"file '{p}'\n")
+
+            combined = os.path.join(tmp, "combined.mp4")
+            r = _sp.run(
+                [ffmpeg, "-y", "-f", "concat", "-safe", "0", "-i", list_file,
+                 "-c", "copy", combined],
+                capture_output=True, timeout=120,
+            )
+            if r.returncode != 0:
+                raise vk.VideoError(f"Concat failed: {r.stderr.decode()[-400:]}")
+
+            with open(combined, "rb") as f:
+                return f.read()
+
+    try:
+        mp4_bytes = await loop.run_in_executor(None, _work)
+    except vk.VideoError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    return Response(
+        content=mp4_bytes,
+        media_type="video/mp4",
+        headers={"Content-Disposition": 'attachment; filename="combined-clips.mp4"'},
+    )
+
+
+# --------------------------------------------------------------------------
 # Admin area
 # --------------------------------------------------------------------------
 
