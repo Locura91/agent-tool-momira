@@ -9,6 +9,7 @@ All agents share Momira's TC credentials; each sees only their own account.
 from __future__ import annotations
 
 import asyncio
+import html as _html
 import io
 import os
 import tempfile
@@ -105,7 +106,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -481,7 +482,7 @@ async def generate_image(
         render_agent.ribbon_preset = None  # per-request text wins over stored preset
 
     # Run Pillow work in a thread pool so it doesn't block the event loop
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     image = await loop.run_in_executor(
         None,
         lambda: engine.render_for_agent(pack, render_agent, format, style, photo, focus, zoom),
@@ -519,7 +520,7 @@ async def generate_flyer(
 
     # render_flyer now embeds images (several blocking fetches), so run it off
     # the event loop.
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     html = await loop.run_in_executor(
         None, lambda: flyer_engine.render_flyer(pack, agent, style=style, show_qr=qr)
     )
@@ -609,7 +610,7 @@ async def generate_video(
     if clip is None:
         raise HTTPException(status_code=404, detail="That clip could not be found — search again and pick another.")
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
 
     def _work() -> bytes:
         overlay = engine.render_video_overlay_for_agent(pack, agent, format)
@@ -638,7 +639,7 @@ async def combine_uploaded_clips(
     clip1: UploadFile = File(...),
     clip2: UploadFile = File(...),
     clip3: UploadFile = File(...),
-    current_agent: Agent = Depends(get_current_agent),
+    agent: Agent = Depends(current_agent),
 ):
     """Accept up to 3 user-uploaded video files, trim each to 5 seconds,
     concatenate them and return a single 15-second MP4."""
@@ -650,25 +651,37 @@ async def combine_uploaded_clips(
 
     clips = [clip1, clip2, clip3]
     loop = asyncio.get_running_loop()
+    _MAX = 200 * 1024 * 1024  # 200 MB per clip
 
-    # Read all uploads into memory
-    raw_clips: list[bytes] = []
-    for c in clips:
-        data = await c.read()
-        if not data:
-            raise HTTPException(status_code=400, detail=f"File '{c.filename}' is empty.")
-        if len(data) > 200 * 1024 * 1024:  # 200 MB per clip
-            raise HTTPException(status_code=413, detail=f"File '{c.filename}' exceeds 200 MB limit.")
-        raw_clips.append(data)
+    # Stream uploads to temp files — avoid loading large videos into RAM
+    tmp_dir = tempfile.mkdtemp()
+    src_paths: list[str] = []
+    try:
+        for i, c in enumerate(clips):
+            src = os.path.join(tmp_dir, f"in{i}.mp4")
+            size = 0
+            with open(src, "wb") as fout:
+                while True:
+                    chunk = await c.read(1024 * 1024)  # 1 MB chunks
+                    if not chunk:
+                        break
+                    size += len(chunk)
+                    if size > _MAX:
+                        raise HTTPException(status_code=413, detail=f"Clip {i+1} exceeds 200 MB limit.")
+                    fout.write(chunk)
+            if size == 0:
+                raise HTTPException(status_code=400, detail=f"Clip {i+1} is empty.")
+            src_paths.append(src)
+    except HTTPException:
+        import shutil; shutil.rmtree(tmp_dir, ignore_errors=True)
+        raise
 
     def _work() -> bytes:
+        import shutil
         with tempfile.TemporaryDirectory() as tmp:
             trimmed = []
-            for i, data in enumerate(raw_clips):
-                src = os.path.join(tmp, f"in{i}.mp4")
+            for i, src in enumerate(src_paths):
                 out = os.path.join(tmp, f"trim{i}.mp4")
-                with open(src, "wb") as f:
-                    f.write(data)
                 # Trim to first 5 seconds, normalize to 1080x1920 portrait at 30fps
                 r = _sp.run(
                     [ffmpeg, "-y", "-i", src, "-t", "5",
@@ -704,6 +717,9 @@ async def combine_uploaded_clips(
         mp4_bytes = await loop.run_in_executor(None, _work)
     except vk.VideoError as e:
         raise HTTPException(status_code=502, detail=str(e))
+    finally:
+        import shutil as _shutil
+        _shutil.rmtree(tmp_dir, ignore_errors=True)
 
     return Response(
         content=mp4_bytes,
@@ -1324,17 +1340,19 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
     import registration_form_template as _rft
     tmpl = _rft.TEMPLATE
 
+    # Escape TC/DB-sourced text before HTML substitution to prevent injection
+    _e = _html.escape
     html = (tmpl
             .replace("{{AGENT_ID}}", agent_id)
             .replace("{{PACKAGE_ID}}", package_id)
-            .replace("{{PKG_TITLE}}", pkg_title)
-            .replace("{{PKG_DEST}}", pkg_dest)
-            .replace("{{PRICE_STR}}", price_str)
-            .replace("{{PKG_DESC}}", pkg_desc)
+            .replace("{{PKG_TITLE}}", _e(pkg_title))
+            .replace("{{PKG_DEST}}", _e(pkg_dest))
+            .replace("{{PRICE_STR}}", _e(price_str))
+            .replace("{{PKG_DESC}}", _e(pkg_desc))
             .replace("{{HERO_IMG_HTML}}", hero_img_html)
             .replace("{{ROUTE_HTML}}", route_html)
             .replace("{{DEPARTURES_HTML}}", departures_html)
-            .replace("{{AGENCY_NAME}}", agency_name)
+            .replace("{{AGENCY_NAME}}", _e(agency_name))
             .replace("{{LOGO_HTML}}", logo_html)
             .replace("{{NUM_ADULTS}}", str(num_adults))
             .replace("{{NUM_CHILDREN}}", str(num_children))
@@ -1521,13 +1539,11 @@ async def add_booking(
     pkg_title = package_title.strip() or None
     if not pkg_title and package_id.strip():
         try:
-            tc_user = os.getenv("TC_USERNAME", "")
-            tc_pass = os.getenv("TC_PASSWORD", "")
-            tc_micro = os.getenv("TC_MICROSITE", "momiratravel")
-            tc_base = os.getenv("TC_BASE_URL", "https://online.travelcompositor.com/resources")
-            pack = sk.fetch_package(package_id.strip(), tc_user, tc_pass, tc_micro, tc_base, lang="EN")
+            _tc = sk.TCClient()
+            pack = sk.fetch(_tc, package_id.strip(), lang="EN")
             pkg_title = pack.title
-        except Exception:
+        except Exception as _e:
+            logger.warning("TC lookup failed for package %s: %s", package_id.strip(), _e)
             pkg_title = None
 
     ret_dt = None
@@ -1603,7 +1619,7 @@ async def preview_feedback_email(
         raise HTTPException(status_code=404, detail="Booking not found")
 
     platform_list = [p.strip() for p in platforms.split(",") if p.strip()]
-    MOMIRA_GOOGLE = "https://g.page/r/CeqHXc2-NckXEBM/review"
+    MOMIRA_GOOGLE = mailer.MOMIRA_GOOGLE
     btn_style = (
         "display:inline-block;margin:6px 0;padding:12px 24px;"
         "background:#17a39b;color:#ffffff;text-decoration:none;"
@@ -1749,7 +1765,7 @@ async def trigger_tc_sync_me(
 # Registration: agent tool — generate + list links
 # --------------------------------------------------------------------------
 
-@app.get("/api/registrations", dependencies=[Depends(current_agent)])
+@app.get("/api/registrations")
 async def list_registrations(
     agent: Agent = Depends(current_agent),
     db: AsyncSession = Depends(get_db),

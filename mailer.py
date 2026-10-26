@@ -24,6 +24,9 @@ except ImportError:
     _requests = None  # type: ignore
 
 
+MOMIRA_GOOGLE = "https://g.page/r/CeqHXc2-NckXEBM/review"
+
+
 def _cfg(key: str, default: str = "") -> str:
     return os.environ.get(key, default).strip()
 
@@ -148,7 +151,7 @@ def send_feedback_email(
         print("[mailer] No email provider configured — feedback email skipped")
         return
 
-    MOMIRA_GOOGLE = "https://g.page/r/CeqHXc2-NckXEBM/review"
+
     btn_style = (
         "display:inline-block;margin:6px 0;padding:12px 24px;"
         "background:#17a39b;color:#ffffff;text-decoration:none;"
