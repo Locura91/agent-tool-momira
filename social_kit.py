@@ -1511,10 +1511,11 @@ def render_video_overlay(pack: Package, fmt: str, brand: "Brand",
     # Destinations row.
     dests = [d.get("name", "") for d in (pack.destinations or []) if d.get("name")]
     y = panel_y + accent_h + int(22 * unit)
-    dest_font = _font("regular", int(22 * unit))
+    dest_font = _font("bold", int(26 * unit))
     sep_x = pad + (badge_r * 2 + int(20 * unit) if nights else 0)
     dest_text = "  ·  ".join(dests[:4]) if dests else ""
     if dest_text:
+        draw.text((sep_x + int(2 * unit), y + int(2 * unit)), dest_text.upper(), font=dest_font, fill=(0, 0, 0, 160), anchor="lt")
         draw.text((sep_x, y), dest_text.upper(), font=dest_font, fill=BRAND, anchor="lt")
         y += int(dest_font.size * 1.6)
     else:
@@ -1536,8 +1537,8 @@ def render_video_overlay(pack: Package, fmt: str, brand: "Brand",
     if pack.themes:
         meta_parts.extend(pack.themes[:2])
     if meta_parts:
-        meta_font = _font("regular", int(24 * unit))
-        draw.text((pad, y), "  ·  ".join(meta_parts), font=meta_font, fill=(160, 185, 195))
+        meta_font = _font("regular", int(26 * unit))
+        draw.text((pad, y), "  ·  ".join(meta_parts), font=meta_font, fill=(210, 235, 240))
         y += int(meta_font.size * 1.8)
     else:
         y += int(28 * unit)
@@ -1559,9 +1560,9 @@ def render_video_overlay(pack: Package, fmt: str, brand: "Brand",
     _pill(draw, (width - pad - cta_w, foot_cta - int(cta_font.size * 2.2)),
           cta, cta_font, BRAND, WHITE, int(28 * unit))
 
-    # Wordmark pill — top-left, same position as photo/band/collage styles.
+    # Wordmark pill — shifted right of top-left corner for better reel visibility.
     if brand.wordmark:
-        _pill(draw, (pad, pad), brand.wordmark, _font("bold", int(22 * unit)), BRAND, WHITE, int(24 * unit))
+        _pill(draw, (int(pad * 1.6), pad), brand.wordmark, _font("bold", int(30 * unit)), BRAND, WHITE, int(28 * unit))
 
     return canvas
 

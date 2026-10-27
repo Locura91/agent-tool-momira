@@ -442,7 +442,7 @@ def render_video_multi(
                  "-i", out_silent,
                  "-i", music_path,
                  "-filter_complex",
-                 f"[1:a]volume=-18dB,afade=t=out:st={total_seconds-1}:d=1[mus];"
+                 f"[1:a]volume=-8dB,afade=t=out:st={total_seconds-1}:d=1[mus];"
                  f"[mus]apad=whole_dur={total_seconds}[a]",
                  "-map", "0:v", "-map", "[a]",
                  "-c:v", "copy", "-c:a", "aac", "-b:a", "128k",
