@@ -631,6 +631,107 @@ async def generate_video(
 
 
 # --------------------------------------------------------------------------
+# Multi-clip stock video (up to 3 Pexels/Pixabay clips → 15s branded MP4)
+# --------------------------------------------------------------------------
+
+# Music tracks bundled in static/music/ — free for commercial use
+_MUSIC_DIR = os.path.join(os.path.dirname(__file__), "static", "music")
+_MUSIC_TRACKS = [
+    {"id": "none",              "label": "No music"},
+    {"id": "upbeat-travel",     "label": "Upbeat Travel"},
+    {"id": "gentle-acoustic",   "label": "Gentle Acoustic"},
+    {"id": "cinematic-ambient", "label": "Cinematic Ambient"},
+]
+
+
+@app.get("/generate/music/tracks")
+async def list_music_tracks(_agent: Agent = Depends(current_agent)):
+    """Return the available background music tracks."""
+    available = []
+    for t in _MUSIC_TRACKS:
+        if t["id"] == "none":
+            available.append(t)
+            continue
+        path = os.path.join(_MUSIC_DIR, t["id"] + ".mp3")
+        if os.path.isfile(path):
+            available.append(t)
+    return {"tracks": available}
+
+
+@app.get("/generate/{package_id}/video/multi")
+async def generate_video_multi(
+    package_id: str,
+    clip_ids: str,          # comma-separated clip IDs in playback order
+    format: str = "story",
+    query: str | None = None,
+    source: str | None = None,
+    music: str = "none",    # track id from _MUSIC_TRACKS, or "none"
+    agent: Agent = Depends(current_agent),
+):
+    """Render up to 3 stock clips as a single branded MP4 (up to 15 seconds)."""
+    if format not in sk.FORMATS:
+        raise HTTPException(status_code=400, detail=f"format must be one of {list(sk.FORMATS)}")
+    if not vk.ffmpeg_available():
+        raise HTTPException(status_code=503, detail="Video rendering is unavailable (FFmpeg not installed).")
+
+    ids_raw = [s.strip() for s in clip_ids.split(",") if s.strip()]
+    if not ids_raw or len(ids_raw) > 3:
+        raise HTTPException(status_code=400, detail="Provide 1–3 comma-separated clip IDs.")
+    try:
+        id_list = [int(x) for x in ids_raw]
+    except ValueError:
+        raise HTTPException(status_code=400, detail="clip_ids must be integers.")
+
+    brand = engine.agent_brand(agent)
+    try:
+        pack = sk.fetch(sk.TCClient(), package_id, brand)
+    except sk.TCError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    want_portrait = _video_portrait(format)
+    q = query or vk.search_query(pack)
+
+    # Re-fetch all requested clips (deduplicated lookup)
+    try:
+        all_clips = {c.id: c for c in vk.search_clips(q, want_portrait, per_page=20)}
+    except vk.VideoError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    clips = []
+    for cid in id_list:
+        clip = all_clips.get(cid)
+        if clip is None:
+            raise HTTPException(status_code=404, detail=f"Clip {cid} not found — search again.")
+        clips.append(clip)
+
+    # Resolve music path
+    music_path: str | None = None
+    if music and music != "none":
+        candidate = os.path.join(_MUSIC_DIR, music + ".mp3")
+        if os.path.isfile(candidate):
+            music_path = candidate
+
+    loop = asyncio.get_running_loop()
+
+    def _work() -> bytes:
+        overlay = engine.render_video_overlay_for_agent(pack, agent, format)
+        overlay_png = sk.overlay_to_png_bytes(overlay)
+        return vk.render_video_multi(clips, overlay_png, format, music_path=music_path)
+
+    try:
+        mp4_bytes = await loop.run_in_executor(None, _work)
+    except vk.VideoError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    filename = _download_name(pack, agent, "mp4")
+    return Response(
+        content=mp4_bytes,
+        media_type="video/mp4",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# --------------------------------------------------------------------------
 # Upload-your-own-clips video combining
 # --------------------------------------------------------------------------
 

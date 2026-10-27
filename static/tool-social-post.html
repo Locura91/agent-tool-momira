@@ -145,10 +145,24 @@
     .vid-clip { position: relative; border: 2px solid var(--border); border-radius: 10px; overflow: hidden; cursor: pointer; aspect-ratio: 9/16; background: #e5e7eb; }
     .vid-clip img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .vid-clip video.vid-prev { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; background:#000; }
-    .vid-clip.selected { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand-light); }
+    .vid-clip.in-tray { border-color: var(--brand); }
     .vid-clip .vid-dur { position: absolute; bottom: 4px; right: 4px; background: rgba(0,0,0,.7); color: #fff; font-size: .7rem; padding: 1px 5px; border-radius: 4px; }
     .vid-clip .vid-play { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,.6); pointer-events: none; opacity: .85; }
+    .vid-clip .vid-slot-badge { position: absolute; top: 5px; left: 5px; background: var(--brand); color: #fff; font-size: .72rem; font-weight: 800; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
     .vid-credit { position: absolute; top: 4px; left: 4px; background: rgba(0,0,0,.55); color: #fff; font-size: .62rem; padding: 1px 5px; border-radius: 4px; max-width: 90%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* Clip tray — ordered selection */
+    .clip-tray { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; padding: .75rem; background: #f9fafb; border: 1px solid var(--border); border-radius: 10px; min-height: 56px; }
+    .clip-tray-label { font-size: .75rem; color: var(--muted); font-weight: 600; white-space: nowrap; }
+    .tray-slot { position: relative; width: 54px; height: 96px; border: 2px dashed var(--border); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: .7rem; color: var(--muted); background: #fff; cursor: default; overflow: hidden; flex-shrink: 0; }
+    .tray-slot.filled { border-style: solid; border-color: var(--brand); cursor: pointer; }
+    .tray-slot video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    .tray-slot .tray-num { position: absolute; top: 3px; left: 4px; background: var(--brand); color: #fff; font-size: .65rem; font-weight: 800; width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; z-index: 2; }
+    .tray-slot .tray-rm { position: absolute; top: 3px; right: 3px; background: rgba(0,0,0,.6); color: #fff; border: none; border-radius: 50%; width: 16px; height: 16px; font-size: .6rem; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 2; }
+    .tray-arrow { color: var(--muted); font-size: 1rem; }
+    /* Music picker */
+    .music-row { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; }
+    .music-row label { font-size: .82rem; font-weight: 600; color: var(--text); white-space: nowrap; }
+    .music-row select { padding: .4rem .7rem; border: 1px solid var(--border); border-radius: 7px; font-size: .82rem; background: #fff; cursor: pointer; }
     .vid-render { display: flex; flex-direction: column; gap: .5rem; }
     .vid-note { font-size: .78rem; color: var(--muted); }
   </style>
@@ -271,9 +285,29 @@
           </div>
         </div>
       </div>
+
+      <!-- Ordered clip tray (up to 3) -->
+      <div class="clip-tray" id="clip-tray">
+        <span class="clip-tray-label">Your clips:</span>
+        <div class="tray-slot" id="tray-0"><span style="font-size:1.1rem;opacity:.4">+</span></div>
+        <span class="tray-arrow">→</span>
+        <div class="tray-slot" id="tray-1"><span style="font-size:1.1rem;opacity:.4">+</span></div>
+        <span class="tray-arrow">→</span>
+        <div class="tray-slot" id="tray-2"><span style="font-size:1.1rem;opacity:.4">+</span></div>
+        <span style="font-size:.75rem;color:var(--muted);margin-left:.5rem">Click a clip below to add it · click a slot to remove</span>
+      </div>
+
       <div class="vid-clips" id="vid-clips"></div>
-      <div class="vid-render" id="vid-render" style="display:none">
-        <button class="btn-generate" id="vid-create-btn" style="align-self:flex-start">Create 5-sec video →</button>
+
+      <!-- Music + render -->
+      <div id="vid-render" style="display:none">
+        <div class="music-row">
+          <label for="music-select">🎵 Background music:</label>
+          <select id="music-select">
+            <option value="none">No music</option>
+          </select>
+        </div>
+        <button class="btn-generate" id="vid-create-btn" style="align-self:flex-start">Create video →</button>
         <div class="vid-result" id="vid-result" style="display:none">
           <video id="vid-player" controls playsinline style="width:100%;max-width:380px;border-radius:12px;background:#000;display:block;margin:1rem 0;"></video>
           <button class="btn-sm btn-dl" id="vid-dl-btn">⬇ Download video</button>
@@ -501,7 +535,7 @@
         .map(d => (d.name || d)).filter(Boolean).slice(0, 2).join(' ');
       document.getElementById('vid-query').value = destGuess || currentPkg.title || '';
       document.getElementById('vid-clips').innerHTML = '';
-      document.getElementById('vid-render').style.display = 'none';
+      resetTray();
       resetVideoResult();
       applyStyleView();   // show images or the video picker, per the selected style
 
@@ -614,11 +648,9 @@
 
   // ───────────────────────────── Video post ─────────────────────────────
   let vidFormat = 'story';
-  let vidSelectedClip = null;      // selected clip id
-  let vidSelectedSource = '';      // 'pexels' or 'pixabay'
-  let vidSelectedDur = 0;
   let vidQueryUsed = '';
   let _vidBlobUrl = null;
+  // trayClips declared above (near tray logic)
 
   // Format toggle
   document.querySelectorAll('.vid-fmt-btn').forEach(btn => {
@@ -626,10 +658,10 @@
       document.querySelectorAll('.vid-fmt-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       vidFormat = btn.dataset.vfmt;
-      // orientation changed → previous clips no longer match; clear them
+      // orientation changed → previous clips and tray no longer match; clear them
+      resetTray();
       resetVideoResult();
       document.getElementById('vid-clips').innerHTML = '';
-      document.getElementById('vid-render').style.display = 'none';
     });
   });
 
@@ -727,6 +759,92 @@
     }
   });
 
+  // ── Music track loader ──────────────────────────────────────────────────
+  fetch('/generate/music/tracks', { headers: H })
+    .then(r => r.ok ? r.json() : null)
+    .then(data => {
+      if (!data || !data.tracks) return;
+      const sel = document.getElementById('music-select');
+      sel.innerHTML = '';
+      data.tracks.forEach(t => {
+        const o = document.createElement('option');
+        o.value = t.id; o.textContent = t.label;
+        sel.appendChild(o);
+      });
+    }).catch(() => {});
+
+  // ── Clip tray (ordered queue, up to 3) ──────────────────────────────────
+  // trayClips: array of {id, source, downloadUrl, previewUrl, duration}
+  let trayClips = [];
+
+  function trayCount() { return trayClips.filter(Boolean).length; }
+
+  function refreshTray() {
+    [0, 1, 2].forEach(i => {
+      const slot = document.getElementById('tray-' + i);
+      const clip = trayClips[i];
+      if (!clip) {
+        slot.classList.remove('filled');
+        slot.innerHTML = '<span style="font-size:1.1rem;opacity:.4">+</span>';
+        return;
+      }
+      slot.classList.add('filled');
+      // Number badge
+      const numBadge = `<div class="tray-num">${i+1}</div>`;
+      // Remove button
+      const rmBtn = `<button class="tray-rm" title="Remove">×</button>`;
+      // Preview
+      let previewHtml = '';
+      if (clip.previewUrl) previewHtml = `<video src="${clip.previewUrl}" autoplay muted loop playsinline style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;"></video>`;
+      slot.innerHTML = previewHtml + numBadge + rmBtn;
+      slot.querySelector('.tray-rm').addEventListener('click', () => removeFromTray(i));
+    });
+    refreshClipBadges();
+    const filled = trayCount();
+    document.getElementById('vid-render').style.display = filled > 0 ? 'block' : 'none';
+    document.getElementById('vid-create-btn').textContent =
+      filled === 1 ? 'Create 5s video →' :
+      filled === 2 ? 'Create 10s video →' :
+                     'Create 15s video →';
+  }
+
+  function addToTray(clip) {
+    // Find first empty slot
+    const emptyIdx = trayClips.findIndex(c => !c);
+    const insertAt = emptyIdx === -1 ? trayClips.length : emptyIdx;
+    if (insertAt >= 3) {
+      showError('You can add up to 3 clips. Remove one first.');
+      return;
+    }
+    trayClips[insertAt] = clip;
+    refreshTray();
+  }
+
+  function removeFromTray(i) {
+    trayClips[i] = null;
+    // Compact: shift filled clips to front
+    trayClips = trayClips.filter(Boolean);
+    while (trayClips.length < 3) trayClips.push(null);
+    refreshTray();
+  }
+
+  function refreshClipBadges() {
+    document.querySelectorAll('.vid-clip').forEach(el => {
+      const cid = parseInt(el.dataset.clipId || '0');
+      const pos = trayClips.findIndex(c => c && c.id === cid);
+      el.classList.toggle('in-tray', pos >= 0);
+      let badge = el.querySelector('.vid-slot-badge');
+      if (pos >= 0) {
+        if (!badge) { badge = document.createElement('div'); badge.className = 'vid-slot-badge'; el.appendChild(badge); }
+        badge.textContent = pos + 1;
+      } else {
+        if (badge) badge.remove();
+      }
+    });
+  }
+
+  // Tray slot click = remove (handled per-slot in refreshTray)
+
   document.getElementById('vid-search-btn').addEventListener('click', searchClips);
   document.getElementById('vid-query').addEventListener('keydown', e => { if (e.key === 'Enter') searchClips(); });
   document.getElementById('vid-create-btn').addEventListener('click', createVideo);
@@ -739,6 +857,11 @@
     if (_vidBlobUrl) { URL.revokeObjectURL(_vidBlobUrl); _vidBlobUrl = null; }
   }
 
+  function resetTray() {
+    trayClips = [null, null, null];
+    refreshTray();
+  }
+
   async function searchClips() {
     if (!currentPkg) return;
     hideError();
@@ -746,8 +869,7 @@
     const q = document.getElementById('vid-query').value.trim();
     const grid = document.getElementById('vid-clips');
     grid.innerHTML = '<div style="color:var(--muted);font-size:.85rem;padding:.5rem 0;">Searching…</div>';
-    vidSelectedClip = null;
-    document.getElementById('vid-render').style.display = 'none';
+    resetTray();
     resetVideoResult();
 
     const btn = document.getElementById('vid-search-btn');
@@ -812,30 +934,43 @@
       dur.className = 'vid-dur'; dur.textContent = clip.duration + 's';
       el.appendChild(dur);
 
+      el.dataset.clipId = clip.id;
       el.addEventListener('click', () => {
-        document.querySelectorAll('.vid-clip').forEach(c => c.classList.remove('selected'));
-        el.classList.add('selected');
-        vidSelectedClip = clip.id;
-        vidSelectedSource = clip.source || '';
-        vidSelectedDur = clip.duration;
-        document.getElementById('vid-render').style.display = 'flex';
+        // If already in tray, remove it; otherwise add it
+        const pos = trayClips.findIndex(c => c && c.id === clip.id);
+        if (pos >= 0) {
+          removeFromTray(pos);
+        } else {
+          addToTray({
+            id: clip.id,
+            source: clip.source || '',
+            downloadUrl: clip.download_url,
+            previewUrl: clip.download_url,
+            duration: clip.duration,
+          });
+        }
         resetVideoResult();
       });
 
       grid.appendChild(el);
     });
+    refreshClipBadges();
   }
 
   async function createVideo() {
-    if (!vidSelectedClip) { showError('Pick a clip first.'); return; }
+    const filled = trayClips.filter(Boolean);
+    if (!filled.length) { showError('Pick at least one clip first.'); return; }
     hideError();
     const pkgId = extractPackageId(document.getElementById('pkg-id').value.trim());
     const btn = document.getElementById('vid-create-btn');
-    btn.disabled = true; btn.textContent = 'Rendering… (this can take ~20s)';
+    const secs = filled.length * 5;
+    btn.disabled = true; btn.textContent = `Rendering ${secs}s video… (~${10 + secs}s)`;
     resetVideoResult();
     try {
-      let url = `/generate/${pkgId}/video?clip_id=${vidSelectedClip}&format=${vidFormat}`;
-      if (vidSelectedSource) url += `&source=${vidSelectedSource}`;
+      const ids = filled.map(c => c.id).join(',');
+      const music = document.getElementById('music-select').value;
+      let url = `/generate/${pkgId}/video/multi?clip_ids=${ids}&format=${vidFormat}`;
+      if (music && music !== 'none') url += `&music=${encodeURIComponent(music)}`;
       if (vidQueryUsed) url += `&query=${encodeURIComponent(vidQueryUsed)}`;
       const res = await fetch(url, { headers: H });
       if (!res.ok) {
@@ -856,7 +991,9 @@
     } catch (e) {
       showError(e.message || 'Could not create the video.');
     } finally {
-      btn.disabled = false; btn.textContent = 'Create 5-sec video →';
+      btn.disabled = false;
+      const n = trayClips.filter(Boolean).length;
+      btn.textContent = n === 1 ? 'Create 5s video →' : n === 2 ? 'Create 10s video →' : 'Create 15s video →';
     }
   }
 </script>

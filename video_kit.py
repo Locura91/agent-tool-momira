@@ -356,3 +356,108 @@ def render_video(clip: Clip, overlay_png: bytes, fmt: str,
             return fh.read()
     finally:
         shutil.rmtree(workdir, ignore_errors=True)
+
+
+def render_video_multi(
+    clips: list[Clip],
+    overlay_png: bytes,
+    fmt: str,
+    music_path: Optional[str] = None,
+    seconds_per_clip: int = 5,
+) -> bytes:
+    """Download, trim, and concatenate up to 3 clips into one MP4.
+
+    Each clip is trimmed to `seconds_per_clip`, scaled/cropped to the output
+    dimensions, and the branded overlay is composited on top. The clips are then
+    concatenated with the concat demuxer. If `music_path` is supplied the track
+    is mixed in at a low volume (-18 dB) and trimmed to the total duration.
+    Returns raw MP4 bytes. Raises VideoError on any failure.
+    """
+    if not clips:
+        raise VideoError("No clips provided.")
+    ffmpeg = ffmpeg_bin()
+    if not ffmpeg:
+        raise VideoError("FFmpeg is not installed on the server.")
+    if fmt not in sk.FORMATS:
+        raise VideoError(f"Unknown format {fmt!r}.")
+
+    width, height, _ = sk.FORMATS[fmt]
+    total_seconds = len(clips) * seconds_per_clip
+
+    workdir = tempfile.mkdtemp(prefix="vk_multi_")
+    overlay_path = os.path.join(workdir, "overlay.png")
+    list_file   = os.path.join(workdir, "concat.txt")
+    out_silent  = os.path.join(workdir, "silent.mp4")
+    out_final   = os.path.join(workdir, "final.mp4")
+    try:
+        with open(overlay_path, "wb") as fh:
+            fh.write(overlay_png)
+
+        segment_paths = []
+        for i, clip in enumerate(clips):
+            src = os.path.join(workdir, f"src{i}.mp4")
+            seg = os.path.join(workdir, f"seg{i}.mp4")
+            _download(clip.download_url, src)
+
+            vf = (
+                f"[0:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
+                f"crop={width}:{height},setsar=1[bg];"
+                f"[bg][1:v]overlay=0:0:format=auto[v]"
+            )
+            r = subprocess.run(
+                [ffmpeg, "-y",
+                 "-i", src, "-i", overlay_path,
+                 "-filter_complex", vf,
+                 "-map", "[v]",
+                 "-t", str(seconds_per_clip),
+                 "-r", str(OUTPUT_FPS),
+                 "-c:v", "libx264", "-preset", X264_PRESET,
+                 "-crf", str(X264_CRF),
+                 "-pix_fmt", "yuv420p",
+                 "-an", seg],
+                capture_output=True, timeout=FFMPEG_TIMEOUT,
+            )
+            if r.returncode != 0:
+                err = r.stderr.decode("utf-8", "replace")[-400:]
+                raise VideoError(f"Trim/overlay failed for clip {i+1}: {err}")
+            segment_paths.append(seg)
+
+        # Concatenate segments
+        with open(list_file, "w") as f:
+            for p in segment_paths:
+                f.write(f"file '{p}'\n")
+
+        r = subprocess.run(
+            [ffmpeg, "-y", "-f", "concat", "-safe", "0",
+             "-i", list_file, "-c", "copy", out_silent],
+            capture_output=True, timeout=FFMPEG_TIMEOUT,
+        )
+        if r.returncode != 0:
+            raise VideoError(f"Concat failed: {r.stderr.decode()[-400:]}")
+
+        # Mix in background music if provided
+        if music_path and os.path.isfile(music_path):
+            r = subprocess.run(
+                [ffmpeg, "-y",
+                 "-i", out_silent,
+                 "-i", music_path,
+                 "-filter_complex",
+                 f"[1:a]volume=-18dB,afade=t=out:st={total_seconds-1}:d=1[mus];"
+                 f"[mus]apad=whole_dur={total_seconds}[a]",
+                 "-map", "0:v", "-map", "[a]",
+                 "-c:v", "copy", "-c:a", "aac", "-b:a", "128k",
+                 "-t", str(total_seconds),
+                 "-movflags", "+faststart",
+                 out_final],
+                capture_output=True, timeout=FFMPEG_TIMEOUT,
+            )
+            if r.returncode != 0:
+                # Fall back to silent version — don't fail the whole render over music
+                out_final = out_silent
+        else:
+            out_final = out_silent
+
+        with open(out_final, "rb") as fh:
+            return fh.read()
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
