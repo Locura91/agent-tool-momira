@@ -776,6 +776,82 @@ async def generate_video_multi(
 
 
 # --------------------------------------------------------------------------
+# Offer video: auto-pick clips, personalised overlay with title/dates/price
+# --------------------------------------------------------------------------
+
+@app.get("/generate/{package_id}/video/offer")
+async def generate_offer_video(
+    package_id: str,
+    format: str = "story",
+    music: str = "none",
+    agent: Agent = Depends(current_agent),
+):
+    """
+    One-click offer video: auto-searches Pexels for the package destinations,
+    picks the 3 best clips, burns the personalised offer overlay (title, dates,
+    price, destinations) and returns the MP4.
+    """
+    if format not in sk.FORMATS:
+        raise HTTPException(status_code=400, detail=f"format must be one of {list(sk.FORMATS)}")
+    if not vk.ffmpeg_available():
+        raise HTTPException(status_code=503, detail="Video rendering is unavailable (FFmpeg not installed).")
+
+    brand = engine.agent_brand(agent)
+    try:
+        pack = sk.fetch(sk.TCClient(), package_id, brand)
+    except sk.TCError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    want_portrait = _video_portrait(format)
+    q = vk.search_query(pack)
+
+    try:
+        candidates = vk.search_clips(q, want_portrait, per_page=15)
+    except vk.VideoError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    if not candidates:
+        raise HTTPException(status_code=404, detail=f"No stock clips found for query '{q}'.")
+
+    # Pick up to 3 distinct clips (spread across results for variety)
+    if len(candidates) >= 3:
+        step = len(candidates) // 3
+        clips = [candidates[0], candidates[step], candidates[step * 2]]
+    else:
+        clips = candidates[:3]
+        while len(clips) < 3:
+            clips.append(clips[-1])   # repeat last if fewer than 3
+
+    # Resolve music
+    music_path: str | None = None
+    if music and music != "none":
+        cfg_entry = next((t for t in _load_music_config() if t["id"] == music), None)
+        fname = cfg_entry["file"] if cfg_entry else music + ".mp3"
+        candidate_path = os.path.join(_MUSIC_DIR, fname)
+        if os.path.isfile(candidate_path):
+            music_path = candidate_path
+
+    loop = asyncio.get_running_loop()
+
+    def _work() -> bytes:
+        overlay = engine.render_offer_overlay_for_agent(pack, agent, format)
+        overlay_png = sk.overlay_to_png_bytes(overlay)
+        return vk.render_video_multi(clips, overlay_png, format, music_path=music_path)
+
+    try:
+        mp4_bytes = await loop.run_in_executor(None, _work)
+    except vk.VideoError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    filename = _download_name(pack, agent, "mp4")
+    return Response(
+        content=mp4_bytes,
+        media_type="video/mp4",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# --------------------------------------------------------------------------
 # Upload-your-own-clips video combining
 # --------------------------------------------------------------------------
 

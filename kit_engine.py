@@ -242,6 +242,28 @@ def render_for_agent(
     return canvas
 
 
+def render_offer_overlay_for_agent(
+    pack: Package,
+    agent: "Agent",
+    fmt: str = "story",
+) -> Image.Image:
+    """Offer video overlay — tour title, dates, price, destinations."""
+    brand = agent_brand(agent)
+    overlay = sk.render_offer_overlay(pack, fmt, brand)
+    width, _height, _ = sk.FORMATS[fmt]
+    unit = width / 1080
+    if agent.logo_url:
+        try:
+            logo_img = _load_image_url(agent.logo_url)
+            _composite_logo(overlay, logo_img, unit)
+        except Exception:
+            if agent.agency_name:
+                _draw_text_wordmark(overlay, agent.agency_name, unit)
+    elif agent.agency_name:
+        _draw_text_wordmark(overlay, agent.agency_name, unit)
+    return overlay
+
+
 def render_video_overlay_for_agent(
     pack: Package,
     agent: "Agent",

@@ -372,6 +372,49 @@
   </div>
 </div>
 
+<!-- ── Offer Video ──────────────────────────────────────────────────────── -->
+<div class="card" id="offer-video-section" style="display:none">
+  <div class="section-head">🎬 Offer Video</div>
+  <p style="font-size:.83rem;color:var(--muted);margin-bottom:1rem;line-height:1.6">
+    Create a personalised 15-second video for this specific package — destination names,
+    travel dates and price appear on screen. Send it alongside the offer PDF to make
+    your proposal more emotional and shareable.
+  </p>
+
+  <div style="display:flex;flex-wrap:wrap;gap:.7rem;align-items:center;margin-bottom:.9rem">
+    <!-- Format -->
+    <div>
+      <div style="font-size:.78rem;font-weight:600;margin-bottom:.3rem">Format</div>
+      <div style="display:flex;gap:.4rem">
+        <button class="vid-tab active" id="ofv-fmt-story"  onclick="setOfferFmt('story')">📱 Story / Reel</button>
+        <button class="vid-tab"        id="ofv-fmt-square" onclick="setOfferFmt('square')">⬛ Square</button>
+      </div>
+    </div>
+    <!-- Music -->
+    <div style="flex:1;min-width:160px">
+      <div style="font-size:.78rem;font-weight:600;margin-bottom:.3rem">🎵 Background music</div>
+      <select id="ofv-music" style="width:100%;padding:.38rem .6rem;border:1px solid var(--border);border-radius:7px;font-size:.82rem;background:#fff"></select>
+    </div>
+  </div>
+
+  <!-- Music preview for offer video -->
+  <div class="music-preview" id="ofv-music-preview" style="display:none;margin-bottom:.8rem">
+    <audio id="ofv-music-player" controls preload="none"></audio>
+    <span class="music-desc" id="ofv-music-desc"></span>
+  </div>
+
+  <button class="btn-generate" id="ofv-create-btn" style="align-self:flex-start">
+    ✨ Create offer video →
+  </button>
+
+  <div id="ofv-result" style="display:none;margin-top:1rem">
+    <video id="ofv-player" controls playsinline
+           style="width:100%;max-width:380px;border-radius:12px;background:#000;display:block;margin-bottom:.6rem"></video>
+    <button class="btn-sm btn-dl" id="ofv-dl-btn">⬇ Download offer video</button>
+  </div>
+  <div id="ofv-status" style="font-size:.82rem;color:var(--muted);margin-top:.5rem"></div>
+</div>
+
 <script>
   const token = localStorage.getItem('sk_token');
   if (!token) window.location.href = '/';
@@ -566,6 +609,12 @@
       resetTray();
       resetVideoResult();
       applyStyleView();   // show images or the video picker, per the selected style
+
+      // Show offer video section now that we have a package
+      document.getElementById('offer-video-section').style.display = 'block';
+      document.getElementById('ofv-result').style.display = 'none';
+      document.getElementById('ofv-status').textContent = '';
+      populateOfvMusic();
 
     } catch (e) {
       showError('Could not reach the server. Please try again.');
@@ -1089,6 +1138,86 @@
       btn.textContent = n === 1 ? 'Create 5s video →' : n === 2 ? 'Create 10s video →' : 'Create 15s video →';
     }
   }
+
+  // ── Offer Video ──────────────────────────────────────────────────────────
+  let _ofvFmt = 'story';
+  let _ofvBlobUrl = null;
+
+  function setOfferFmt(fmt) {
+    _ofvFmt = fmt;
+    ['story','square'].forEach(f => {
+      document.getElementById('ofv-fmt-' + f).classList.toggle('active', f === fmt);
+    });
+  }
+
+  function populateOfvMusic() {
+    const sel = document.getElementById('ofv-music');
+    sel.innerHTML = '';
+    musicTracks.forEach(t => {
+      const o = document.createElement('option');
+      o.value = t.id; o.textContent = t.label || t.id;
+      sel.appendChild(o);
+    });
+    updateOfvMusicPreview();
+  }
+
+  function updateOfvMusicPreview() {
+    const sel   = document.getElementById('ofv-music');
+    const id    = sel ? sel.value : 'none';
+    const row   = document.getElementById('ofv-music-preview');
+    const player= document.getElementById('ofv-music-player');
+    const desc  = document.getElementById('ofv-music-desc');
+    const track = musicTracks.find(t => t.id === id);
+    if (!track || id === 'none' || !track.preview_url) {
+      row.style.display = 'none'; player.pause(); player.src = ''; return;
+    }
+    row.style.display = 'flex';
+    if (player.src !== location.origin + track.preview_url) {
+      player.src = track.preview_url; player.load();
+    }
+    desc.textContent = track.description || '';
+  }
+  document.getElementById('ofv-music').addEventListener('change', updateOfvMusicPreview);
+
+  document.getElementById('ofv-create-btn').addEventListener('click', async () => {
+    if (!currentPkg) return;
+    const btn   = document.getElementById('ofv-create-btn');
+    const st    = document.getElementById('ofv-status');
+    const music = document.getElementById('ofv-music').value;
+    btn.disabled = true;
+    btn.textContent = 'Generating… (15–30s)';
+    st.textContent  = '⏳ Fetching stock clips and rendering your offer video…';
+    document.getElementById('ofv-result').style.display = 'none';
+
+    try {
+      const pkgId = document.getElementById('pkg-id').value.trim().replace(/^.*\/(\d+)\/?$/, '$1');
+      let url = `/generate/${pkgId}/video/offer?format=${_ofvFmt}`;
+      if (music && music !== 'none') url += `&music=${encodeURIComponent(music)}`;
+      const res = await fetch(url, { headers: H });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(err.detail || 'Render failed');
+      }
+      const blob = await res.blob();
+      if (_ofvBlobUrl) URL.revokeObjectURL(_ofvBlobUrl);
+      _ofvBlobUrl = URL.createObjectURL(blob);
+      const player = document.getElementById('ofv-player');
+      player.src = _ofvBlobUrl;
+      document.getElementById('ofv-result').style.display = 'block';
+      st.textContent = '✓ Offer video ready!';
+      document.getElementById('ofv-dl-btn').onclick = () => {
+        const a = document.createElement('a');
+        a.href = _ofvBlobUrl;
+        a.download = `offer-${pkgId}.mp4`;
+        a.click();
+      };
+    } catch (e) {
+      st.textContent = '⚠️ ' + (e.message || 'Could not create the video.');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '✨ Create offer video →';
+    }
+  });
 </script>
 </body>
 </html>

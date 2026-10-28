@@ -1676,6 +1676,140 @@ def render(pack: Package, fmt: str = "square", style: str = "photo", photo: Opti
     return canvas
 
 
+def render_offer_overlay(pack: "Package", fmt: str, brand: "Brand",
+                         pln_rate: Optional[float] = None) -> Image.Image:
+    """
+    Personalised offer overlay for the 15-second package video.
+
+    Transparent top (video plays through), with a richer bottom panel that shows:
+    - Tour title (large, bold, white)
+    - Destinations row (teal, bold)
+    - Travel dates (e.g. "12 Mar – 26 Mar 2025")
+    - Price per person (e.g. "from €2.490 / person")
+    - Wordmark pill (Momira Travel)
+    - "Your personal offer" label above the title
+    """
+    width, height, _ = FORMATS[fmt]
+    unit = width / 1080
+    pad = int(72 * unit)
+
+    INK_DARK = (10, 18, 30)
+    TEAL_LIGHT = (200, 242, 240)
+    WHITE = (255, 255, 255)
+    GOLD = (255, 210, 60)
+
+    is_story = height > width
+
+    # Offer videos: larger panel (45% for story, 40% for square/landscape)
+    hero_ratio = 0.55 if is_story else 0.60
+    hero_h = int(height * hero_ratio)
+    panel_h = height - hero_h
+    panel_y = hero_h
+
+    canvas = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+
+    # Gradient fade from transparent to panel
+    band_h = int(hero_h * 0.22)
+    if band_h > 0:
+        band = Image.new("RGBA", (width, band_h), (*INK_DARK, 0))
+        bmask = Image.new("L", (1, band_h))
+        for yy in range(band_h):
+            t = yy / max(1, band_h - 1)
+            bmask.putpixel((0, yy), int(230 * (t ** 2.2)))
+        band.putalpha(bmask.resize((width, band_h)))
+        canvas.alpha_composite(band, (0, panel_y - band_h))
+
+    panel = Image.new("RGBA", (width, panel_h), (*INK_DARK, 225))
+    canvas.alpha_composite(panel, (0, panel_y))
+
+    draw = ImageDraw.Draw(canvas)
+
+    # Gold accent line at top of panel (offer = premium feel)
+    accent_h = int(5 * unit)
+    draw.rectangle([0, panel_y, width, panel_y + accent_h], fill=(*GOLD, 255))
+
+    y = panel_y + accent_h + int(18 * unit)
+
+    # "YOUR PERSONAL OFFER" micro-label
+    label_font = _font("bold", int(19 * unit))
+    draw.text((pad, y), "YOUR PERSONAL OFFER", font=label_font, fill=(*GOLD, 255), anchor="lt")
+    y += int(label_font.size * 1.55)
+
+    # Destinations row
+    dests = [d.get("name", "") for d in (pack.destinations or []) if d.get("name")]
+    dest_text = "  ·  ".join(dests[:4]) if dests else ""
+    if dest_text:
+        dest_font = _font("bold", int(24 * unit))
+        draw.text((pad + int(2 * unit), y + int(2 * unit)), dest_text.upper(), font=dest_font, fill=(0, 0, 0, 140), anchor="lt")
+        draw.text((pad, y), dest_text.upper(), font=dest_font, fill=BRAND, anchor="lt")
+        y += int(dest_font.size * 1.5)
+
+    # Tour title
+    title_fs = int(62 * unit) if is_story else int(52 * unit)
+    title_font = _font("bold", title_fs)
+    for line in _wrap(draw, pack.title, title_font, width - pad * 2, 3):
+        draw.text((pad + int(2 * unit), y + int(2 * unit)), line, font=title_font, fill=(0, 0, 0, 180))
+        draw.text((pad, y), line, font=title_font, fill=WHITE)
+        y += int(title_font.size * 1.18)
+
+    y += int(10 * unit)
+
+    # Dates row  (if pack has departure dates)
+    date_str = ""
+    if pack.departures:
+        try:
+            from datetime import datetime as _dt
+            first = pack.departures[0]
+            d_raw = first.get("date") or first.get("departureDate") or first.get("startDate") or ""
+            if d_raw:
+                d_fmt = _dt.fromisoformat(str(d_raw)[:10]).strftime("%-d %b %Y")
+                # try to compute return date
+                dur = pack.days or 0
+                if dur > 1:
+                    from datetime import timedelta as _td
+                    ret = (_dt.fromisoformat(str(d_raw)[:10]) + _td(days=dur - 1)).strftime("%-d %b %Y")
+                    date_str = f"✈  {d_fmt}  –  {ret}"
+                else:
+                    date_str = f"✈  {d_fmt}"
+        except Exception:
+            pass
+
+    meta_font = _font("bold", int(26 * unit))
+    if date_str:
+        draw.text((pad, y), date_str, font=meta_font, fill=TEAL_LIGHT, anchor="lt")
+        y += int(meta_font.size * 1.55)
+
+    # Price row
+    price_str = ""
+    if pack.price:
+        try:
+            p = float(pack.price)
+            if p > 0:
+                if pln_rate and pack.currency in ("PLN", ""):
+                    p = p / pln_rate
+                sym = {"EUR": "€", "USD": "$", "GBP": "£", "PLN": "zł"}.get(str(pack.currency or "EUR"), "€")
+                price_str = f"from {sym}{int(p):,} / person".replace(",", ".")
+        except Exception:
+            pass
+    if price_str:
+        draw.text((pad, y), price_str, font=meta_font, fill=GOLD, anchor="lt")
+        y += int(meta_font.size * 1.55)
+
+    # Wordmark pill — top-right corner
+    pill_font = _font("bold", int(26 * unit))
+    pill_text = brand.wordmark
+    bbox = draw.textbbox((0, 0), pill_text, font=pill_font)
+    pw = bbox[2] - bbox[0] + int(32 * unit)
+    ph = int(pill_font.size * 1.5)
+    px = width - pw - int(pad * 0.7)
+    py = int(pad * 0.5)
+    cr = int(ph * 0.45)
+    draw.rounded_rectangle([px, py, px + pw, py + ph], radius=cr, fill=(*BRAND, 240))
+    draw.text((px + pw // 2, py + ph // 2), pill_text, font=pill_font, fill=WHITE, anchor="mm")
+
+    return canvas
+
+
 def load_photo(url: str) -> Image.Image:
     """Travel Compositor's storage, fetched once."""
     response = requests.get(url, timeout=_TIMEOUT)
