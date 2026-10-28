@@ -103,14 +103,18 @@ TEMPLATE = """<!doctype html>
     .tl-detail{font-size:.78rem;color:var(--muted);margin-bottom:.25rem;line-height:1.4}
     .tl-chips{display:flex;flex-wrap:wrap;gap:.3rem;margin-top:.3rem}
     .chip{font-size:.67rem;padding:.18rem .55rem;border-radius:4px;font-weight:600;line-height:1.4}
-    .chip-board   {background:#dcfce7;color:#166534}
-    .chip-nights  {background:#fef3c7;color:#92400e}
-    .chip-luggage {background:#dbeafe;color:#1d4ed8}
-    .chip-time    {background:#f3f4f6;color:var(--ink)}
-    .chip-dur     {background:#f3f4f6;color:var(--muted)}
-    .chip-stops   {background:#f0fdf4;color:#166534}
-    .chip-provider{background:#f5f3ff;color:#5b21b6}
-    .chip-room    {background:#fff7ed;color:#c2410c}
+    .chip-board      {background:#dcfce7;color:#166534}
+    .chip-nights     {background:#fef3c7;color:#92400e}
+    .chip-luggage    {background:#dbeafe;color:#1d4ed8}
+    .chip-time       {background:#f3f4f6;color:var(--ink)}
+    .chip-dur        {background:#f3f4f6;color:var(--muted)}
+    .chip-stops      {background:#fef9c3;color:#854d0e}
+    .chip-provider   {background:#f5f3ff;color:#5b21b6}
+    .chip-room       {background:#fff7ed;color:#c2410c}
+    .chip-overnight  {background:#e0e7ff;color:#3730a3}
+    .chip-pax        {background:#f0fdf4;color:#166534}
+    .chip-modality   {background:#fdf4ff;color:#7e22ce}
+    .chip-supplement {background:#fefce8;color:#713f12}
 
     .no-itin{background:var(--white);border:1px solid var(--border);
       border-radius:10px;padding:1rem 1.2rem;font-size:.85rem;color:var(--muted);
@@ -362,11 +366,13 @@ TEMPLATE = """<!doctype html>
   /* ── Itinerary timeline ── */
   const TYPE_LABELS = {
     flight:'Flight', bus:'Transport', ferry:'Ferry', train:'Train', car:'Car Rental',
-    hotel:'Stay', transfer:'Transfer', activity:'Included', cruise:'Cruise'
+    hotel:'Stay', transfer:'Transfer', activity:'Excursion', cruise:'Cruise',
+    tour:'Closed Tour', supplement:'Supplement'
   };
   const TYPE_ICONS = {
     flight:'✈️', bus:'🚌', ferry:'⛴️', train:'🚂', car:'🚗',
-    hotel:'🏨', transfer:'🚐', activity:'🎯', cruise:'🛳️'
+    hotel:'🏨', transfer:'🚐', activity:'🎯', cruise:'🛳️',
+    tour:'🗺️', supplement:'➕'
   };
 
   function dateBadge(label){
@@ -388,9 +394,9 @@ TEMPLATE = """<!doctype html>
 
   function renderItem(it){
     const kind = it.kind || 'activity';
+    const icon = TYPE_ICONS[kind] || '📌';
     const typeLabel = (TYPE_LABELS[kind] || it.chip || kind).toUpperCase();
 
-    let titleHtml = `<div class="tl-title">${esc(it.title || '')}</div>`;
     let starsHtml = '';
     if(it.stars && parseInt(it.stars) > 0){
       starsHtml = `<div class="tl-stars">${'★'.repeat(Math.min(parseInt(it.stars),5))}</div>`;
@@ -398,26 +404,49 @@ TEMPLATE = """<!doctype html>
 
     let chips = [];
 
-    if(kind === 'flight' || kind === 'ferry' || kind === 'bus' || kind === 'train'){
-      // Transport row: time · duration · stops · provider · baggage
-      if(it.time)     chips.push(`<span class="chip chip-time">🕐 ${esc(it.time)}</span>`);
-      if(it.duration) chips.push(`<span class="chip chip-dur">⏱ ${esc(it.duration)}</span>`);
-      if(it.stops)    chips.push(`<span class="chip chip-stops">${esc(it.stops)}</span>`);
-      if(it.provider) chips.push(`<span class="chip chip-provider">${esc(it.provider)}</span>`);
-      if(it.baggage)  chips.push(`<span class="chip chip-luggage">🧳 ${esc(it.baggage)}</span>`);
+    if(kind === 'flight' || kind === 'ferry' || kind === 'bus' || kind === 'train' || kind === 'car'){
+      // Departure time + arrival time
+      if(it.time)      chips.push(`<span class="chip chip-time">🕐 ${esc(it.time)}</span>`);
+      if(it.duration)  chips.push(`<span class="chip chip-dur">⏱ ${esc(it.duration)}</span>`);
+      // Stops: explicit label or "Direct"
+      if(it.stops)     chips.push(`<span class="chip chip-stops">🔁 ${esc(it.stops)}</span>`);
+      else if(kind==='flight') chips.push(`<span class="chip chip-stops">✅ Direct</span>`);
+      if(it.overnight) chips.push(`<span class="chip chip-overnight">🌙 Overnight</span>`);
+      if(it.baggage)   chips.push(`<span class="chip chip-luggage">🧳 ${esc(it.baggage)}</span>`);
+      if(it.provider)  chips.push(`<span class="chip chip-provider">${esc(it.provider)}</span>`);
+
     } else if(kind === 'hotel'){
-      // Hotel row: nights · board · room
+      // date range check-in → check-out
+      if(it.date_range) chips.push(`<span class="chip chip-time">📅 ${esc(it.date_range)}</span>`);
       if(it.nights && it.nights > 0)
         chips.push(`<span class="chip chip-nights">${it.nights} night${it.nights!==1?'s':''}</span>`);
-      if(it.board)  chips.push(`<span class="chip chip-board">${esc(it.board)}</span>`);
-      if(it.room)   chips.push(`<span class="chip chip-room">${esc(it.room)}</span>`);
+      if(it.board)  chips.push(`<span class="chip chip-board">🍽 ${esc(it.board)}</span>`);
+      if(it.room)   chips.push(`<span class="chip chip-room">🛏 ${esc(it.room)}</span>`);
+
     } else if(kind === 'transfer'){
-      if(it.time)     chips.push(`<span class="chip chip-time">🕐 ${esc(it.time)}</span>`);
-      if(it.provider) chips.push(`<span class="chip chip-provider">${esc(it.provider)}</span>`);
+      if(it.time)      chips.push(`<span class="chip chip-time">🕐 ${esc(it.time)}</span>`);
+      if(it.overnight) chips.push(`<span class="chip chip-overnight">🌙 Overnight</span>`);
+      if(it.baggage)   chips.push(`<span class="chip chip-luggage">🧳 ${esc(it.baggage)}</span>`);
+      if(it.provider)  chips.push(`<span class="chip chip-provider">${esc(it.provider)}</span>`);
+
     } else if(kind === 'cruise'){
       if(it.nights && it.nights > 0)
         chips.push(`<span class="chip chip-nights">${it.nights} night${it.nights!==1?'s':''}</span>`);
       if(it.provider) chips.push(`<span class="chip chip-provider">${esc(it.provider)}</span>`);
+
+    } else if(kind === 'activity'){
+      // Excursion
+      if(it.pax && it.pax > 0)
+        chips.push(`<span class="chip chip-pax">👥 ${it.pax} person${it.pax!==1?'s':''}</span>`);
+
+    } else if(kind === 'tour'){
+      if(it.date_range) chips.push(`<span class="chip chip-time">📅 ${esc(it.date_range)}</span>`);
+      if(it.modality)   chips.push(`<span class="chip chip-modality">🎫 ${esc(it.modality)}</span>`);
+
+    } else if(kind === 'supplement'){
+      if(it.pax && it.pax > 0)
+        chips.push(`<span class="chip chip-pax">👥 ${it.pax} person${it.pax!==1?'s':''}</span>`);
+      chips.push(`<span class="chip chip-supplement">Supplement</span>`);
     }
 
     const chipsHtml = chips.length ? `<div class="tl-chips">${chips.join('')}</div>` : '';
@@ -426,8 +455,8 @@ TEMPLATE = """<!doctype html>
       <div class="tl-row">
         <div class="tl-left">${dateBadge(it.date_label)}</div>
         <div class="tl-body">
-          <div class="tl-type">${esc(typeLabel)}</div>
-          ${titleHtml}
+          <div class="tl-type">${icon} ${esc(typeLabel)}</div>
+          <div class="tl-title">${esc(it.title || '')}</div>
           ${starsHtml}
           ${chipsHtml}
         </div>

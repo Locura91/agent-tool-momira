@@ -1225,6 +1225,8 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
             provider = _provider_str(t)
             flight_no = str(t.get("flightNumber") or t.get("flightNo") or t.get("serviceNumber") or "")
 
+            # overnight: departure and arrival on different dates
+            overnight_f = bool(arr_raw and dep_raw and _fmt_date_iso(arr_raw) and _fmt_date_iso(dep_raw) and _fmt_date_iso(arr_raw) > _fmt_date_iso(dep_raw))
             items.append({
                 "sort_key":   _dt_sort(_fmt_date_iso(dep_raw), dep_time, "A"),
                 "date_label": _fmt_date(dep_raw),
@@ -1236,6 +1238,7 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
                 "stops":      stops,
                 "baggage":    bag,
                 "provider":   (provider + (f" {flight_no}" if flight_no else "")).strip(),
+                "overnight":  overnight_f,
             })
 
         # 2. Hotels (detail.hotels) — name, stars, room, board, nights, check-in
@@ -1251,6 +1254,24 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
                                h_raw.get("startDate") or h_raw.get("arrivalDate") or "")
             room_name = _room_name(h_raw) if isinstance(h_raw, dict) else ""
             board_label = _board_label(board)
+            # checkout date: checkin + nights
+            checkout_raw = ""
+            if isinstance(h_raw, dict):
+                checkout_raw = (h_raw.get("checkOut") or h_raw.get("checkOutDate") or
+                                h_raw.get("endDate") or h_raw.get("departureDate") or "")
+            if not checkout_raw and checkin_raw and nights:
+                try:
+                    from datetime import date as _dc, timedelta as _td
+                    checkout_raw = (_dc.fromisoformat(_fmt_date_iso(checkin_raw)) + _td(days=nights)).isoformat()
+                except Exception:
+                    pass
+            date_range = ""
+            ci = _fmt_date(checkin_raw)
+            co = _fmt_date(checkout_raw)
+            if ci and co:
+                date_range = f"{ci} – {co}"
+            elif ci:
+                date_range = ci
             items.append({
                 "sort_key":   _dt_sort(_fmt_date_iso(checkin_raw), "", "B"),
                 "date_label": _fmt_date(checkin_raw),
@@ -1261,6 +1282,7 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
                 "nights":     nights,
                 "board":      board_label,
                 "room":       room_name,
+                "date_range": date_range,
             })
 
         # 3. Transfers (detail.transfers) — airport ↔ hotel
@@ -1288,6 +1310,9 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
                 time_t = dep_time_t[:5]
                 if arr_time_t and arr_time_t[:5]:
                     time_t += f" → {arr_time_t[:5]}"
+            # transfer luggage / overnight indicators
+            tr_luggage = _baggage_str(t)
+            tr_overnight = bool(t.get("overnight") or t.get("overnightTransfer") or t.get("isOvernight"))
             # Sort by actual pickup time; default T08:00 keeps transfer before hotel (T18:00)
             items.append({
                 "sort_key":   _dt_sort(_fmt_date_iso(dep_raw), dep_time_t, "C"),
@@ -1297,6 +1322,8 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
                 "title":      title_t,
                 "time":       time_t,
                 "provider":   _provider_str(t),
+                "baggage":    tr_luggage,
+                "overnight":  tr_overnight,
             })
 
         # 4. Tickets / excursions (detail.tickets)
@@ -1307,12 +1334,17 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
             if not name:
                 continue
             date_raw = ticket.get("date") or ticket.get("startDate") or ticket.get("ticketDate") or ""
+            pax_c = (ticket.get("pax") or ticket.get("quantity") or ticket.get("numberOfPersons") or
+                     ticket.get("personsCount") or ticket.get("numPax") or ticket.get("participants") or 0)
+            try: pax_c = int(pax_c)
+            except Exception: pax_c = 0
             items.append({
                 "sort_key":   _dt_sort(_fmt_date_iso(date_raw), "", "D"),
                 "date_label": _fmt_date(date_raw),
                 "kind":       "activity",
-                "chip":       "Ticket",
+                "chip":       "Excursion",
                 "title":      name,
+                "pax":        pax_c,
             })
 
         # 5. Cruises (detail.cruises)
@@ -1340,15 +1372,47 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
             if not name:
                 continue
             date_raw = spot.get("date") or spot.get("startDate") or ""
+            date_end_raw = spot.get("endDate") or spot.get("returnDate") or ""
+            modality = _clean_html(spot.get("modality") or spot.get("modalityName") or
+                                   spot.get("selectedModality") or spot.get("option") or "")
+            tour_range = ""
+            ts = _fmt_date(date_raw); te = _fmt_date(date_end_raw)
+            if ts and te and ts != te:
+                tour_range = f"{ts} – {te}"
+            elif ts:
+                tour_range = ts
             items.append({
                 "sort_key":   _dt_sort(_fmt_date_iso(date_raw), "", "F"),
                 "date_label": _fmt_date(date_raw),
-                "kind":       "activity",
+                "kind":       "tour",
                 "chip":       "Tour",
                 "title":      name,
+                "date_range": tour_range,
+                "modality":   modality,
             })
 
-        # 7. Guaranteed fallback from pack.* fields when raw detail yielded nothing
+        # 7. Supplements / extras
+        for sup in (_pick_raw(raw_detail, ["supplements", "extras", "addons", "optionals"], []) or []):
+            if not isinstance(sup, dict):
+                continue
+            name = _clean_html(sup.get("name") or sup.get("title") or sup.get("description") or "")
+            if not name:
+                continue
+            date_raw = sup.get("date") or sup.get("startDate") or ""
+            pax_s = (sup.get("pax") or sup.get("quantity") or sup.get("numberOfPersons") or
+                     sup.get("personsCount") or 0)
+            try: pax_s = int(pax_s)
+            except Exception: pax_s = 0
+            items.append({
+                "sort_key":   _dt_sort(_fmt_date_iso(date_raw), "", "G"),
+                "date_label": _fmt_date(date_raw),
+                "kind":       "supplement",
+                "chip":       "Supplement",
+                "title":      name,
+                "pax":        pax_s,
+            })
+
+        # 8. Guaranteed fallback from pack.* fields when raw detail yielded nothing
         if not items:
             flight_n = pack.transport_counts.get("flights", 0) if pack.transport_counts else 0
             if flight_n:
