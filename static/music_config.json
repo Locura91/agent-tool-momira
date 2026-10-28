@@ -1,0 +1,23 @@
+[
+  {
+    "id": "upbeat-travel",
+    "name": "Upbeat Travel",
+    "file": "upbeat-travel.mp3",
+    "suno_url": "",
+    "description": "Bright, energetic — perfect for city breaks & adventure tours"
+  },
+  {
+    "id": "gentle-acoustic",
+    "name": "Gentle Acoustic",
+    "file": "gentle-acoustic.mp3",
+    "suno_url": "",
+    "description": "Warm & relaxed — ideal for beach holidays & wellness retreats"
+  },
+  {
+    "id": "cinematic-ambient",
+    "name": "Cinematic Ambient",
+    "file": "cinematic-ambient.mp3",
+    "suno_url": "",
+    "description": "Atmospheric & cinematic — great for luxury & discovery packages"
+  }
+]

@@ -634,28 +634,70 @@ async def generate_video(
 # Multi-clip stock video (up to 3 Pexels/Pixabay clips → 15s branded MP4)
 # --------------------------------------------------------------------------
 
-# Music tracks bundled in static/music/ — free for commercial use
-_MUSIC_DIR = os.path.join(os.path.dirname(__file__), "static", "music")
-_MUSIC_TRACKS = [
-    {"id": "none",              "label": "No music"},
-    {"id": "upbeat-travel",     "label": "Upbeat Travel"},
-    {"id": "gentle-acoustic",   "label": "Gentle Acoustic"},
-    {"id": "cinematic-ambient", "label": "Cinematic Ambient"},
-]
+# Music tracks — config loaded from static/music_config.json (edit there to add tracks)
+_MUSIC_DIR    = os.path.join(os.path.dirname(__file__), "static", "music")
+_MUSIC_CONFIG = os.path.join(os.path.dirname(__file__), "static", "music_config.json")
+
+def _load_music_config() -> list:
+    try:
+        import json as _j
+        with open(_MUSIC_CONFIG, "r", encoding="utf-8") as f:
+            return _j.load(f)
+    except Exception:
+        return []
+
+def _save_music_config(tracks: list) -> None:
+    import json as _j
+    with open(_MUSIC_CONFIG, "w", encoding="utf-8") as f:
+        _j.dump(tracks, f, indent=2, ensure_ascii=False)
 
 
 @app.get("/generate/music/tracks")
 async def list_music_tracks(_agent: Agent = Depends(current_agent)):
-    """Return the available background music tracks."""
-    available = []
-    for t in _MUSIC_TRACKS:
-        if t["id"] == "none":
-            available.append(t)
-            continue
-        path = os.path.join(_MUSIC_DIR, t["id"] + ".mp3")
-        if os.path.isfile(path):
-            available.append(t)
-    return {"tracks": available}
+    """Return available background music tracks with preview URLs."""
+    out = [{"id": "none", "label": "No music", "description": ""}]
+    for t in _load_music_config():
+        fpath = os.path.join(_MUSIC_DIR, t.get("file", t["id"] + ".mp3"))
+        if os.path.isfile(fpath):
+            out.append({
+                "id":          t["id"],
+                "label":       t["name"],
+                "description": t.get("description", ""),
+                "preview_url": f"/static/music/{t.get('file', t['id'] + '.mp3')}",
+                "suno_url":    t.get("suno_url", ""),
+            })
+    return {"tracks": out}
+
+
+@app.post("/generate/music/upload")
+async def upload_music_track(
+    file: UploadFile = File(...),
+    name: str = Form(""),
+    description: str = Form(""),
+    suno_url: str = Form(""),
+    agent: Agent = Depends(current_agent),
+):
+    """Upload an MP3 track to the music library (admin only)."""
+    if not name.strip():
+        raise HTTPException(status_code=400, detail="Track name is required")
+    import re as _re, json as _j
+    # Build a safe filename from the name
+    track_id = _re.sub(r"[^a-z0-9]+", "-", name.strip().lower()).strip("-")
+    filename  = track_id + ".mp3"
+    dest = os.path.join(_MUSIC_DIR, filename)
+    os.makedirs(_MUSIC_DIR, exist_ok=True)
+    with open(dest, "wb") as f:
+        while chunk := await file.read(1024 * 256):
+            f.write(chunk)
+    # Update config
+    tracks = _load_music_config()
+    # Replace if same id already exists
+    tracks = [t for t in tracks if t["id"] != track_id]
+    tracks.append({"id": track_id, "name": name.strip(),
+                   "file": filename, "suno_url": suno_url,
+                   "description": description})
+    _save_music_config(tracks)
+    return {"ok": True, "id": track_id, "file": filename}
 
 
 @app.get("/generate/{package_id}/video/multi")
@@ -704,10 +746,12 @@ async def generate_video_multi(
             raise HTTPException(status_code=404, detail=f"Clip {cid} not found — search again.")
         clips.append(clip)
 
-    # Resolve music path
+    # Resolve music path from config
     music_path: str | None = None
     if music and music != "none":
-        candidate = os.path.join(_MUSIC_DIR, music + ".mp3")
+        cfg_entry = next((t for t in _load_music_config() if t["id"] == music), None)
+        fname = cfg_entry["file"] if cfg_entry else music + ".mp3"
+        candidate = os.path.join(_MUSIC_DIR, fname)
         if os.path.isfile(candidate):
             music_path = candidate
 

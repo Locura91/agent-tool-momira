@@ -160,9 +160,13 @@
     .tray-slot .tray-rm { position: absolute; top: 3px; right: 3px; background: rgba(0,0,0,.6); color: #fff; border: none; border-radius: 50%; width: 16px; height: 16px; font-size: .6rem; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 2; }
     .tray-arrow { color: var(--muted); font-size: 1rem; }
     /* Music picker */
-    .music-row { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; }
+    .music-row { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; margin-bottom: .5rem; }
     .music-row label { font-size: .82rem; font-weight: 600; color: var(--text); white-space: nowrap; }
     .music-row select { padding: .4rem .7rem; border: 1px solid var(--border); border-radius: 7px; font-size: .82rem; background: #fff; cursor: pointer; }
+    .music-preview { display: flex; align-items: center; gap: .5rem; margin-bottom: .9rem; min-height: 36px; }
+    .music-preview audio { height: 36px; flex: 1; min-width: 0; max-width: 320px; border-radius: 6px; }
+    .music-desc { font-size: .75rem; color: var(--muted); }
+    .music-upload-link { font-size: .75rem; color: var(--brand); text-decoration: underline; cursor: pointer; margin-left: auto; }
     .vid-render { display: flex; flex-direction: column; gap: .5rem; }
     .vid-note { font-size: .78rem; color: var(--muted); }
   </style>
@@ -306,6 +310,30 @@
           <select id="music-select">
             <option value="none">No music</option>
           </select>
+          <span class="music-upload-link" id="music-upload-toggle" title="Add a new track">＋ Add track</span>
+        </div>
+        <div class="music-preview" id="music-preview-row" style="display:none">
+          <audio id="music-preview-player" controls preload="none"></audio>
+          <span class="music-desc" id="music-desc"></span>
+        </div>
+        <!-- Upload panel (hidden by default) -->
+        <div id="music-upload-panel" style="display:none;background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:.9rem 1rem;margin-bottom:.9rem;font-size:.82rem">
+          <div style="font-weight:700;margin-bottom:.6rem">Upload a new music track</div>
+          <div style="display:flex;flex-direction:column;gap:.4rem">
+            <input type="text" id="mu-name" placeholder="Track name (e.g. Tropical Vibes)"
+                   style="padding:.4rem .6rem;border:1px solid var(--border);border-radius:6px;font-size:.82rem">
+            <input type="text" id="mu-desc" placeholder="Short description (optional)"
+                   style="padding:.4rem .6rem;border:1px solid var(--border);border-radius:6px;font-size:.82rem">
+            <input type="text" id="mu-suno" placeholder="Suno share link (optional, for reference)"
+                   style="padding:.4rem .6rem;border:1px solid var(--border);border-radius:6px;font-size:.82rem">
+            <input type="file" id="mu-file" accept=".mp3,audio/mpeg"
+                   style="font-size:.82rem">
+            <div style="display:flex;gap:.5rem;margin-top:.2rem">
+              <button id="mu-upload-btn" class="btn-sm" style="background:var(--brand);color:#fff;border:none;padding:.4rem .9rem;border-radius:7px;cursor:pointer;font-size:.82rem">Upload</button>
+              <button id="mu-cancel-btn" class="btn-sm" style="background:#f3f4f6;border:none;padding:.4rem .9rem;border-radius:7px;cursor:pointer;font-size:.82rem">Cancel</button>
+            </div>
+            <div id="mu-status" style="font-size:.78rem;color:var(--muted)"></div>
+          </div>
         </div>
         <button class="btn-generate" id="vid-create-btn" style="align-self:flex-start">Create video →</button>
         <div class="vid-result" id="vid-result" style="display:none">
@@ -760,18 +788,83 @@
   });
 
   // ── Music track loader ──────────────────────────────────────────────────
-  fetch('/generate/music/tracks', { headers: H })
-    .then(r => r.ok ? r.json() : null)
-    .then(data => {
-      if (!data || !data.tracks) return;
-      const sel = document.getElementById('music-select');
-      sel.innerHTML = '';
-      data.tracks.forEach(t => {
-        const o = document.createElement('option');
-        o.value = t.id; o.textContent = t.label;
-        sel.appendChild(o);
-      });
-    }).catch(() => {});
+  let musicTracks = [];
+
+  function loadMusicTracks() {
+    fetch('/generate/music/tracks', { headers: H })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data || !data.tracks) return;
+        musicTracks = data.tracks;
+        const sel = document.getElementById('music-select');
+        sel.innerHTML = '';
+        data.tracks.forEach(t => {
+          const o = document.createElement('option');
+          o.value = t.id;
+          o.textContent = t.label || t.id;
+          sel.appendChild(o);
+        });
+        updateMusicPreview();
+      }).catch(() => {});
+  }
+  loadMusicTracks();
+
+  function updateMusicPreview() {
+    const sel = document.getElementById('music-select');
+    const id  = sel ? sel.value : 'none';
+    const row = document.getElementById('music-preview-row');
+    const player = document.getElementById('music-preview-player');
+    const desc   = document.getElementById('music-desc');
+    const track  = musicTracks.find(t => t.id === id);
+    if (!track || id === 'none' || !track.preview_url) {
+      row.style.display = 'none';
+      player.pause(); player.src = '';
+      return;
+    }
+    row.style.display = 'flex';
+    if (player.src !== location.origin + track.preview_url) {
+      player.src = track.preview_url;
+      player.load();
+    }
+    desc.textContent = track.description || '';
+  }
+
+  document.getElementById('music-select').addEventListener('change', updateMusicPreview);
+
+  // Upload panel toggle
+  document.getElementById('music-upload-toggle').addEventListener('click', () => {
+    const p = document.getElementById('music-upload-panel');
+    p.style.display = p.style.display === 'none' ? 'block' : 'none';
+  });
+  document.getElementById('mu-cancel-btn').addEventListener('click', () => {
+    document.getElementById('music-upload-panel').style.display = 'none';
+  });
+  document.getElementById('mu-upload-btn').addEventListener('click', async () => {
+    const name  = document.getElementById('mu-name').value.trim();
+    const desc2 = document.getElementById('mu-desc').value.trim();
+    const suno  = document.getElementById('mu-suno').value.trim();
+    const file  = document.getElementById('mu-file').files[0];
+    const st    = document.getElementById('mu-status');
+    if (!name) { st.textContent = 'Please enter a track name.'; st.style.color = 'red'; return; }
+    if (!file) { st.textContent = 'Please choose an MP3 file.'; st.style.color = 'red'; return; }
+    st.textContent = 'Uploading…'; st.style.color = 'var(--muted)';
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('name', name);
+    fd.append('description', desc2);
+    fd.append('suno_url', suno);
+    try {
+      const r = await fetch('/generate/music/upload', { method: 'POST', headers: H, body: fd });
+      const d = await r.json();
+      if (d.ok) {
+        st.textContent = '✓ Track added!'; st.style.color = 'green';
+        loadMusicTracks();
+        setTimeout(() => { document.getElementById('music-upload-panel').style.display = 'none'; }, 1500);
+      } else {
+        st.textContent = d.detail || 'Upload failed.'; st.style.color = 'red';
+      }
+    } catch(e) { st.textContent = 'Upload error.'; st.style.color = 'red'; }
+  });
 
   // ── Clip tray (ordered queue, up to 3) ──────────────────────────────────
   // trayClips: array of {id, source, downloadUrl, previewUrl, duration}
