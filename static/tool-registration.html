@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Travel Agent Kit — Registration Link</title>
+  <title>Travel Agent Kit — Create Client Offer</title>
   <style>
     :root {
       --brand: #17a39b;
@@ -15,6 +15,8 @@
       --bg: #f9fafb;
       --white: #ffffff;
       --green: #16a34a;
+      --gold: #b45309;
+      --gold-light: #fef9c3;
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -37,7 +39,7 @@
     }
     .btn-ghost:hover { background: var(--bg); }
 
-    .page { max-width: 720px; margin: 0 auto; padding: 2rem 1.5rem; }
+    .page { max-width: 760px; margin: 0 auto; padding: 2rem 1.5rem; }
     .back { font-size: .85rem; color: var(--brand); text-decoration: none; display: inline-flex; align-items: center; gap: .3rem; margin-bottom: 1.5rem; }
     .back:hover { text-decoration: underline; }
     .page-header { margin-bottom: 2rem; }
@@ -46,10 +48,14 @@
 
     .card {
       background: var(--white); border: 1px solid var(--border);
-      border-radius: 16px; padding: 1.8rem; margin-bottom: 1.5rem;
+      border-radius: 16px; padding: 1.8rem; margin-bottom: 1.4rem;
     }
-    .card h2 { font-size: 1rem; font-weight: 700; margin-bottom: 1rem; }
+    .section-head {
+      font-size: 1rem; font-weight: 700; margin-bottom: 1rem;
+      display: flex; align-items: center; gap: .4rem;
+    }
 
+    /* Input row */
     .input-row { display: flex; gap: .7rem; }
     .input-row input {
       flex: 1; border: 1.5px solid var(--border); border-radius: 10px;
@@ -63,6 +69,13 @@
     .btn-brand:hover { background: var(--brand-dark); }
     .btn-brand:disabled { opacity: .6; cursor: not-allowed; }
 
+    /* Package preview */
+    #pkg-preview { display: none; margin-top: 1.2rem; padding-top: 1.2rem; border-top: 1px solid var(--border); }
+    .pkg-title { font-size: 1rem; font-weight: 700; margin-bottom: .2rem; }
+    .pkg-meta { font-size: .83rem; color: var(--muted); }
+    .pkg-meta span { margin-right: .8rem; }
+
+    /* Offer link box */
     .link-box { display: none; margin-top: 1.2rem; }
     .link-box.visible { display: block; }
     .link-preview {
@@ -78,13 +91,72 @@
     .btn-copy:hover { background: var(--brand-dark); }
     .copy-ok { font-size: .8rem; color: var(--green); font-weight: 600; display: none; }
 
+    /* Share hint pills */
+    .share-hint { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .8rem; font-size: .78rem; }
+    .share-pill {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+      padding: .25rem .55rem; color: var(--muted); cursor: pointer;
+    }
+    .share-pill:hover { background: var(--brand-light); border-color: var(--brand); color: var(--brand); }
+
+    /* Offer video section */
+    .vid-options { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem; }
+    .vid-tab {
+      background: var(--bg); border: 1.5px solid var(--border); border-radius: 8px;
+      padding: .42rem .9rem; font-size: .83rem; font-weight: 600; cursor: pointer; color: var(--muted);
+    }
+    .vid-tab.active { background: var(--brand-light); border-color: var(--brand); color: var(--brand); }
+    .vid-tab:hover:not(.active) { background: var(--bg); border-color: #ccc; }
+
+    .music-select-row { display: flex; gap: .7rem; align-items: flex-end; flex-wrap: wrap; margin-bottom: .8rem; }
+    .music-select-row select {
+      flex: 1; min-width: 180px; padding: .42rem .65rem;
+      border: 1.5px solid var(--border); border-radius: 8px;
+      font-size: .85rem; background: var(--white); color: var(--ink);
+    }
+    .music-select-row select:focus { outline: none; border-color: var(--brand); }
+
+    .music-preview-row {
+      display: none; align-items: center; gap: .6rem;
+      background: var(--brand-light); border: 1px solid var(--brand);
+      border-radius: 9px; padding: .5rem .8rem; margin-bottom: .8rem; flex-wrap: wrap;
+    }
+    .music-preview-row.visible { display: flex; }
+    .music-preview-row audio { height: 30px; flex: 1; min-width: 160px; }
+    .music-desc-text { font-size: .78rem; color: var(--muted); }
+
+    .btn-generate {
+      background: linear-gradient(135deg, var(--brand) 0%, var(--brand-dark) 100%);
+      color: #fff; border: none; border-radius: 10px;
+      padding: .75rem 1.4rem; font-size: .92rem; font-weight: 700;
+      cursor: pointer; display: inline-flex; align-items: center; gap: .4rem;
+    }
+    .btn-generate:hover { opacity: .92; }
+    .btn-generate:disabled { opacity: .55; cursor: not-allowed; }
+
+    #ofv-result { display: none; margin-top: 1.2rem; }
+    #ofv-player {
+      width: 100%; max-width: 360px; border-radius: 12px;
+      background: #000; display: block; margin-bottom: .7rem;
+    }
+    .btn-sm {
+      font-size: .82rem; font-weight: 700; border-radius: 8px;
+      padding: .4rem .85rem; cursor: pointer; border: none;
+    }
+    .btn-dl { background: var(--brand); color: #fff; }
+    .btn-dl:hover { background: var(--brand-dark); }
+    .ofv-status { font-size: .82rem; color: var(--muted); margin-top: .5rem; }
+
+    /* Gold accent for offer video heading */
+    .offer-video-head { color: var(--gold); }
+
     /* Registrations table */
     .section-title { font-size: 1rem; font-weight: 700; margin-bottom: 1rem; }
     table { width: 100%; border-collapse: collapse; font-size: .85rem; }
     th { text-align: left; padding: .6rem .8rem; color: var(--muted); font-weight: 600; border-bottom: 2px solid var(--border); }
     td { padding: .7rem .8rem; border-bottom: 1px solid var(--border); vertical-align: top; }
     tr:last-child td { border-bottom: none; }
-    .pkg-id { font-size: .78rem; color: var(--muted); display: block; }
+    .pkg-id-cell { font-size: .78rem; color: var(--muted); display: block; }
     .empty-state {
       background: var(--white); border: 1px solid var(--border); border-radius: 12px;
       padding: 2rem; text-align: center; color: var(--muted); font-size: .9rem;
@@ -110,26 +182,91 @@
   <a class="back" href="/dashboard">← Dashboard</a>
 
   <div class="page-header">
-    <h1>🔗 Registration Link</h1>
-    <p>Paste a Holiday Package ID to generate a shareable form link for your client.</p>
+    <h1>✨ Create Client Offer</h1>
+    <p>Enter a Holiday Package ID to generate a personalised offer link and video for your client.</p>
   </div>
 
+  <!-- ── Step 1: Package lookup ───────────────────────────────────────── -->
   <div class="card">
-    <h2>Generate link</h2>
+    <div class="section-head">📦 Package</div>
     <div class="input-row">
       <input type="text" id="pkg-id" placeholder="Holiday Package ID, e.g. 33959712" autocomplete="off">
-      <button class="btn-brand" id="gen-btn" onclick="generateLink()">Generate link</button>
+      <button class="btn-brand" id="load-btn" onclick="loadPackage()">Load package</button>
     </div>
 
-    <div class="link-box" id="link-box">
+    <div id="pkg-preview">
+      <div class="pkg-title" id="pkg-title">—</div>
+      <div class="pkg-meta">
+        <span id="pkg-dest">—</span>
+        <span id="pkg-dep">—</span>
+        <span id="pkg-price">—</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Step 2: Shareable offer link ────────────────────────────────── -->
+  <div class="card" id="offer-link-card" style="display:none">
+    <div class="section-head">🔗 Shareable Offer Link</div>
+    <p style="font-size:.84rem;color:var(--muted);margin-bottom:1rem;line-height:1.6">
+      Send this link to your client — they see the full itinerary with all details and can sign the travel registration directly.
+    </p>
+
+    <div class="link-box visible" id="link-box">
       <div class="link-preview">
         <a id="form-link" href="#" target="_blank"></a>
         <button class="btn-copy" onclick="copyLink()">Copy link</button>
       </div>
       <span class="copy-ok" id="copy-ok">✓ Copied to clipboard</span>
     </div>
+
+    <div class="share-hint">
+      <span style="font-size:.78rem;color:var(--muted);margin-right:.2rem;align-self:center">Share via:</span>
+      <span class="share-pill" onclick="shareWhatsApp()">💬 WhatsApp</span>
+      <span class="share-pill" onclick="shareEmail()">📧 Email</span>
+      <span class="share-pill" onclick="copyLink()">📋 Copy link</span>
+    </div>
   </div>
 
+  <!-- ── Step 3: Offer video ──────────────────────────────────────────── -->
+  <div class="card" id="offer-video-card" style="display:none">
+    <div class="section-head offer-video-head">🎬 Personalised Offer Video</div>
+    <p style="font-size:.84rem;color:var(--muted);margin-bottom:1.2rem;line-height:1.6">
+      Create a 15-second video tailored to this package — destinations, travel dates and price appear on screen with your branding. Perfect to send alongside the offer link.
+    </p>
+
+    <div class="vid-options">
+      <div>
+        <div style="font-size:.78rem;font-weight:600;margin-bottom:.4rem;color:var(--muted)">FORMAT</div>
+        <div style="display:flex;gap:.4rem">
+          <button class="vid-tab active" id="ofv-fmt-story"  onclick="setOfferFmt('story')">📱 Story / Reel</button>
+          <button class="vid-tab"        id="ofv-fmt-square" onclick="setOfferFmt('square')">⬛ Square</button>
+        </div>
+      </div>
+      <div style="flex:1;min-width:180px">
+        <div style="font-size:.78rem;font-weight:600;margin-bottom:.4rem;color:var(--muted)">🎵 BACKGROUND MUSIC</div>
+        <div class="music-select-row">
+          <select id="ofv-music"></select>
+        </div>
+      </div>
+    </div>
+
+    <div class="music-preview-row" id="ofv-music-preview">
+      <audio id="ofv-music-player" controls preload="none"></audio>
+      <span class="music-desc-text" id="ofv-music-desc"></span>
+    </div>
+
+    <button class="btn-generate" id="ofv-create-btn">
+      ✨ Create offer video →
+    </button>
+
+    <div id="ofv-result">
+      <video id="ofv-player" controls playsinline></video>
+      <button class="btn-sm btn-dl" id="ofv-dl-btn">⬇ Download offer video</button>
+    </div>
+    <div class="ofv-status" id="ofv-status"></div>
+  </div>
+
+  <!-- ── Submitted registrations ──────────────────────────────────────── -->
   <div class="section-title">Submitted registrations</div>
   <div id="regs-container">
     <div class="empty-state">Loading…</div>
@@ -141,15 +278,16 @@
   if (!token) { window.location.href = '/'; }
   const headers = { 'Authorization': 'Bearer ' + token };
 
-  let agentId = null;
+  let agentId   = null;
+  let _ofvFmt   = 'story';
+  let _ofvBlobUrl = null;
+  let musicTracks = [];
+  let currentPkgId = null;
 
-  // Load agent ID from /me
+  // ── Bootstrap ────────────────────────────────────────────────────────────
   fetch('/me', { headers })
     .then(r => { if (!r.ok) throw new Error(); return r.json(); })
-    .then(a => {
-      agentId = a.id;
-      loadRegistrations();
-    })
+    .then(a => { agentId = a.id; loadRegistrations(); })
     .catch(() => { localStorage.removeItem('sk_token'); location.href = '/'; });
 
   document.getElementById('logout-btn').addEventListener('click', () => {
@@ -157,17 +295,153 @@
     location.href = '/';
   });
 
-  function generateLink() {
+  document.getElementById('pkg-id').addEventListener('keydown', e => {
+    if (e.key === 'Enter') loadPackage();
+  });
+
+  // ── Package load ─────────────────────────────────────────────────────────
+  async function loadPackage() {
     const pkgId = document.getElementById('pkg-id').value.trim();
     if (!pkgId || !agentId) return;
-    const url = location.origin + '/register/' + agentId + '/' + encodeURIComponent(pkgId);
-    const a = document.getElementById('form-link');
-    a.href = url;
-    a.textContent = url;
-    document.getElementById('link-box').classList.add('visible');
-    document.getElementById('copy-ok').style.display = 'none';
+
+    const btn = document.getElementById('load-btn');
+    btn.disabled = true;
+    btn.textContent = 'Loading…';
+
+    try {
+      const r = await fetch('/api/package/' + encodeURIComponent(pkgId), { headers });
+      if (!r.ok) throw new Error('Package not found');
+      const pkg = await r.json();
+
+      currentPkgId = pkgId;
+
+      // Preview
+      document.getElementById('pkg-title').textContent = pkg.title || pkgId;
+      document.getElementById('pkg-dest').textContent  = '📍 ' + (pkg.destinations || []).join(', ') || '—';
+      const dep = (pkg.departures || [])[0];
+      document.getElementById('pkg-dep').textContent = dep ? '🗓 ' + dep.date : '';
+      document.getElementById('pkg-price').textContent = pkg.price
+        ? '💶 from ' + pkg.price.toLocaleString('de-DE') + ' ' + (pkg.currency || 'EUR')
+        : '';
+      document.getElementById('pkg-preview').style.display = 'block';
+
+      // Build offer link
+      const url = location.origin + '/register/' + agentId + '/' + encodeURIComponent(pkgId);
+      const a   = document.getElementById('form-link');
+      a.href      = url;
+      a.textContent = url;
+      document.getElementById('offer-link-card').style.display  = 'block';
+      document.getElementById('copy-ok').style.display = 'none';
+
+      // Prepare offer video section
+      document.getElementById('offer-video-card').style.display = 'block';
+      document.getElementById('ofv-result').style.display = 'none';
+      document.getElementById('ofv-status').textContent   = '';
+      if (!musicTracks.length) await loadMusicTracks();
+      populateOfvMusic();
+
+    } catch (e) {
+      alert('Could not load package: ' + e.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Load package';
+    }
   }
 
+  // ── Music ────────────────────────────────────────────────────────────────
+  async function loadMusicTracks() {
+    try {
+      const r = await fetch('/generate/music/tracks', { headers });
+      musicTracks = await r.json();
+    } catch (_) {
+      musicTracks = [];
+    }
+  }
+
+  function populateOfvMusic() {
+    const sel = document.getElementById('ofv-music');
+    sel.innerHTML = '<option value="none">— No music —</option>';
+    musicTracks.forEach(t => {
+      const o = document.createElement('option');
+      o.value       = t.id;
+      o.textContent = t.name + (t.description ? '  ·  ' + t.description : '');
+      sel.appendChild(o);
+    });
+    sel.value = musicTracks.length ? musicTracks[0].id : 'none';
+    updateOfvMusicPreview();
+  }
+
+  function updateOfvMusicPreview() {
+    const sel    = document.getElementById('ofv-music');
+    const id     = sel ? sel.value : 'none';
+    const row    = document.getElementById('ofv-music-preview');
+    const player = document.getElementById('ofv-music-player');
+    const desc   = document.getElementById('ofv-music-desc');
+    const track  = musicTracks.find(t => t.id === id);
+    if (!track || id === 'none' || !track.preview_url) {
+      row.classList.remove('visible'); player.pause(); player.src = ''; return;
+    }
+    player.src = track.preview_url;
+    desc.textContent = track.description || '';
+    row.classList.add('visible');
+  }
+
+  document.getElementById('ofv-music').addEventListener('change', updateOfvMusicPreview);
+
+  // ── Offer format ─────────────────────────────────────────────────────────
+  function setOfferFmt(fmt) {
+    _ofvFmt = fmt;
+    ['story','square'].forEach(f => {
+      document.getElementById('ofv-fmt-' + f).classList.toggle('active', f === fmt);
+    });
+  }
+
+  // ── Generate offer video ─────────────────────────────────────────────────
+  document.getElementById('ofv-create-btn').addEventListener('click', async () => {
+    if (!currentPkgId) return;
+    const btn   = document.getElementById('ofv-create-btn');
+    const st    = document.getElementById('ofv-status');
+    const music = document.getElementById('ofv-music').value;
+    btn.disabled    = true;
+    btn.textContent = 'Generating… (15–30 s)';
+    st.textContent  = '⏳ Fetching stock clips and rendering your offer video…';
+    document.getElementById('ofv-result').style.display = 'none';
+    if (_ofvBlobUrl) { URL.revokeObjectURL(_ofvBlobUrl); _ofvBlobUrl = null; }
+
+    try {
+      const url = `/generate/${encodeURIComponent(currentPkgId)}/video/offer`
+                + `?format=${_ofvFmt}&music=${encodeURIComponent(music)}`;
+      const r   = await fetch(url, { headers });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.detail || r.statusText);
+      }
+      const blob  = await r.blob();
+      _ofvBlobUrl = URL.createObjectURL(blob);
+
+      const player = document.getElementById('ofv-player');
+      player.src   = _ofvBlobUrl;
+      player.load();
+
+      const dlBtn = document.getElementById('ofv-dl-btn');
+      dlBtn.onclick = () => {
+        const a  = document.createElement('a');
+        a.href   = _ofvBlobUrl;
+        a.download = `offer-video-${currentPkgId}.mp4`;
+        a.click();
+      };
+
+      document.getElementById('ofv-result').style.display = 'block';
+      st.textContent = '✅ Done — your offer video is ready!';
+    } catch (e) {
+      st.textContent = '❌ ' + e.message;
+    } finally {
+      btn.disabled    = false;
+      btn.textContent = '✨ Create offer video →';
+    }
+  });
+
+  // ── Link actions ─────────────────────────────────────────────────────────
   function copyLink() {
     const url = document.getElementById('form-link').href;
     navigator.clipboard.writeText(url).then(() => {
@@ -183,13 +457,27 @@
     });
   }
 
+  function shareWhatsApp() {
+    const url  = document.getElementById('form-link').href;
+    const text = encodeURIComponent('Here is your personal travel offer: ' + url);
+    window.open('https://wa.me/?text=' + text, '_blank');
+  }
+
+  function shareEmail() {
+    const url     = document.getElementById('form-link').href;
+    const subject = encodeURIComponent('Your Personal Travel Offer');
+    const body    = encodeURIComponent('Dear traveller,\n\nPlease find your personalised travel offer here:\n' + url + '\n\nBest regards');
+    window.location.href = 'mailto:?subject=' + subject + '&body=' + body;
+  }
+
+  // ── Registrations table ───────────────────────────────────────────────────
   function loadRegistrations() {
     fetch('/api/registrations', { headers })
       .then(r => r.json())
       .then(rows => {
         const c = document.getElementById('regs-container');
         if (!rows.length) {
-          c.innerHTML = '<div class="empty-state">No registrations yet — share a link above to get started.</div>';
+          c.innerHTML = '<div class="empty-state">No registrations yet — share an offer link above to get started.</div>';
           return;
         }
         let html = '<table><thead><tr><th>Name</th><th>Package</th><th>Contact</th><th>Nationality</th><th>Date</th></tr></thead><tbody>';
@@ -198,7 +486,7 @@
           html += `<tr>
             <td><strong>${esc(r.first_name)} ${esc(r.last_name)}</strong></td>
             <td>${esc(r.package_title || '')}
-              <span class="pkg-id">${esc(r.package_id)}</span></td>
+              <span class="pkg-id-cell">${esc(r.package_id)}</span></td>
             <td>${esc(r.email)}<br><span style="color:#6b7280;font-size:.8rem">${esc(r.phone||'')}</span></td>
             <td>${esc(r.nationality||'—')}</td>
             <td style="white-space:nowrap">${date}</td>
@@ -216,11 +504,6 @@
   function esc(s) {
     return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
-
-  // Also allow Enter key in the input
-  document.getElementById('pkg-id').addEventListener('keydown', e => {
-    if (e.key === 'Enter') generateLink();
-  });
 </script>
 </body>
 </html>

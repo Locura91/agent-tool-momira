@@ -199,6 +199,7 @@ TEMPLATE = """<!doctype html>
 <div class="hero">
   {{HERO_IMG_HTML}}
   <div class="hero-body">
+    <div style="font-size:.72rem;font-weight:700;letter-spacing:.12em;color:var(--brand);text-transform:uppercase;margin-bottom:.35rem">✨ Your Personal Travel Offer</div>
     <h1>{{PKG_TITLE}}</h1>
 
     <div class="meta-strip" id="meta-strip">

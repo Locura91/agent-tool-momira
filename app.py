@@ -2078,6 +2078,33 @@ async def list_registrations(
 
 
 # --------------------------------------------------------------------------
+# Package info API — used by the Create Client Offer tool for the preview
+# --------------------------------------------------------------------------
+
+@app.get("/api/package/{package_id}")
+async def get_package_info(
+    package_id: str,
+    agent: Agent = Depends(current_agent),
+):
+    """Return lightweight package metadata for the offer tool preview."""
+    brand = engine.agent_brand(agent)
+    try:
+        pack = sk.fetch(sk.TCClient(), package_id, brand)
+    except sk.TCError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    dep_dates = pack.departures or []
+    first_dep = dep_dates[0] if dep_dates else None
+    return {
+        "id": pack.id,
+        "title": pack.title,
+        "destinations": pack.destinations or [],
+        "departures": [{"date": d} for d in dep_dates],
+        "price": pack.price or None,
+        "currency": brand.currency,
+    }
+
+
+# --------------------------------------------------------------------------
 # Run
 # --------------------------------------------------------------------------
 
