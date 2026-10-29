@@ -1,5 +1,12 @@
 [
   {
+    "id": "pacific-blue-lane",
+    "name": "Pacific Blue Lane",
+    "file": "pacific-blue-lane.mp3",
+    "suno_url": "",
+    "description": "Smooth & uplifting — perfect for beach, island and luxury travel offers"
+  },
+  {
     "id": "upbeat-travel",
     "name": "Upbeat Travel",
     "file": "upbeat-travel.mp3",
