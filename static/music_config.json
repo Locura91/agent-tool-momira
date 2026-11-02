@@ -7,24 +7,38 @@
     "description": "Smooth & uplifting — perfect for beach, island and luxury travel offers"
   },
   {
+    "id": "tides-on-the-asphalt",
+    "name": "Tides on the Asphalt",
+    "file": "tides-on-the-asphalt.mp3",
+    "suno_url": "",
+    "description": "Urban & atmospheric — great for city breaks and cultural tours"
+  },
+  {
+    "id": "saltwater-afternoon",
+    "name": "Saltwater Afternoon",
+    "file": "saltwater-afternoon.mp3",
+    "suno_url": "",
+    "description": "Relaxed & warm — ideal for coastal holidays and wellness retreats"
+  },
+  {
     "id": "upbeat-travel",
     "name": "Upbeat Travel",
     "file": "upbeat-travel.mp3",
     "suno_url": "",
-    "description": "Bright, energetic — perfect for city breaks & adventure tours"
+    "description": "Bright & energetic — perfect for adventure tours and active holidays"
   },
   {
     "id": "gentle-acoustic",
     "name": "Gentle Acoustic",
     "file": "gentle-acoustic.mp3",
     "suno_url": "",
-    "description": "Warm & relaxed — ideal for beach holidays & wellness retreats"
+    "description": "Warm & relaxed — ideal for family and wellness packages"
   },
   {
     "id": "cinematic-ambient",
     "name": "Cinematic Ambient",
     "file": "cinematic-ambient.mp3",
     "suno_url": "",
-    "description": "Atmospheric & cinematic — great for luxury & discovery packages"
+    "description": "Atmospheric & cinematic — great for luxury and discovery packages"
   }
 ]
