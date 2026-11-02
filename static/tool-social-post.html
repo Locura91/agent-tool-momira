@@ -184,6 +184,17 @@
     .soc-fb  { background: #1877f2; color: #fff; }
     .soc-tt  { background: #010101; color: #fff; }
     .soc-hint { font-size: .7rem; color: var(--muted); margin-top: .25rem; width: 100%; }
+
+    /* Captions block reused under video results */
+    .vid-cap-block { margin-top: 1rem; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--white); }
+    .vid-cap-tabs  { display: flex; border-bottom: 1px solid var(--border); }
+    .vid-cap-tab   { flex: 1; padding: .5rem .6rem; font-size: .78rem; font-weight: 600; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; text-align: center; transition: color .15s, border-color .15s; }
+    .vid-cap-tab.active { color: var(--brand); border-color: var(--brand); }
+    .vid-cap-panel { display: none; padding: .8rem 1rem; }
+    .vid-cap-panel.active { display: block; }
+    .vid-cap-text  { font-size: .85rem; line-height: 1.65; white-space: pre-wrap; color: var(--ink); }
+    .vid-cap-copy  { margin-top: .6rem; background: var(--bg); border: 1px solid var(--border); border-radius: 7px; padding: .35rem .75rem; font-size: .8rem; font-weight: 600; cursor: pointer; color: var(--muted); }
+    .vid-cap-copy:hover { color: var(--ink); }
   </style>
 </head>
 <body>
@@ -356,6 +367,7 @@
           <video id="vid-player" controls playsinline style="width:100%;max-width:380px;border-radius:12px;background:#000;display:block;margin:1rem 0;"></video>
           <button class="btn-sm btn-dl" id="vid-dl-btn" style="max-width:220px">⬇ Download video</button>
           <div id="vid-social-btns"></div>
+          <div id="vid-captions"></div>
         </div>
       </div>
     </div>
@@ -385,6 +397,7 @@
         <video id="upload-player" controls playsinline style="width:100%;max-width:380px;border-radius:12px;background:#000;display:block;margin:1rem 0;"></video>
         <button class="btn-sm btn-dl" id="upload-dl-btn" style="max-width:240px">⬇ Download combined video</button>
         <div id="upload-social-btns"></div>
+        <div id="upload-captions"></div>
       </div>
     </div>
   </div>
@@ -414,6 +427,7 @@
            style="width:100%;max-width:380px;border-radius:12px;background:#000;display:block;margin-bottom:.6rem"></video>
     <button class="btn-sm btn-dl" id="ofv-dl-btn" style="max-width:220px">⬇ Download offer video</button>
     <div id="ofv-social-btns"></div>
+    <div id="ofv-captions"></div>
   </div>
   <div id="ofv-status" style="font-size:.82rem;color:var(--muted);margin-top:.5rem"></div>
 </div>
@@ -748,6 +762,63 @@
     return wrap;
   }
 
+  function makeVideoCaptions() {
+    const tabs = [
+      { key: 'inspiracja', label: 'Feed / Inspiration' },
+      { key: 'konkret',    label: 'Offer / CTA' },
+      { key: 'gbp',        label: 'Google Business' },
+    ];
+    const block = document.createElement('div');
+    block.className = 'vid-cap-block';
+
+    const tabBar = document.createElement('div');
+    tabBar.className = 'vid-cap-tabs';
+    const panels = [];
+
+    tabs.forEach(({ key, label }, i) => {
+      const src = document.getElementById('text-' + key);
+      const text = src ? src.textContent : '';
+
+      const tab = document.createElement('div');
+      tab.className = 'vid-cap-tab' + (i === 0 ? ' active' : '');
+      tab.textContent = label;
+
+      const panel = document.createElement('div');
+      panel.className = 'vid-cap-panel' + (i === 0 ? ' active' : '');
+
+      const textEl = document.createElement('div');
+      textEl.className = 'vid-cap-text';
+      textEl.textContent = text;
+
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'vid-cap-copy';
+      copyBtn.textContent = 'Copy';
+      copyBtn.addEventListener('click', () => {
+        navigator.clipboard.writeText(textEl.textContent).then(() => {
+          copyBtn.textContent = '✓ Copied';
+          setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1500);
+        });
+      });
+
+      panel.appendChild(textEl);
+      panel.appendChild(copyBtn);
+      panels.push(panel);
+
+      tab.addEventListener('click', () => {
+        tabBar.querySelectorAll('.vid-cap-tab').forEach(t => t.classList.remove('active'));
+        panels.forEach(p => p.classList.remove('active'));
+        tab.classList.add('active');
+        panel.classList.add('active');
+      });
+
+      tabBar.appendChild(tab);
+    });
+
+    block.appendChild(tabBar);
+    panels.forEach(p => block.appendChild(p));
+    return block;
+  }
+
   function packageTitleSlug() {
     if (!currentPkg || !currentPkg.title) return 'social-kit';
     return currentPkg.title
@@ -878,6 +949,8 @@
       };
       const upSoc = document.getElementById('upload-social-btns');
       upSoc.innerHTML = ''; upSoc.appendChild(makeSocialBtns(true));
+      const upCap = document.getElementById('upload-captions');
+      upCap.innerHTML = ''; upCap.appendChild(makeVideoCaptions());
     } catch (e) {
       showError(e.message || 'Could not combine the clips.');
     } finally {
@@ -1200,6 +1273,8 @@
       };
       const vidSoc = document.getElementById('vid-social-btns');
       vidSoc.innerHTML = ''; vidSoc.appendChild(makeSocialBtns(true));
+      const vidCap = document.getElementById('vid-captions');
+      vidCap.innerHTML = ''; vidCap.appendChild(makeVideoCaptions());
     } catch (e) {
       showError(e.message || 'Could not create the video.');
     } finally {
@@ -1254,6 +1329,8 @@
       };
       const ofvSoc = document.getElementById('ofv-social-btns');
       ofvSoc.innerHTML = ''; ofvSoc.appendChild(makeSocialBtns(true));
+      const ofvCap = document.getElementById('ofv-captions');
+      ofvCap.innerHTML = ''; ofvCap.appendChild(makeVideoCaptions());
     } catch (e) {
       st.textContent = '⚠️ ' + (e.message || 'Could not create the video.');
     } finally {
