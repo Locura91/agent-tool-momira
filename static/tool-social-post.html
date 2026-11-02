@@ -320,16 +320,17 @@
 
       <!-- Music + render -->
       <div id="vid-render" style="display:none">
-        <div class="music-row">
-          <label for="music-select">🎵 Background music:</label>
-          <select id="music-select">
-            <option value="none">No music</option>
-          </select>
-          <span class="music-upload-link" id="music-upload-toggle" title="Add a new track">＋ Add track</span>
-        </div>
-        <div class="music-preview" id="music-preview-row" style="display:none">
-          <audio id="music-preview-player" controls preload="none"></audio>
-          <span class="music-desc" id="music-desc"></span>
+        <div style="margin-bottom:.6rem">
+          <div class="music-row" style="margin-bottom:.35rem">
+            <label for="music-select">🎵 Background music:</label>
+            <select id="music-select">
+              <option value="none">No music</option>
+            </select>
+            <button id="music-play-btn" title="Preview track" style="display:none;padding:.3rem .7rem;border:1px solid var(--border);border-radius:7px;font-size:.82rem;font-weight:700;cursor:pointer;background:var(--white);color:var(--brand)">▶ Play</button>
+            <span class="music-upload-link" id="music-upload-toggle" title="Add a new track">＋ Add track</span>
+          </div>
+          <div id="music-desc-line" style="font-size:.75rem;color:var(--muted);display:none;margin-bottom:.3rem"></div>
+          <audio id="music-preview-player" preload="none" style="display:none;width:100%;max-width:340px;height:32px;border-radius:6px;margin-top:.1rem"></audio>
         </div>
         <!-- Upload panel (hidden by default) -->
         <div id="music-upload-panel" style="display:none;background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:.9rem 1rem;margin-bottom:.9rem;font-size:.82rem">
@@ -398,27 +399,11 @@
     your proposal more emotional and shareable.
   </p>
 
-  <div style="display:flex;flex-wrap:wrap;gap:.7rem;align-items:center;margin-bottom:.9rem">
-    <!-- Format -->
-    <div>
-      <div style="font-size:.78rem;font-weight:600;margin-bottom:.3rem">Format</div>
-      <div style="display:flex;gap:.4rem">
-        <button class="vid-tab active" id="ofv-fmt-story"  onclick="setOfferFmt('story')">📱 Story / Reel</button>
-        <button class="vid-tab"        id="ofv-fmt-square" onclick="setOfferFmt('square')">⬛ Square</button>
-      </div>
-    </div>
-    <!-- Music -->
-    <div style="flex:1;min-width:160px">
-      <div style="font-size:.78rem;font-weight:600;margin-bottom:.3rem">🎵 Background music</div>
-      <select id="ofv-music" style="width:100%;padding:.38rem .6rem;border:1px solid var(--border);border-radius:7px;font-size:.82rem;background:#fff"></select>
-    </div>
+  <div style="display:flex;gap:.4rem;margin-bottom:1rem">
+    <button class="vid-tab active" id="ofv-fmt-story"  onclick="setOfferFmt('story')">📱 Story / Reel</button>
+    <button class="vid-tab"        id="ofv-fmt-square" onclick="setOfferFmt('square')">⬛ Square</button>
   </div>
-
-  <!-- Music preview for offer video -->
-  <div class="music-preview" id="ofv-music-preview" style="display:none;margin-bottom:.8rem">
-    <audio id="ofv-music-player" controls preload="none"></audio>
-    <span class="music-desc" id="ofv-music-desc"></span>
-  </div>
+  <p style="font-size:.8rem;color:var(--muted);margin-bottom:1rem">🎵 Music track is shared with the video section above — change it there.</p>
 
   <button class="btn-generate" id="ofv-create-btn" style="align-self:flex-start">
     ✨ Create offer video →
@@ -632,7 +617,6 @@
       document.getElementById('offer-video-section').style.display = 'block';
       document.getElementById('ofv-result').style.display = 'none';
       document.getElementById('ofv-status').textContent = '';
-      populateOfvMusic();
 
     } catch (e) {
       showError('Could not reach the server. Please try again.');
@@ -924,26 +908,45 @@
   loadMusicTracks();
 
   function updateMusicPreview() {
-    const sel = document.getElementById('music-select');
-    const id  = sel ? sel.value : 'none';
-    const row = document.getElementById('music-preview-row');
+    const sel    = document.getElementById('music-select');
+    const id     = sel ? sel.value : 'none';
     const player = document.getElementById('music-preview-player');
-    const desc   = document.getElementById('music-desc');
+    const desc   = document.getElementById('music-desc-line');
+    const btn    = document.getElementById('music-play-btn');
     const track  = musicTracks.find(t => t.id === id);
+    player.pause();
     if (!track || id === 'none' || !track.preview_url) {
-      row.style.display = 'none';
-      player.pause(); player.src = '';
+      player.src = ''; player.style.display = 'none';
+      desc.style.display = 'none'; btn.style.display = 'none';
       return;
     }
-    row.style.display = 'flex';
-    if (player.src !== location.origin + track.preview_url) {
-      player.src = track.preview_url;
-      player.load();
-    }
     desc.textContent = track.description || '';
+    desc.style.display = 'block';
+    btn.style.display = 'inline-block';
+    btn.textContent = '▶ Play';
+    if (player.src !== location.origin + track.preview_url) {
+      player.src = track.preview_url; player.load();
+    }
+    player.style.display = 'none'; // hidden until Play clicked
   }
 
   document.getElementById('music-select').addEventListener('change', updateMusicPreview);
+
+  document.getElementById('music-play-btn').addEventListener('click', () => {
+    const player = document.getElementById('music-preview-player');
+    const btn    = document.getElementById('music-play-btn');
+    if (player.paused) {
+      player.style.display = 'block';
+      player.play();
+      btn.textContent = '⏸ Pause';
+    } else {
+      player.pause();
+      btn.textContent = '▶ Play';
+    }
+  });
+  document.getElementById('music-preview-player').addEventListener('ended', () => {
+    document.getElementById('music-play-btn').textContent = '▶ Play';
+  });
 
   // Upload panel toggle
   document.getElementById('music-upload-toggle').addEventListener('click', () => {
@@ -1217,40 +1220,11 @@
     });
   }
 
-  function populateOfvMusic() {
-    const sel = document.getElementById('ofv-music');
-    sel.innerHTML = '';
-    musicTracks.forEach(t => {
-      const o = document.createElement('option');
-      o.value = t.id; o.textContent = t.label || t.id;
-      sel.appendChild(o);
-    });
-    updateOfvMusicPreview();
-  }
-
-  function updateOfvMusicPreview() {
-    const sel   = document.getElementById('ofv-music');
-    const id    = sel ? sel.value : 'none';
-    const row   = document.getElementById('ofv-music-preview');
-    const player= document.getElementById('ofv-music-player');
-    const desc  = document.getElementById('ofv-music-desc');
-    const track = musicTracks.find(t => t.id === id);
-    if (!track || id === 'none' || !track.preview_url) {
-      row.style.display = 'none'; player.pause(); player.src = ''; return;
-    }
-    row.style.display = 'flex';
-    if (player.src !== location.origin + track.preview_url) {
-      player.src = track.preview_url; player.load();
-    }
-    desc.textContent = track.description || '';
-  }
-  document.getElementById('ofv-music').addEventListener('change', updateOfvMusicPreview);
-
   document.getElementById('ofv-create-btn').addEventListener('click', async () => {
     if (!currentPkg) return;
     const btn   = document.getElementById('ofv-create-btn');
     const st    = document.getElementById('ofv-status');
-    const music = document.getElementById('ofv-music').value;
+    const music = (document.getElementById('music-select') || {}).value || 'none';
     btn.disabled = true;
     btn.textContent = 'Generating… (15–30s)';
     st.textContent  = '⏳ Fetching stock clips and rendering your offer video…';
