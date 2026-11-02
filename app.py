@@ -111,6 +111,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def add_security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
+
+
 # Serve the static frontend from /static → /
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -129,7 +139,7 @@ async def health():
 # --------------------------------------------------------------------------
 
 @app.get("/debug/tc")
-async def debug_tc(agent: Agent = Depends(current_agent)):
+async def debug_tc(agent: Agent = Depends(current_admin)):
     """
     Shows what TC credentials the app sees and whether authentication works.
     Safe to expose: the password is masked and no package data is returned.
@@ -326,7 +336,7 @@ async def get_package(
 @app.get("/debug/package/{package_id}")
 async def debug_package(
     package_id: str,
-    agent: Agent = Depends(current_agent),
+    agent: Agent = Depends(current_admin),
 ):
     """Returns the raw TC API response for a package so image field names can be inspected."""
     brand = engine.agent_brand(agent)
@@ -572,62 +582,6 @@ async def video_search(
         "format": format,
         "clips": [c.as_dict() for c in clips],
     }
-
-
-@app.get("/generate/{package_id}/video")
-async def generate_video(
-    package_id: str,
-    clip_id: int,
-    format: str = "story",
-    query: str | None = None,       # the UI echoes back the query it searched with
-    source: str | None = None,      # "pexels" or "pixabay" — which provider the clip came from
-    agent: Agent = Depends(current_agent),
-):
-    """
-    Render the branded MP4 for a chosen clip and return it as a download.
-
-    Heavy step (FFmpeg): kept short by a 7-second cap and a 720p source, and
-    run in a thread pool so it doesn't block the event loop.
-    """
-    if format not in sk.FORMATS:
-        raise HTTPException(status_code=400, detail=f"format must be one of {list(sk.FORMATS)}")
-    if not vk.ffmpeg_available():
-        raise HTTPException(status_code=503, detail="Video rendering is unavailable (FFmpeg not installed).")
-
-    brand = engine.agent_brand(agent)
-    try:
-        pack = sk.fetch(sk.TCClient(), package_id, brand)
-    except sk.TCError as e:
-        raise HTTPException(status_code=502, detail=str(e))
-
-    want_portrait = _video_portrait(format)
-    q = query or vk.search_query(pack)
-
-    try:
-        clip = vk.clip_by_id(q, want_portrait, clip_id, source=source)
-    except vk.VideoError as e:
-        raise HTTPException(status_code=502, detail=str(e))
-    if clip is None:
-        raise HTTPException(status_code=404, detail="That clip could not be found — search again and pick another.")
-
-    loop = asyncio.get_running_loop()
-
-    def _work() -> bytes:
-        overlay = engine.render_video_overlay_for_agent(pack, agent, format)
-        overlay_png = sk.overlay_to_png_bytes(overlay)
-        return vk.render_video(clip, overlay_png, format)
-
-    try:
-        mp4_bytes = await loop.run_in_executor(None, _work)
-    except vk.VideoError as e:
-        raise HTTPException(status_code=502, detail=str(e))
-
-    filename = _download_name(pack, agent, "mp4")
-    return Response(
-        content=mp4_bytes,
-        media_type="video/mp4",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
 
 
 # --------------------------------------------------------------------------
@@ -1660,6 +1614,9 @@ async def submit_registration(
     nationality: str = Form(""),
     # Per-passenger data (JSON blob built on the client side)
     passengers_json: str = Form("[]"),
+    # Math CAPTCHA — expected answer and user's answer are both submitted
+    captcha_expected: str = Form(""),
+    captcha_answer: str = Form(""),
     db: AsyncSession = Depends(get_db),
 ):
     import json as _json
@@ -1667,6 +1624,13 @@ async def submit_registration(
     agent = result.scalar_one_or_none()
     if not agent or not agent.is_active:
         raise HTTPException(status_code=404, detail="Link not found")
+
+    # Math CAPTCHA check — answer must match expected (both are plain integers)
+    try:
+        if int(captcha_answer.strip()) != int(captcha_expected.strip()):
+            raise HTTPException(status_code=400, detail="Captcha answer is incorrect. Please go back and try again.")
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Captcha answer is missing or invalid.")
 
     # Fetch package title for the email
     try:
@@ -2093,7 +2057,6 @@ async def get_package_info(
     except sk.TCError as e:
         raise HTTPException(status_code=502, detail=str(e))
     dep_dates = pack.departures or []
-    first_dep = dep_dates[0] if dep_dates else None
     return {
         "id": pack.id,
         "title": pack.title,

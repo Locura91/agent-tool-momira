@@ -330,6 +330,19 @@ TEMPLATE = """<!doctype html>
         <span class="tc-err" id="e-tc-accuracy">Please confirm the details are accurate.</span>
       </div>
 
+      <!-- Math CAPTCHA -->
+      <div style="padding:1rem 1.2rem;border-top:1px solid var(--border)">
+        <div style="font-size:.78rem;font-weight:700;color:var(--muted);margin-bottom:.5rem;text-transform:uppercase;letter-spacing:.06em">Quick check</div>
+        <div style="display:flex;align-items:center;gap:.7rem;flex-wrap:wrap">
+          <span id="captcha-question" style="font-size:1rem;font-weight:700;color:var(--ink)"></span>
+          <span style="color:var(--muted)">=</span>
+          <input type="number" id="captcha-input" name="captcha_answer" placeholder="?" autocomplete="off"
+                 style="width:80px;border:1.5px solid var(--border);border-radius:8px;padding:.5rem .7rem;font-size:1rem;text-align:center">
+          <input type="hidden" name="captcha_expected" id="captcha-expected">
+        </div>
+        <span id="e-captcha" class="ferr" style="display:none;color:#dc2626;font-size:.78rem;margin-top:.3rem">Please answer the question correctly.</span>
+      </div>
+
       <div class="submit-wrap">
         <button type="submit" class="btn-submit" id="submit-btn">
           ✈️ Submit reservation request
@@ -520,11 +533,20 @@ TEMPLATE = """<!doctype html>
       </div>`;
   }
 
+  /* ── Math CAPTCHA ── */
+  (function(){
+    const a = Math.floor(Math.random()*20)+1;
+    const b = Math.floor(Math.random()*20)+1;
+    document.getElementById('captcha-question').textContent = a + ' + ' + b;
+    document.getElementById('captcha-expected').value = a + b;
+  })();
+
   /* ── Validation & submit ── */
   function clearErrs(){
     document.querySelectorAll('.ferr,.tc-err').forEach(e=>e.classList.remove('show'));
     document.querySelectorAll('input.err,select.err').forEach(e=>e.classList.remove('err'));
     document.getElementById('err-banner').classList.remove('show');
+    document.getElementById('e-captcha').style.display='none';
   }
   function markErr(id, errId){
     const i=document.getElementById(id), e=document.getElementById(errId);
@@ -566,6 +588,12 @@ TEMPLATE = """<!doctype html>
         document.getElementById('e-'+id).classList.add('show'); ok=false;
       }
     });
+
+    const captchaInput = parseInt(document.getElementById('captcha-input').value,10);
+    const captchaExpected = parseInt(document.getElementById('captcha-expected').value,10);
+    if(isNaN(captchaInput)||captchaInput!==captchaExpected){
+      document.getElementById('e-captcha').style.display='block'; ok=false;
+    }
 
     if(!ok){
       const b=document.getElementById('err-banner');
