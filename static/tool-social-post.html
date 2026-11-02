@@ -169,6 +169,21 @@
     .music-upload-link { font-size: .75rem; color: var(--brand); text-decoration: underline; cursor: pointer; margin-left: auto; }
     .vid-render { display: flex; flex-direction: column; gap: .5rem; }
     .vid-note { font-size: .78rem; color: var(--muted); }
+
+    /* Social share buttons row */
+    .social-share-row { display: flex; gap: .4rem; flex-wrap: wrap; margin-top: .55rem; }
+    .soc-btn {
+      display: inline-flex; align-items: center; gap: .3rem;
+      padding: .35rem .75rem; border-radius: 7px; font-size: .78rem; font-weight: 600;
+      text-decoration: none; cursor: pointer; border: none; transition: opacity .15s;
+      white-space: nowrap;
+    }
+    .soc-btn:hover { opacity: .82; }
+    .soc-wa  { background: #25d366; color: #fff; }
+    .soc-ig  { background: linear-gradient(135deg,#f58529,#dd2a7b,#8134af); color: #fff; }
+    .soc-fb  { background: #1877f2; color: #fff; }
+    .soc-tt  { background: #010101; color: #fff; }
+    .soc-hint { font-size: .7rem; color: var(--muted); margin-top: .25rem; width: 100%; }
   </style>
 </head>
 <body>
@@ -338,7 +353,8 @@
         <button class="btn-generate" id="vid-create-btn" style="align-self:flex-start">Create video →</button>
         <div class="vid-result" id="vid-result" style="display:none">
           <video id="vid-player" controls playsinline style="width:100%;max-width:380px;border-radius:12px;background:#000;display:block;margin:1rem 0;"></video>
-          <button class="btn-sm btn-dl" id="vid-dl-btn">⬇ Download video</button>
+          <button class="btn-sm btn-dl" id="vid-dl-btn" style="max-width:220px">⬇ Download video</button>
+          <div id="vid-social-btns"></div>
         </div>
       </div>
     </div>
@@ -366,7 +382,8 @@
       <button class="btn-generate" id="upload-combine-btn" disabled style="align-self:flex-start;margin-bottom:.75rem">Combine 3 clips →</button>
       <div id="upload-result" style="display:none">
         <video id="upload-player" controls playsinline style="width:100%;max-width:380px;border-radius:12px;background:#000;display:block;margin:1rem 0;"></video>
-        <button class="btn-sm btn-dl" id="upload-dl-btn">⬇ Download combined video</button>
+        <button class="btn-sm btn-dl" id="upload-dl-btn" style="max-width:240px">⬇ Download combined video</button>
+        <div id="upload-social-btns"></div>
       </div>
     </div>
   </div>
@@ -410,7 +427,8 @@
   <div id="ofv-result" style="display:none;margin-top:1rem">
     <video id="ofv-player" controls playsinline
            style="width:100%;max-width:380px;border-radius:12px;background:#000;display:block;margin-bottom:.6rem"></video>
-    <button class="btn-sm btn-dl" id="ofv-dl-btn">⬇ Download offer video</button>
+    <button class="btn-sm btn-dl" id="ofv-dl-btn" style="max-width:220px">⬇ Download offer video</button>
+    <div id="ofv-social-btns"></div>
   </div>
   <div id="ofv-status" style="font-size:.82rem;color:var(--muted);margin-top:.5rem"></div>
 </div>
@@ -678,7 +696,10 @@
 
       const actions = document.createElement('div');
       actions.className = 'format-actions';
+      actions.style.flexDirection = 'column';
+      actions.style.padding = '.6rem 1rem .9rem';
       actions.appendChild(dlBtn);
+      actions.appendChild(makeSocialBtns(false));
 
       const labelEl = document.createElement('div');
       labelEl.className = 'format-label';
@@ -699,6 +720,48 @@
         spinnerEl.textContent = '⚠️';
       });
     });
+  }
+
+  function makeSocialBtns(isVideo) {
+    const title = currentPkg ? currentPkg.title : '';
+    const msg = encodeURIComponent('Check out this travel offer: ' + title);
+    const wrap = document.createElement('div');
+    wrap.className = 'social-share-row';
+
+    const wa = document.createElement('a');
+    wa.href = 'https://wa.me/?text=' + msg;
+    wa.target = '_blank'; wa.rel = 'noopener';
+    wa.className = 'soc-btn soc-wa';
+    wa.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.121.555 4.112 1.524 5.836L0 24l6.336-1.508A11.933 11.933 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 01-5.013-1.374l-.36-.213-3.724.886.918-3.618-.236-.372A9.79 9.79 0 012.182 12C2.182 6.57 6.57 2.182 12 2.182S21.818 6.57 21.818 12 17.43 21.818 12 21.818z"/></svg> WhatsApp';
+
+    const ig = document.createElement('a');
+    ig.href = 'https://www.instagram.com/';
+    ig.target = '_blank'; ig.rel = 'noopener';
+    ig.className = 'soc-btn soc-ig';
+    ig.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg> Instagram';
+
+    const fb = document.createElement('a');
+    fb.href = 'https://www.facebook.com/';
+    fb.target = '_blank'; fb.rel = 'noopener';
+    fb.className = 'soc-btn soc-fb';
+    fb.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg> Facebook';
+
+    const tt = document.createElement('a');
+    tt.href = 'https://www.tiktok.com/';
+    tt.target = '_blank'; tt.rel = 'noopener';
+    tt.className = 'soc-btn soc-tt';
+    tt.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.73a8.18 8.18 0 004.78 1.52V6.79a4.85 4.85 0 01-1.01-.1z"/></svg> TikTok';
+
+    const hint = document.createElement('div');
+    hint.className = 'soc-hint';
+    hint.textContent = isVideo ? 'Download the video first, then upload directly in the app.' : 'Download the image first, then upload directly in the app.';
+
+    wrap.appendChild(wa);
+    wrap.appendChild(ig);
+    wrap.appendChild(fb);
+    wrap.appendChild(tt);
+    wrap.appendChild(hint);
+    return wrap;
   }
 
   function packageTitleSlug() {
@@ -829,6 +892,8 @@
         const a = document.createElement('a'); a.href = _uploadBlobUrl;
         a.download = `${packageTitleSlug()}-${agencySlug}-combined.mp4`; a.click();
       };
+      const upSoc = document.getElementById('upload-social-btns');
+      upSoc.innerHTML = ''; upSoc.appendChild(makeSocialBtns(true));
     } catch (e) {
       showError(e.message || 'Could not combine the clips.');
     } finally {
@@ -1130,6 +1195,8 @@
         a.download = `${packageTitleSlug()}-${agencySlug}.mp4`;
         a.click();
       };
+      const vidSoc = document.getElementById('vid-social-btns');
+      vidSoc.innerHTML = ''; vidSoc.appendChild(makeSocialBtns(true));
     } catch (e) {
       showError(e.message || 'Could not create the video.');
     } finally {
@@ -1211,6 +1278,8 @@
         a.download = `offer-${pkgId}.mp4`;
         a.click();
       };
+      const ofvSoc = document.getElementById('ofv-social-btns');
+      ofvSoc.innerHTML = ''; ofvSoc.appendChild(makeSocialBtns(true));
     } catch (e) {
       st.textContent = '⚠️ ' + (e.message || 'Could not create the video.');
     } finally {
