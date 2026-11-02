@@ -75,7 +75,10 @@ async def _get_pack(package_id: str, brand: sk.Brand) -> sk.Package:
     cached = _cache_get(key)
     if cached:
         return cached
-    pack = await _get_pack(package_id, brand)
+    try:
+        pack = sk.fetch(sk.TCClient(), package_id, brand)
+    except sk.TCError as e:
+        raise HTTPException(status_code=502, detail=str(e))
     _cache_put(key, pack)
     return pack
 
