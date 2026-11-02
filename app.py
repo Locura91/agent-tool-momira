@@ -23,6 +23,9 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import time
+import threading
+
 import social_kit as sk
 import kit_engine as engine
 import r2_upload
@@ -31,6 +34,50 @@ import video_kit as vk
 import mailer
 import tc_sync
 import re as _re
+
+
+# --------------------------------------------------------------------------
+# TC package cache — 10-minute in-process LRU, keyed by (package_id, lang)
+# --------------------------------------------------------------------------
+
+_PKG_CACHE: dict[tuple[str, str], tuple[sk.Package, float]] = {}
+_PKG_CACHE_TTL = 600          # seconds
+_PKG_CACHE_MAX = 200          # entries
+_PKG_CACHE_LOCK = threading.Lock()
+
+
+def _cache_get(key: tuple) -> sk.Package | None:
+    with _PKG_CACHE_LOCK:
+        entry = _PKG_CACHE.get(key)
+        if entry and (time.time() - entry[1]) < _PKG_CACHE_TTL:
+            return entry[0]
+        if entry:
+            del _PKG_CACHE[key]
+    return None
+
+
+def _cache_put(key: tuple, pack: sk.Package) -> None:
+    with _PKG_CACHE_LOCK:
+        if len(_PKG_CACHE) >= _PKG_CACHE_MAX:
+            # evict oldest entry
+            oldest = min(_PKG_CACHE, key=lambda k: _PKG_CACHE[k][1])
+            del _PKG_CACHE[oldest]
+        _PKG_CACHE[key] = (pack, time.time())
+
+
+async def _get_pack(package_id: str, brand: sk.Brand) -> sk.Package:
+    """
+    Fetch a Package from TC, using a 10-minute in-process cache.
+    Raises HTTPException(502) on TC errors so callers stay one-liners.
+    """
+    lang = brand.tc_lang if brand else "EN"
+    key = (str(package_id), lang)
+    cached = _cache_get(key)
+    if cached:
+        return cached
+    pack = await _get_pack(package_id, brand)
+    _cache_put(key, pack)
+    return pack
 
 
 def _dl_slug(s: str, fallback: str = "momira-travel") -> str:
@@ -311,10 +358,7 @@ async def get_package(
     agent: Agent = Depends(current_agent),
 ):
     brand = engine.agent_brand(agent)
-    try:
-        pack = sk.fetch(sk.TCClient(), package_id, brand)
-    except sk.TCError as e:
-        raise HTTPException(status_code=502, detail=str(e))
+    pack = await _get_pack(package_id, brand)
 
     return {
         "id": pack.id,
@@ -416,10 +460,7 @@ async def generate_captions(
     agent: Agent = Depends(current_agent),
 ):
     brand = engine.agent_brand(agent)
-    try:
-        pack = sk.fetch(sk.TCClient(), package_id, brand)
-    except sk.TCError as e:
-        raise HTTPException(status_code=502, detail=str(e))
+    pack = await _get_pack(package_id, brand)
 
     # If the agent pasted a full package link, the captions should carry that
     # exact link so a reader lands on the package — not the bare homepage.
@@ -461,10 +502,7 @@ async def generate_image(
 
     brand = engine.agent_brand(agent)
 
-    try:
-        pack = sk.fetch(sk.TCClient(), package_id, brand)
-    except sk.TCError as e:
-        raise HTTPException(status_code=502, detail=str(e))
+    pack = await _get_pack(package_id, brand)
 
     if not pack.gallery:
         raise HTTPException(
@@ -523,10 +561,7 @@ async def generate_flyer(
     if style not in ("a", "b", "c"):
         style = "a"
     brand = engine.agent_brand(agent)
-    try:
-        pack = sk.fetch(sk.TCClient(), package_id, brand)
-    except sk.TCError as e:
-        raise HTTPException(status_code=502, detail=str(e))
+    pack = await _get_pack(package_id, brand)
 
     # render_flyer now embeds images (several blocking fetches), so run it off
     # the event loop.
@@ -564,10 +599,7 @@ async def video_search(
         raise HTTPException(status_code=400, detail=f"format must be one of {list(sk.FORMATS)}")
 
     brand = engine.agent_brand(agent)
-    try:
-        pack = sk.fetch(sk.TCClient(), package_id, brand)
-    except sk.TCError as e:
-        raise HTTPException(status_code=502, detail=str(e))
+    pack = await _get_pack(package_id, brand)
 
     q = (query or "").strip() or vk.search_query(pack)
     want_portrait = _video_portrait(format)
@@ -679,10 +711,7 @@ async def generate_video_multi(
         raise HTTPException(status_code=400, detail="clip_ids must be integers.")
 
     brand = engine.agent_brand(agent)
-    try:
-        pack = sk.fetch(sk.TCClient(), package_id, brand)
-    except sk.TCError as e:
-        raise HTTPException(status_code=502, detail=str(e))
+    pack = await _get_pack(package_id, brand)
 
     want_portrait = _video_portrait(format)
     q = query or vk.search_query(pack)
@@ -751,10 +780,7 @@ async def generate_offer_video(
         raise HTTPException(status_code=503, detail="Video rendering is unavailable (FFmpeg not installed).")
 
     brand = engine.agent_brand(agent)
-    try:
-        pack = sk.fetch(sk.TCClient(), package_id, brand)
-    except sk.TCError as e:
-        raise HTTPException(status_code=502, detail=str(e))
+    pack = await _get_pack(package_id, brand)
 
     want_portrait = _video_portrait(format)
     q = vk.search_query(pack)
@@ -1632,14 +1658,11 @@ async def submit_registration(
     except (ValueError, TypeError):
         raise HTTPException(status_code=400, detail="Captcha answer is missing or invalid.")
 
-    # Fetch package title for the email
+    # Fetch package info (uses shared cache — no repeated TC round-trips)
     try:
-        tc_user = os.getenv("TC_USERNAME") or os.getenv("TRAVELC_USERNAME", "")
-        tc_pass = os.getenv("TC_PASSWORD") or os.getenv("TRAVELC_PASSWORD", "")
-        tc_micro = os.getenv("TC_MICROSITE") or os.getenv("TRAVELC_MICROSITE_ID", "momiratravel")
-        tc_base = os.getenv("TC_BASE_URL") or os.getenv("TRAVELC_BASE_URL", "https://online.travelcompositor.com/resources")
-        pack = sk.fetch_package(package_id, tc_user, tc_pass, tc_micro, tc_base, lang="EN")
-        pkg_title = pack.title
+        _reg_brand = engine.agent_brand(agent)
+        _reg_pack = await _get_pack(package_id, _reg_brand)
+        pkg_title = _reg_pack.title
     except Exception:
         pkg_title = f"Holiday Package {package_id}"
 
@@ -1672,7 +1695,7 @@ async def submit_registration(
     db.add(reg)
     await db.commit()
 
-    # Send email (best-effort — DB row is already saved)
+    # Send emails (best-effort — DB row is already saved)
     agency_email = agent.agency_email or agent.email
     try:
         mailer.send_registration_email(
@@ -1689,7 +1712,20 @@ async def submit_registration(
             address=f"{street} {house_number}, {postal_code} {city}, {country_of_residence}".strip(", "),
         )
     except Exception as exc:
-        print(f"[mailer] send failed: {exc}")
+        print(f"[mailer] agency send failed: {exc}")
+
+    # Confirmation email to the traveller
+    consumer_first = primary.get("full_name", "").split()[0] if primary.get("full_name") else "there"
+    try:
+        mailer.send_registration_confirmation(
+            to_email=email.strip(),
+            first_name=consumer_first,
+            package_title=pkg_title,
+            agency_name=agent.agency_name or "",
+            agency_email=agency_email,
+        )
+    except Exception as exc:
+        print(f"[mailer] confirmation send failed: {exc}")
 
     return HTMLResponse(content=_thank_you_html(pkg_title, agent.agency_name or ""), status_code=200)
 
@@ -2052,10 +2088,7 @@ async def get_package_info(
 ):
     """Return lightweight package metadata for the offer tool preview."""
     brand = engine.agent_brand(agent)
-    try:
-        pack = sk.fetch(sk.TCClient(), package_id, brand)
-    except sk.TCError as e:
-        raise HTTPException(status_code=502, detail=str(e))
+    pack = await _get_pack(package_id, brand)
     dep_dates = pack.departures or []
     return {
         "id": pack.id,

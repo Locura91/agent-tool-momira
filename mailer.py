@@ -130,6 +130,57 @@ This registration was submitted through your shareable booking link.
     _smtp_send(msg)
 
 
+def send_registration_confirmation(
+    *,
+    to_email: str,
+    first_name: str,
+    package_title: str,
+    agency_name: str,
+    agency_email: str,
+) -> None:
+    """
+    Confirmation email sent to the traveller after they submit a registration.
+    Best-effort — failure is logged but does not affect the DB record.
+    """
+    has_resend = bool(_cfg("RESEND_API_KEY") and _requests is not None)
+    has_smtp   = bool(_cfg("SMTP_HOST") and _cfg("SMTP_USER") and _cfg("SMTP_PASS"))
+    if not has_resend and not has_smtp:
+        print("[mailer] No email provider configured — confirmation email skipped")
+        return
+
+    from_addr = _cfg("SMTP_FROM") or _cfg("EMAIL_FROM") or _cfg("SMTP_USER") or "noreply@momira.travel"
+    subject   = f"Your reservation request — {package_title}"
+
+    html_body = f"""\
+<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#111827;max-width:560px;margin:0 auto;padding:24px;">
+<p>Dear {first_name},</p>
+<p>Thank you for submitting your reservation request for <strong>{package_title}</strong>.</p>
+<p>Your travel agent at <strong>{agency_name}</strong> has received your details and will be in touch shortly to confirm your booking.</p>
+<p>If you have any questions in the meantime, feel free to reply to this email or contact us at <a href="mailto:{agency_email}" style="color:#17a39b;">{agency_email}</a>.</p>
+<p style="margin-top:1.5rem">We look forward to making your journey unforgettable!<br><strong>The {agency_name} Team</strong></p>
+<hr style="border:none;border-top:1px solid #e5e7eb;margin:2rem 0">
+<p style="font-size:.75rem;color:#9ca3af">This is an automated confirmation. Your request is not yet a confirmed booking.</p>
+</body></html>"""
+
+    text_body = f"""\
+Dear {first_name},
+
+Thank you for submitting your reservation request for {package_title}.
+
+Your travel agent at {agency_name} has received your details and will be in touch shortly to confirm your booking.
+
+If you have any questions, contact us at {agency_email}.
+
+We look forward to making your journey unforgettable!
+The {agency_name} Team
+
+---
+This is an automated confirmation. Your request is not yet a confirmed booking.
+"""
+    _send(subject=subject, to_email=to_email, html_body=html_body,
+          text_body=text_body, from_addr=from_addr)
+
+
 def send_feedback_email(
     *,
     to_email: str,
