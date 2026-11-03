@@ -1698,10 +1698,11 @@ async def submit_registration(
     db.add(reg)
     await db.commit()
 
-    # Send emails (best-effort — DB row is already saved)
+    # Send emails in thread pool — smtplib is blocking, must not run on the event loop
     agency_email = agent.agency_email or agent.email
+    _loop = asyncio.get_running_loop()
     try:
-        mailer.send_registration_email(
+        await _loop.run_in_executor(None, lambda: mailer.send_registration_email(
             to_email=agency_email,
             agency_name=agent.agency_name or "",
             package_id=package_id,
@@ -1713,20 +1714,19 @@ async def submit_registration(
             nationality=nationality,
             passengers=passengers,
             address=f"{street} {house_number}, {postal_code} {city}, {country_of_residence}".strip(", "),
-        )
+        ))
     except Exception as exc:
         print(f"[mailer] agency send failed: {exc}")
 
-    # Confirmation email to the traveller
     consumer_first = primary.get("full_name", "").split()[0] if primary.get("full_name") else "there"
     try:
-        mailer.send_registration_confirmation(
+        await _loop.run_in_executor(None, lambda: mailer.send_registration_confirmation(
             to_email=email.strip(),
             first_name=consumer_first,
             package_title=pkg_title,
             agency_name=agent.agency_name or "",
             agency_email=agency_email,
-        )
+        ))
     except Exception as exc:
         print(f"[mailer] confirmation send failed: {exc}")
 
@@ -1983,7 +1983,8 @@ async def send_feedback(
 
     try:
         cc = None if is_test else (agent.agency_email or agent.email or "info@momira.de")
-        mailer.send_feedback_email(
+        _loop = asyncio.get_running_loop()
+        await _loop.run_in_executor(None, lambda: mailer.send_feedback_email(
             to_email=to_email,
             first_name=booking.first_name,
             package_title=booking.package_title or booking.package_id or "",
@@ -1993,7 +1994,7 @@ async def send_feedback(
             platforms=platform_list,
             lang=lang,
             agent_email=cc,
-        )
+        ))
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Email send failed: {exc}")
 
