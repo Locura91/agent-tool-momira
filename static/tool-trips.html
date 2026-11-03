@@ -418,8 +418,8 @@
     try {
       const r = await fetch('/api/bookings/' + id + '/send-feedback', { method: 'POST', headers, body: fd });
       if (!r.ok) {
-        const d = await r.json();
-        throw new Error(d.detail || 'Failed');
+        const d = await r.json().catch(() => ({}));
+        throw new Error(d.detail || `Server error ${r.status}`);
       }
       btn.textContent = '✓ Sent';
       btn.style.background = '#6b7280';
