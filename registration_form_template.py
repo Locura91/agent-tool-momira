@@ -5,184 +5,187 @@ TEMPLATE = """<!doctype html>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{PKG_TITLE}} — {{AGENCY_NAME}}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     :root{
-      --brand:#17a39b;--brand-dark:#128a81;--brand-light:#e6f7f6;
-      --ink:#111827;--muted:#6b7280;--border:#e5e7eb;
-      --bg:#f5f6f8;--white:#fff;--red:#dc2626;
+      --brand:#0d9488;--brand-dark:#0f766e;--brand-light:#f0fdfa;
+      --ink:#1e293b;--muted:#64748b;--subtle:#94a3b8;
+      --border:#e2e8f0;--bg:#f8fafc;--white:#fff;--red:#dc2626;
     }
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-      background:var(--bg);color:var(--ink);min-height:100vh}
+    body{font-family:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+      background:var(--bg);color:var(--ink);min-height:100vh;
+      -webkit-font-smoothing:antialiased}
 
-    /* ── Top bar ── */
-    .topbar{background:var(--brand);padding:.4rem 1.2rem;
+    /* ── Topbar ── */
+    .topbar{background:var(--white);padding:.6rem 1.2rem;
       display:flex;align-items:center;justify-content:space-between;
-      font-size:.72rem;font-weight:700;color:rgba(255,255,255,.9);
-      text-transform:uppercase;letter-spacing:.06em}
-    .topbar-logo{height:28px;max-width:120px;object-fit:contain;filter:brightness(0) invert(1)}
-    .topbar-name{color:#fff;font-size:.72rem;font-weight:700}
+      border-bottom:1px solid var(--border)}
+    .topbar-logo{height:28px;max-width:120px;object-fit:contain}
+    .topbar-name{color:var(--ink);font-size:.78rem;font-weight:700;letter-spacing:.02em}
 
     /* ── Hero ── */
-    .hero{background:var(--white);border-bottom:1px solid var(--border)}
-    .hero-img{width:100%;height:240px;object-fit:cover;display:block}
-    .hero-img-placeholder{width:100%;height:200px;
-      background:linear-gradient(135deg,var(--brand-light) 0%,var(--brand) 100%);
-      display:flex;align-items:center;justify-content:center;font-size:3.5rem}
-    .hero-body{padding:1.2rem 1.4rem 1.1rem}
-    .hero h1{font-size:1.45rem;font-weight:800;line-height:1.25;
-      color:var(--ink);margin-bottom:.6rem}
-
-    .meta-strip{display:flex;flex-wrap:wrap;gap:.4rem .8rem;
-      font-size:.8rem;color:var(--muted);margin-bottom:.75rem;align-items:center}
-    .meta-strip strong{color:var(--ink)}
-    .meta-pill{background:var(--brand-light);color:var(--brand);
-      font-weight:700;font-size:.72rem;padding:.2rem .6rem;
-      border-radius:20px;white-space:nowrap}
-
-    .route-strip{display:flex;flex-wrap:wrap;align-items:center;
-      gap:.25rem .1rem;margin-bottom:.8rem;font-size:.8rem}
-    .route-chip{background:#f3f4f6;color:var(--ink);font-weight:600;
-      font-size:.74rem;padding:.22rem .6rem;border-radius:20px}
-    .route-arrow{color:var(--muted);font-size:.75rem;padding:0 .1rem}
-
-    .dep-row{font-size:.77rem;color:var(--muted);margin-bottom:.8rem;
-      display:flex;flex-wrap:wrap;gap:.3rem;align-items:center}
-    .dep-chip{background:#fef3c7;color:#92400e;font-weight:700;
-      font-size:.72rem;padding:.2rem .6rem;border-radius:20px}
-
-    .price-block{display:flex;align-items:baseline;gap:.35rem;margin-bottom:.7rem}
-    .price-from{font-size:.8rem;color:var(--muted)}
-    .price-amount{font-size:1.8rem;font-weight:900;color:var(--ink);line-height:1}
-    .price-unit{font-size:.8rem;color:var(--muted)}
-
-    .pkg-desc{font-size:.82rem;color:var(--muted);line-height:1.65;
-      border-top:1px solid var(--border);padding-top:.8rem;margin-top:.4rem}
+    .hero{position:relative;width:100%;height:420px;overflow:hidden;background:#1e293b}
+    .hero-img{width:100%;height:100%;object-fit:cover;display:block}
+    .hero-ph{width:100%;height:100%;
+      background:linear-gradient(135deg,#0f766e 0%,#134e4a 100%)}
+    .hero-overlay{position:absolute;inset:0;
+      background:linear-gradient(0deg,rgba(15,23,42,.82) 0%,rgba(15,23,42,.3) 55%,transparent 100%);
+      display:flex;flex-direction:column;justify-content:flex-end;
+      padding:2rem 1.5rem}
+    .hero-label{font-size:.65rem;font-weight:600;letter-spacing:.12em;
+      text-transform:uppercase;color:rgba(255,255,255,.7);margin-bottom:.5rem}
+    .hero h1{font-size:1.65rem;font-weight:800;line-height:1.2;color:#fff;
+      margin-bottom:.6rem}
+    .hero-route{display:flex;flex-wrap:wrap;align-items:center;gap:.15rem;
+      margin-bottom:.8rem}
+    .route-chip{color:rgba(255,255,255,.85);font-weight:600;font-size:.78rem}
+    .route-arrow{color:rgba(255,255,255,.45);font-size:.72rem;padding:0 .25rem}
+    .hero-details{display:flex;flex-wrap:wrap;gap:.6rem .4rem;align-items:center}
+    .hero-tag{font-size:.72rem;font-weight:600;color:rgba(255,255,255,.8);
+      padding:.25rem .65rem;border:1px solid rgba(255,255,255,.2);
+      border-radius:4px;background:rgba(255,255,255,.08)}
+    .hero-price-tag{color:#fff;font-weight:800;font-size:.82rem;
+      background:var(--brand);border-color:var(--brand);border-radius:4px;
+      padding:.25rem .7rem}
 
     /* ── Page ── */
-    .page{max-width:720px;margin:0 auto;padding:1.2rem 1rem 3rem}
+    .page{max-width:680px;margin:0 auto;padding:1.5rem 1rem 3rem}
 
     /* ── Section heading ── */
-    .section-head{font-size:1rem;font-weight:800;color:var(--ink);
-      margin:1.5rem 0 .9rem;padding-bottom:.4rem;
-      border-bottom:2px solid var(--brand)}
+    .sec-title{font-size:.92rem;font-weight:700;color:var(--ink);
+      margin:2rem 0 .8rem;padding-bottom:.5rem;
+      border-bottom:1px solid var(--border);letter-spacing:.01em}
 
-    /* ── Itinerary timeline ── */
+    /* ── Highlights ── */
+    .highlights{display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:1.5rem}
+    .hl-card{background:var(--white);border:1px solid var(--border);
+      border-radius:6px;padding:.5rem .75rem}
+    .hl-val{font-size:.78rem;font-weight:600;color:var(--ink)}
+
+    /* ── Description ── */
+    .pkg-desc{font-size:.84rem;color:var(--muted);line-height:1.75;margin-bottom:1.5rem}
+
+    /* ── Departure ── */
+    .dep-block{background:var(--brand-light);border:1px solid #99f6e4;
+      border-radius:8px;padding:.85rem 1.1rem;margin-bottom:1.5rem;
+      display:flex;align-items:center;gap:.8rem}
+    .dep-label{font-size:.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;
+      letter-spacing:.06em}
+    .dep-date{font-size:.95rem;font-weight:700;color:var(--ink);margin-top:.1rem}
+
+    /* ── Hotel cards ── */
+    .hotel-grid{display:flex;flex-direction:column;gap:.75rem;margin-bottom:.5rem}
+    .hotel-card{display:flex;background:var(--white);border:1px solid var(--border);
+      border-radius:8px;overflow:hidden}
+    .hc-img{width:160px;min-height:130px;object-fit:cover;flex-shrink:0}
+    .hc-img-ph{width:160px;min-height:130px;background:#e2e8f0;flex-shrink:0}
+    .hc-body{padding:.75rem 1rem;flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center}
+    .hc-name{font-size:.88rem;font-weight:700;color:var(--ink);line-height:1.3;margin-bottom:.15rem}
+    .hc-stars{color:#d97706;font-size:.75rem;letter-spacing:.5px;margin-bottom:.3rem}
+    .hc-chips{display:flex;flex-wrap:wrap;gap:.3rem}
+    .hc-chip{font-size:.68rem;padding:.15rem .45rem;border-radius:3px;font-weight:500;
+      background:#f1f5f9;color:var(--muted)}
+
+    /* ── Timeline ── */
     .timeline{display:flex;flex-direction:column;gap:0}
-    .tl-row{display:flex;gap:0;position:relative;padding-bottom:1.1rem}
+    .tl-row{display:flex;gap:0;position:relative;padding-bottom:.85rem}
     .tl-row:not(:last-child)::before{
-      content:'';position:absolute;
-      left:30px;top:54px;
-      width:2px;bottom:0;background:var(--border);z-index:0}
-
-    /* Date badge column */
-    .tl-left{width:62px;flex-shrink:0;display:flex;flex-direction:column;
-      align-items:center;padding-top:4px;position:relative;z-index:1}
-    .tl-date-badge{
-      width:44px;height:44px;border-radius:8px;
-      background:var(--white);border:1.5px solid var(--border);
-      display:flex;flex-direction:column;align-items:center;justify-content:center;
-      line-height:1}
-    .tl-date-day{font-size:.95rem;font-weight:800;color:var(--ink);line-height:1}
-    .tl-date-mon{font-size:.55rem;font-weight:700;text-transform:uppercase;
-      color:var(--muted);letter-spacing:.04em;margin-top:.15rem}
-    .tl-no-date{width:44px;height:44px;border-radius:8px;
-      background:var(--bg);border:1.5px dashed var(--border);
-      display:flex;align-items:center;justify-content:center;
-      font-size:1rem;color:var(--muted)}
-
-    /* Body column */
-    .tl-body{flex:1;min-width:0;padding:.0rem 0 0 .9rem;
-      background:var(--white);border:1px solid var(--border);
-      border-radius:10px;padding:0.7rem 0.9rem;margin-left:.7rem;
-      box-shadow:0 1px 3px rgba(0,0,0,.04)}
-    .tl-type{font-size:.6rem;font-weight:800;text-transform:uppercase;
-      letter-spacing:.09em;color:var(--brand);margin-bottom:.25rem}
-    .tl-title{font-size:.92rem;font-weight:700;color:var(--ink);margin-bottom:.2rem;line-height:1.3}
-    .tl-stars{color:#f59e0b;font-size:.82rem;letter-spacing:1px;margin-bottom:.25rem}
-    .tl-detail{font-size:.78rem;color:var(--muted);margin-bottom:.25rem;line-height:1.4}
-    .tl-chips{display:flex;flex-wrap:wrap;gap:.3rem;margin-top:.3rem}
-    .chip{font-size:.67rem;padding:.18rem .55rem;border-radius:4px;font-weight:600;line-height:1.4}
-    .chip-board      {background:#dcfce7;color:#166534}
-    .chip-nights     {background:#fef3c7;color:#92400e}
-    .chip-luggage    {background:#dbeafe;color:#1d4ed8}
-    .chip-time       {background:#f3f4f6;color:var(--ink)}
-    .chip-dur        {background:#f3f4f6;color:var(--muted)}
-    .chip-stops      {background:#fef9c3;color:#854d0e}
-    .chip-provider   {background:#f5f3ff;color:#5b21b6}
-    .chip-room       {background:#fff7ed;color:#c2410c}
-    .chip-overnight  {background:#e0e7ff;color:#3730a3}
-    .chip-pax        {background:#f0fdf4;color:#166534}
-    .chip-modality   {background:#fdf4ff;color:#7e22ce}
-    .chip-supplement {background:#fefce8;color:#713f12}
+      content:'';position:absolute;left:23px;top:40px;
+      width:1px;bottom:0;background:var(--border);z-index:0}
+    .tl-left{width:48px;flex-shrink:0;display:flex;flex-direction:column;
+      align-items:center;padding-top:2px;position:relative;z-index:1}
+    .tl-dot{width:10px;height:10px;border-radius:50%;border:2px solid var(--brand);
+      background:var(--white);margin-top:6px}
+    .tl-date-sm{font-size:.55rem;font-weight:600;color:var(--subtle);
+      text-align:center;margin-top:.3rem;text-transform:uppercase;line-height:1.15}
+    .tl-body{flex:1;min-width:0;background:var(--white);border:1px solid var(--border);
+      border-radius:8px;padding:.65rem .9rem;margin-left:.5rem}
+    .tl-type{font-size:.6rem;font-weight:700;text-transform:uppercase;
+      letter-spacing:.08em;color:var(--brand);margin-bottom:.15rem}
+    .tl-title{font-size:.85rem;font-weight:600;color:var(--ink);margin-bottom:.15rem;line-height:1.3}
+    .tl-stars{color:#d97706;font-size:.75rem;letter-spacing:.5px;margin-bottom:.2rem}
+    .tl-chips{display:flex;flex-wrap:wrap;gap:.25rem;margin-top:.2rem}
+    .chip{font-size:.63rem;padding:.15rem .4rem;border-radius:3px;font-weight:500;
+      background:#f1f5f9;color:var(--muted)}
+    .chip-green{background:#f0fdf4;color:#166534}
+    .chip-amber{background:#fffbeb;color:#92400e}
+    .chip-blue{background:#eff6ff;color:#1d4ed8}
+    .chip-purple{background:#f5f3ff;color:#5b21b6}
 
     .no-itin{background:var(--white);border:1px solid var(--border);
-      border-radius:10px;padding:1rem 1.2rem;font-size:.85rem;color:var(--muted);
-      line-height:1.6}
+      border-radius:8px;padding:1rem 1.2rem;font-size:.84rem;color:var(--muted);line-height:1.6}
 
     /* ── Notice ── */
-    .notice{background:#fffbeb;border:1px solid #fde68a;border-radius:10px;
-      padding:.9rem 1.1rem;margin-bottom:1.2rem;display:flex;gap:.7rem}
-    .notice-icon{font-size:1.2rem;flex-shrink:0}
-    .notice-title{font-weight:700;font-size:.85rem;margin-bottom:.2rem}
-    .notice p{font-size:.79rem;color:#78350f;line-height:1.5}
+    .notice{background:#fffbeb;border:1px solid #fde68a;border-radius:8px;
+      padding:.85rem 1rem;margin-bottom:1.2rem}
+    .notice-title{font-weight:700;font-size:.82rem;margin-bottom:.2rem;color:#92400e}
+    .notice p{font-size:.78rem;color:#78350f;line-height:1.55}
 
     /* ── Form card ── */
     .form-card{background:var(--white);border:1px solid var(--border);
-      border-radius:12px;margin-bottom:1.1rem;overflow:hidden;
-      box-shadow:0 1px 4px rgba(0,0,0,.05)}
-    .pax-header{background:var(--brand-light);padding:.7rem 1.2rem;
-      font-size:.72rem;font-weight:700;text-transform:uppercase;
+      border-radius:8px;margin-bottom:1rem;overflow:hidden}
+    .pax-header{background:var(--brand-light);padding:.6rem 1.1rem;
+      font-size:.7rem;font-weight:700;text-transform:uppercase;
       letter-spacing:.06em;color:var(--brand)}
-    .pax-body{padding:1rem 1.2rem}
-    .field{display:flex;flex-direction:column;gap:.25rem;margin-bottom:.65rem}
+    .pax-body{padding:.9rem 1.1rem}
+    .field{display:flex;flex-direction:column;gap:.2rem;margin-bottom:.6rem}
     .field:last-child{margin-bottom:0}
-    label.fl{font-size:.77rem;font-weight:600}
+    label.fl{font-size:.75rem;font-weight:600;color:var(--ink)}
     label.fl .req{color:var(--red)}
     select,input[type=text],input[type=email],input[type=tel],input[type=date]{
-      width:100%;padding:.55rem .75rem;
-      border:1.5px solid var(--border);border-radius:8px;
-      font-size:.88rem;color:var(--ink);background:var(--white);
-      outline:none;transition:border-color .15s;-webkit-appearance:none;
-      appearance:none}
+      width:100%;padding:.5rem .7rem;
+      border:1px solid var(--border);border-radius:6px;
+      font-size:.85rem;color:var(--ink);background:var(--white);
+      outline:none;transition:border-color .15s;
+      -webkit-appearance:none;appearance:none}
     select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%236b7280' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
-      background-repeat:no-repeat;background-position:right .75rem center;
-      padding-right:2rem}
+      background-repeat:no-repeat;background-position:right .7rem center;padding-right:2rem}
     input:focus,select:focus{border-color:var(--brand)}
     input.err,select.err{border-color:var(--red)}
-    .ferr{font-size:.72rem;color:var(--red);display:none}
+    .ferr{font-size:.7rem;color:var(--red);display:none}
     .ferr.show{display:block}
-    .row3{display:grid;grid-template-columns:100px 1fr 1fr;gap:.5rem}
-    .row2{display:grid;grid-template-columns:1fr 90px;gap:.5rem}
-    .row2b{display:grid;grid-template-columns:110px 1fr;gap:.5rem}
-    .divider{border:none;border-top:1px solid var(--border);margin:.6rem 0}
+    .row3{display:grid;grid-template-columns:100px 1fr 1fr;gap:.45rem}
+    .row2{display:grid;grid-template-columns:1fr 90px;gap:.45rem}
+    .row2b{display:grid;grid-template-columns:110px 1fr;gap:.45rem}
+    .divider{border:none;border-top:1px solid var(--border);margin:.55rem 0}
 
     /* ── T&C ── */
-    .tc-body{padding:1rem 1.2rem}
-    .tc-item{display:flex;gap:.65rem;align-items:flex-start;margin-bottom:.7rem}
+    .tc-body{padding:.9rem 1.1rem}
+    .tc-item{display:flex;gap:.6rem;align-items:flex-start;margin-bottom:.6rem}
     .tc-item:last-child{margin-bottom:0}
-    .tc-item input[type=checkbox]{width:17px;height:17px;flex-shrink:0;
+    .tc-item input[type=checkbox]{width:16px;height:16px;flex-shrink:0;
       accent-color:var(--brand);margin-top:.15rem;cursor:pointer}
-    .tc-item label{font-size:.8rem;line-height:1.55;cursor:pointer}
+    .tc-item label{font-size:.78rem;line-height:1.5;cursor:pointer;color:var(--muted)}
     .tc-item label a{color:var(--brand)}
-    .tc-err{font-size:.72rem;color:var(--red);display:none;margin-top:.2rem}
+    .tc-item label strong{color:var(--ink)}
+    .tc-err{font-size:.7rem;color:var(--red);display:none;margin-top:.2rem}
     .tc-err.show{display:block}
 
     /* ── Submit ── */
-    .submit-wrap{padding:1rem 1.2rem;background:var(--bg);border-top:1px solid var(--border)}
+    .submit-wrap{padding:.9rem 1.1rem;background:var(--bg);border-top:1px solid var(--border)}
     .btn-submit{width:100%;background:var(--brand);color:#fff;border:none;
-      border-radius:10px;padding:.8rem 1.5rem;font-size:1rem;font-weight:700;
+      border-radius:8px;padding:.75rem 1.5rem;font-size:.92rem;font-weight:700;
       cursor:pointer;transition:background .15s}
     .btn-submit:hover{background:var(--brand-dark)}
-    .btn-submit:disabled{opacity:.6;cursor:not-allowed}
-    .submit-note{text-align:center;font-size:.74rem;color:var(--muted);
-      margin-top:.5rem;line-height:1.5}
+    .btn-submit:disabled{opacity:.55;cursor:not-allowed}
+    .submit-note{text-align:center;font-size:.7rem;color:var(--subtle);
+      margin-top:.45rem;line-height:1.5}
     .err-banner{background:#fef2f2;border:1px solid #fca5a5;color:var(--red);
-      border-radius:8px;padding:.6rem 1rem;font-size:.84rem;
-      margin-bottom:1rem;display:none}
+      border-radius:6px;padding:.55rem .9rem;font-size:.82rem;
+      margin-bottom:.9rem;display:none}
     .err-banner.show{display:block}
 
-    @media(max-width:480px){
+    .page-footer{text-align:center;padding:1.2rem 1rem;font-size:.68rem;color:var(--subtle);
+      border-top:1px solid var(--border);margin-top:.5rem}
+
+    @media(max-width:520px){
+      .hero{height:320px}
+      .hero h1{font-size:1.35rem}
+      .hero-overlay{padding:1.2rem 1rem 1.5rem}
+      .hotel-card{flex-direction:column}
+      .hc-img,.hc-img-ph{width:100%;height:180px}
       .row3{grid-template-columns:1fr 1fr}
       .row3>:first-child{grid-column:1/-1}
       .row2,.row2b{grid-template-columns:1fr}
@@ -197,46 +200,48 @@ TEMPLATE = """<!doctype html>
 </div>
 
 <div class="hero">
-  {{HERO_IMG_HTML}}
-  <div class="hero-body">
-    <div style="font-size:.72rem;font-weight:700;letter-spacing:.12em;color:var(--brand);text-transform:uppercase;margin-bottom:.35rem">✨ Your Personal Travel Offer</div>
+  <div id="hero-img-wrap"></div>
+  <div class="hero-overlay">
+    <div class="hero-label">{{AGENCY_NAME}} &mdash; Travel Offer</div>
     <h1>{{PKG_TITLE}}</h1>
-
-    <div class="meta-strip" id="meta-strip">
-      <span id="meta-duration"></span>
-      <span id="meta-travelers"></span>
-    </div>
-
-    <div class="route-strip" id="route-row">{{ROUTE_HTML}}</div>
-
-    <div class="dep-row" id="dep-row">{{DEPARTURES_HTML}}</div>
-
-    <div class="price-block" id="price-block">
-      <span class="price-from">from</span>
-      <span class="price-amount">{{PRICE_STR}}</span>
-      <span class="price-unit">/ person</span>
-    </div>
-
-    <div class="pkg-desc" id="pkg-desc">{{PKG_DESC}}</div>
+    <div class="hero-route" id="route-row">{{ROUTE_HTML}}</div>
+    <div class="hero-details" id="hero-details"></div>
   </div>
 </div>
 
 <div class="page">
 
+  <!-- Highlights -->
+  <div class="highlights" id="highlights">{{HIGHLIGHTS_HTML}}</div>
+
+  <!-- Departure -->
+  <div class="dep-block" id="dep-block" style="display:none">
+    <div>
+      <div class="dep-label">Departure</div>
+      <div class="dep-date" id="dep-date"></div>
+    </div>
+  </div>
+
+  <!-- Description -->
+  <div class="pkg-desc" id="pkg-desc" style="display:none">{{PKG_DESC}}</div>
+
+  <!-- Hotels -->
+  <div class="sec-title" id="hotels-head" style="display:none">Accommodation</div>
+  <div class="hotel-grid" id="hotel-grid">{{HOTEL_CARDS_HTML}}</div>
+
   <!-- Itinerary -->
-  <div class="section-head">Trip Itinerary</div>
+  <div class="sec-title">Itinerary</div>
   <div class="timeline" id="timeline">
-    <div style="color:var(--muted);font-size:.85rem;padding:.5rem 0">Loading…</div>
+    <div style="color:var(--muted);font-size:.84rem;padding:.5rem 0">Loading&hellip;</div>
   </div>
 
   <!-- Reservation notice -->
   <div class="notice" style="margin-top:1.5rem">
-    <span class="notice-icon">ℹ️</span>
     <div>
-      <div class="notice-title">Reservation request — not a confirmed booking</div>
-      <p>By submitting this form you are placing a <strong>reservation request</strong>.
-         Your travel agent at <strong>{{AGENCY_NAME}}</strong> will contact you directly
-         to confirm availability and price. No booking is made until you receive written confirmation.</p>
+      <div class="notice-title">This is a reservation request, not a confirmed booking</div>
+      <p>By submitting this form you place a <strong>reservation request</strong>.
+         Your travel agent at <strong>{{AGENCY_NAME}}</strong> will contact you to
+         confirm availability and price. No payment is taken until you receive written confirmation.</p>
     </div>
   </div>
 
@@ -245,10 +250,10 @@ TEMPLATE = """<!doctype html>
   <form id="reg-form" method="post"
         action="/register/{{AGENT_ID}}/{{PACKAGE_ID}}" novalidate>
 
-    <div class="section-head">Traveler Details</div>
+    <div class="sec-title">Traveller Details</div>
     <div id="pax-sections"></div>
 
-    <div class="section-head">Contact Details</div>
+    <div class="sec-title">Contact Details</div>
     <div class="form-card">
       <div class="pax-body">
         <div class="field">
@@ -289,7 +294,7 @@ TEMPLATE = """<!doctype html>
       </div>
     </div>
 
-    <div class="section-head">Terms &amp; Conditions</div>
+    <div class="sec-title">Terms &amp; Conditions</div>
     <div class="form-card">
       <div class="tc-body">
         <div class="tc-item">
@@ -330,157 +335,148 @@ TEMPLATE = """<!doctype html>
         <span class="tc-err" id="e-tc-accuracy">Please confirm the details are accurate.</span>
       </div>
 
-      <!-- Math CAPTCHA -->
-      <div style="padding:1rem 1.2rem;border-top:1px solid var(--border)">
-        <div style="font-size:.78rem;font-weight:700;color:var(--muted);margin-bottom:.5rem;text-transform:uppercase;letter-spacing:.06em">Quick check</div>
-        <div style="display:flex;align-items:center;gap:.7rem;flex-wrap:wrap">
-          <span id="captcha-question" style="font-size:1rem;font-weight:700;color:var(--ink)"></span>
+      <div style="padding:.9rem 1.1rem;border-top:1px solid var(--border)">
+        <div style="font-size:.72rem;font-weight:600;color:var(--muted);margin-bottom:.4rem;text-transform:uppercase;letter-spacing:.06em">Verification</div>
+        <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+          <span id="captcha-question" style="font-size:.95rem;font-weight:700;color:var(--ink)"></span>
           <span style="color:var(--muted)">=</span>
           <input type="number" id="captcha-input" name="captcha_answer" placeholder="?" autocomplete="off"
-                 style="width:80px;border:1.5px solid var(--border);border-radius:8px;padding:.5rem .7rem;font-size:1rem;text-align:center">
+                 style="width:72px;border:1px solid var(--border);border-radius:6px;padding:.45rem .6rem;font-size:.95rem;text-align:center">
           <input type="hidden" name="captcha_expected" id="captcha-expected">
         </div>
-        <span id="e-captcha" class="ferr" style="display:none;color:#dc2626;font-size:.78rem;margin-top:.3rem">Please answer the question correctly.</span>
+        <span id="e-captcha" class="ferr" style="display:none;margin-top:.25rem">Please answer correctly.</span>
       </div>
 
       <div class="submit-wrap">
-        <button type="submit" class="btn-submit" id="submit-btn">
-          ✈️ Submit reservation request
-        </button>
+        <button type="submit" class="btn-submit" id="submit-btn">Submit reservation request</button>
         <div class="submit-note">
-          By submitting you confirm all details are accurate and accept the terms above.<br>
-          Your travel agent will contact you as soon as possible to confirm your booking.
+          Your travel agent will contact you to confirm availability and finalise your booking.
         </div>
       </div>
     </div>
 
     <input type="hidden" name="passengers_json" id="passengers-json">
   </form>
+
+  <div class="page-footer">
+    {{AGENCY_NAME}} &middot; All prices per person, subject to availability
+  </div>
 </div>
 
 <script type="application/json" id="itin-data">{{ITINERARY_JSON}}</script>
+<script type="application/json" id="gallery-data">{{GALLERY_JSON}}</script>
 <script>
-  const NUM_ADULTS   = parseInt("{{NUM_ADULTS}}", 10)  || 2;
-  const NUM_CHILDREN = parseInt("{{NUM_CHILDREN}}", 10) || 0;
-  const ITIN = (function(){
-    try{ return JSON.parse(document.getElementById('itin-data').textContent); } catch(e){ return null; }
+  var NUM_ADULTS   = parseInt("{{NUM_ADULTS}}", 10)  || 2;
+  var NUM_CHILDREN = parseInt("{{NUM_CHILDREN}}", 10) || 0;
+  var PRICE_STR    = "{{PRICE_STR}}";
+  var DEP_DATE     = "{{DEPARTURE_DATE}}";
+  var ITIN, GALLERY;
+  try{ ITIN = JSON.parse(document.getElementById('itin-data').textContent); } catch(e){ ITIN = null; }
+  try{ GALLERY = JSON.parse(document.getElementById('gallery-data').textContent); } catch(e){ GALLERY = []; }
+
+  /* ── Hero image ── */
+  (function(){
+    var wrap = document.getElementById('hero-img-wrap');
+    if(GALLERY && GALLERY.length){
+      wrap.innerHTML = '<img class="hero-img" src="'+esc(GALLERY[0])+'" alt="Destination">';
+    } else {
+      wrap.innerHTML = '<div class="hero-ph"></div>';
+    }
   })();
 
-  /* ── Header meta strip ── */
-  if(ITIN && ITIN.days){
-    document.getElementById('meta-duration').innerHTML =
-      '<span class="meta-pill">&#9200; ' + ITIN.days + ' days' +
-      (ITIN.nights ? ' / ' + ITIN.nights + ' nights' : '') + '</span>';
-  }
-  const paxLabel = NUM_ADULTS + ' adult' + (NUM_ADULTS!==1?'s':'') +
-    (NUM_CHILDREN ? ' + ' + NUM_CHILDREN + ' child' + (NUM_CHILDREN!==1?'ren':'') : '');
-  document.getElementById('meta-travelers').innerHTML =
-    '<span class="meta-pill">&#128100; ' + paxLabel + '</span>';
+  /* ── Hero detail tags ── */
+  (function(){
+    var el = document.getElementById('hero-details');
+    var tags = [];
+    if(ITIN && ITIN.days)
+      tags.push(ITIN.days + ' Days / ' + (ITIN.nights||0) + ' Nights');
+    var pax = NUM_ADULTS + ' Adult' + (NUM_ADULTS!==1?'s':'');
+    if(NUM_CHILDREN) pax += ', ' + NUM_CHILDREN + ' Child' + (NUM_CHILDREN!==1?'ren':'');
+    tags.push(pax);
+    if(PRICE_STR) tags.push('<span class="hero-price-tag">'+esc(PRICE_STR)+' / person</span>');
+    el.innerHTML = tags.map(function(t){
+      if(t.indexOf('hero-price-tag')!==-1) return t;
+      return '<span class="hero-tag">'+t+'</span>';
+    }).join('');
+  })();
 
-  /* ── Itinerary timeline ── */
-  const TYPE_LABELS = {
+  /* ── Show conditional sections ── */
+  if(DEP_DATE){
+    document.getElementById('dep-block').style.display = '';
+    document.getElementById('dep-date').textContent = DEP_DATE;
+  }
+  if(document.getElementById('pkg-desc').textContent.trim())
+    document.getElementById('pkg-desc').style.display = '';
+  if(document.getElementById('hotel-grid').children.length > 0)
+    document.getElementById('hotels-head').style.display = '';
+
+  /* ── Itinerary ── */
+  var TYPE_LABELS = {
     flight:'Flight', bus:'Transport', ferry:'Ferry', train:'Train', car:'Car Rental',
-    hotel:'Stay', transfer:'Transfer', activity:'Excursion', cruise:'Cruise',
-    tour:'Closed Tour', supplement:'Supplement'
+    hotel:'Accommodation', transfer:'Transfer', activity:'Excursion', cruise:'Cruise',
+    tour:'Tour', supplement:'Supplement'
   };
-  const TYPE_ICONS = {
-    flight:'✈️', bus:'🚌', ferry:'⛴️', train:'🚂', car:'🚗',
-    hotel:'🏨', transfer:'🚐', activity:'🎯', cruise:'🛳️',
-    tour:'🗺️', supplement:'➕'
-  };
-
-  function dateBadge(label){
-    // label may be "29 Jan", "Mon 29 Jan", or empty
-    if(!label) return '<div class="tl-no-date">📅</div>';
-    const parts = label.trim().split(/\s+/);
-    // find the numeric day part
-    let day = '', mon = '';
-    for(let p of parts){
-      if(/^\d+$/.test(p)){ day = p; }
-      else if(/^[A-Za-z]{3}/.test(p) && p.length >= 3){ mon = p.slice(0,3).toUpperCase(); }
-    }
-    if(day && mon){
-      return `<div class="tl-date-badge"><span class="tl-date-day">${day}</span><span class="tl-date-mon">${mon}</span></div>`;
-    }
-    // fallback: just show the label
-    return `<div class="tl-date-badge" style="font-size:.6rem;font-weight:700;color:var(--muted);text-align:center;padding:.15rem">${esc(label)}</div>`;
-  }
 
   function renderItem(it){
-    const kind = it.kind || 'activity';
-    const icon = TYPE_ICONS[kind] || '📌';
-    const typeLabel = (TYPE_LABELS[kind] || it.chip || kind).toUpperCase();
+    var kind = it.kind || 'activity';
+    var typeLabel = (TYPE_LABELS[kind] || it.chip || kind).toUpperCase();
+    var starsHtml = '';
+    if(it.stars && parseInt(it.stars) > 0)
+      starsHtml = '<div class="tl-stars">' + Array(Math.min(parseInt(it.stars),5)+1).join('&#9733;') + '</div>';
 
-    let starsHtml = '';
-    if(it.stars && parseInt(it.stars) > 0){
-      starsHtml = `<div class="tl-stars">${'★'.repeat(Math.min(parseInt(it.stars),5))}</div>`;
+    var chips = [];
+    if(kind==='flight'||kind==='ferry'||kind==='bus'||kind==='train'||kind==='car'){
+      if(it.time)     chips.push('<span class="chip">'+esc(it.time)+'</span>');
+      if(it.duration) chips.push('<span class="chip">'+esc(it.duration)+'</span>');
+      if(it.stops)    chips.push('<span class="chip chip-green">'+esc(it.stops)+'</span>');
+      else if(kind==='flight') chips.push('<span class="chip chip-green">Direct</span>');
+      if(it.overnight) chips.push('<span class="chip chip-blue">Overnight</span>');
+      if(it.baggage)   chips.push('<span class="chip">'+esc(it.baggage)+'</span>');
+      if(it.provider)  chips.push('<span class="chip chip-purple">'+esc(it.provider)+'</span>');
+    } else if(kind==='hotel'){
+      if(it.date_range) chips.push('<span class="chip">'+esc(it.date_range)+'</span>');
+      if(it.nights && it.nights>0) chips.push('<span class="chip chip-amber">'+it.nights+' night'+(it.nights!==1?'s':'')+'</span>');
+      if(it.board) chips.push('<span class="chip chip-green">'+esc(it.board)+'</span>');
+      if(it.room)  chips.push('<span class="chip">'+esc(it.room)+'</span>');
+    } else if(kind==='transfer'){
+      if(it.time)     chips.push('<span class="chip">'+esc(it.time)+'</span>');
+      if(it.overnight) chips.push('<span class="chip chip-blue">Overnight</span>');
+      if(it.baggage)   chips.push('<span class="chip">'+esc(it.baggage)+'</span>');
+      if(it.provider)  chips.push('<span class="chip chip-purple">'+esc(it.provider)+'</span>');
+    } else if(kind==='cruise'){
+      if(it.nights && it.nights>0) chips.push('<span class="chip chip-amber">'+it.nights+' night'+(it.nights!==1?'s':'')+'</span>');
+      if(it.provider) chips.push('<span class="chip chip-purple">'+esc(it.provider)+'</span>');
+    } else if(kind==='activity'){
+      if(it.pax && it.pax>0) chips.push('<span class="chip">'+it.pax+' person'+(it.pax!==1?'s':'')+'</span>');
+    } else if(kind==='tour'){
+      if(it.date_range) chips.push('<span class="chip">'+esc(it.date_range)+'</span>');
+      if(it.modality)   chips.push('<span class="chip chip-purple">'+esc(it.modality)+'</span>');
+    } else if(kind==='supplement'){
+      if(it.pax && it.pax>0) chips.push('<span class="chip">'+it.pax+' person'+(it.pax!==1?'s':'')+'</span>');
+    }
+    var chipsHtml = chips.length ? '<div class="tl-chips">'+chips.join('')+'</div>' : '';
+
+    var dateHtml = '';
+    if(it.date_label){
+      var p = it.date_label.trim().split(/\\s+/);
+      var parts = [];
+      for(var i=0;i<p.length;i++) parts.push(esc(p[i]));
+      dateHtml = '<div class="tl-date-sm">'+parts.join('<br>')+'</div>';
     }
 
-    let chips = [];
-
-    if(kind === 'flight' || kind === 'ferry' || kind === 'bus' || kind === 'train' || kind === 'car'){
-      // Departure time + arrival time
-      if(it.time)      chips.push(`<span class="chip chip-time">🕐 ${esc(it.time)}</span>`);
-      if(it.duration)  chips.push(`<span class="chip chip-dur">⏱ ${esc(it.duration)}</span>`);
-      // Stops: explicit label or "Direct"
-      if(it.stops)     chips.push(`<span class="chip chip-stops">🔁 ${esc(it.stops)}</span>`);
-      else if(kind==='flight') chips.push(`<span class="chip chip-stops">✅ Direct</span>`);
-      if(it.overnight) chips.push(`<span class="chip chip-overnight">🌙 Overnight</span>`);
-      if(it.baggage)   chips.push(`<span class="chip chip-luggage">🧳 ${esc(it.baggage)}</span>`);
-      if(it.provider)  chips.push(`<span class="chip chip-provider">${esc(it.provider)}</span>`);
-
-    } else if(kind === 'hotel'){
-      // date range check-in → check-out
-      if(it.date_range) chips.push(`<span class="chip chip-time">📅 ${esc(it.date_range)}</span>`);
-      if(it.nights && it.nights > 0)
-        chips.push(`<span class="chip chip-nights">${it.nights} night${it.nights!==1?'s':''}</span>`);
-      if(it.board)  chips.push(`<span class="chip chip-board">🍽 ${esc(it.board)}</span>`);
-      if(it.room)   chips.push(`<span class="chip chip-room">🛏 ${esc(it.room)}</span>`);
-
-    } else if(kind === 'transfer'){
-      if(it.time)      chips.push(`<span class="chip chip-time">🕐 ${esc(it.time)}</span>`);
-      if(it.overnight) chips.push(`<span class="chip chip-overnight">🌙 Overnight</span>`);
-      if(it.baggage)   chips.push(`<span class="chip chip-luggage">🧳 ${esc(it.baggage)}</span>`);
-      if(it.provider)  chips.push(`<span class="chip chip-provider">${esc(it.provider)}</span>`);
-
-    } else if(kind === 'cruise'){
-      if(it.nights && it.nights > 0)
-        chips.push(`<span class="chip chip-nights">${it.nights} night${it.nights!==1?'s':''}</span>`);
-      if(it.provider) chips.push(`<span class="chip chip-provider">${esc(it.provider)}</span>`);
-
-    } else if(kind === 'activity'){
-      // Excursion
-      if(it.pax && it.pax > 0)
-        chips.push(`<span class="chip chip-pax">👥 ${it.pax} person${it.pax!==1?'s':''}</span>`);
-
-    } else if(kind === 'tour'){
-      if(it.date_range) chips.push(`<span class="chip chip-time">📅 ${esc(it.date_range)}</span>`);
-      if(it.modality)   chips.push(`<span class="chip chip-modality">🎫 ${esc(it.modality)}</span>`);
-
-    } else if(kind === 'supplement'){
-      if(it.pax && it.pax > 0)
-        chips.push(`<span class="chip chip-pax">👥 ${it.pax} person${it.pax!==1?'s':''}</span>`);
-      chips.push(`<span class="chip chip-supplement">Supplement</span>`);
-    }
-
-    const chipsHtml = chips.length ? `<div class="tl-chips">${chips.join('')}</div>` : '';
-
-    return `
-      <div class="tl-row">
-        <div class="tl-left">${dateBadge(it.date_label)}</div>
-        <div class="tl-body">
-          <div class="tl-type">${icon} ${esc(typeLabel)}</div>
-          <div class="tl-title">${esc(it.title || '')}</div>
-          ${starsHtml}
-          ${chipsHtml}
-        </div>
-      </div>`;
+    return '<div class="tl-row">'+
+      '<div class="tl-left"><div class="tl-dot"></div>'+dateHtml+'</div>'+
+      '<div class="tl-body">'+
+        '<div class="tl-type">'+esc(typeLabel)+'</div>'+
+        '<div class="tl-title">'+esc(it.title||'')+'</div>'+
+        starsHtml+chipsHtml+
+      '</div></div>';
   }
 
   (function(){
-    const tl = document.getElementById('timeline');
+    var tl = document.getElementById('timeline');
     if(!ITIN || !ITIN.items || !ITIN.items.length){
-      tl.innerHTML = '<div class="no-itin">Detailed itinerary is not available for this package in the online system. Your travel agent will provide the full day-by-day programme upon confirmation.</div>';
+      tl.innerHTML = '<div class="no-itin">Detailed itinerary is not yet available for this package. Your travel agent will provide the full programme upon confirmation.</div>';
       return;
     }
     tl.innerHTML = ITIN.items.map(renderItem).join('');
@@ -488,68 +484,57 @@ TEMPLATE = """<!doctype html>
 
   /* ── Passenger sections ── */
   (function(){
-    const el = document.getElementById('pax-sections');
-    let html = '';
-    for(let i=0;i<NUM_ADULTS;i++)   html += paxBlock('adult',i+1,i);
-    for(let i=0;i<NUM_CHILDREN;i++) html += paxBlock('child',i+1,NUM_ADULTS+i);
+    var el = document.getElementById('pax-sections');
+    var html = '';
+    for(var i=0;i<NUM_ADULTS;i++)   html += paxBlock('adult',i+1,i);
+    for(var i=0;i<NUM_CHILDREN;i++) html += paxBlock('child',i+1,NUM_ADULTS+i);
     el.innerHTML = html;
   })();
 
   function paxBlock(type, num, idx){
-    const label = type==='adult' ? 'Traveler '+num+' — Adult' : 'Traveler '+(idx+1)+' — Child';
-    return `
-      <div class="form-card" data-type="${type}" data-idx="${idx}">
-        <div class="pax-header">${label}</div>
-        <div class="pax-body">
-          <div class="field">
-            <label class="fl">Title &amp; full name <span class="req">*</span></label>
-            <div class="row3">
-              <select id="pt${idx}" class="pax-title" data-idx="${idx}">
-                <option value="">—</option>
-                <option>Mr.</option>
-                <option>Mrs.</option>
-                <option>Ms.</option>
-                <option>Dr.</option>
-              </select>
-              <input type="text" id="pf${idx}" class="pax-fname" data-idx="${idx}"
-                     placeholder="First name" required>
-              <input type="text" id="ps${idx}" class="pax-sname" data-idx="${idx}"
-                     placeholder="Surname" required>
-            </div>
-            <span class="ferr" id="en${idx}">Please enter first and last name.</span>
-          </div>
-          <div class="field">
-            <label class="fl" for="pd${idx}">Date of birth <span class="req">*</span></label>
-            <input type="date" id="pd${idx}" class="pax-dob" data-idx="${idx}" required>
-            <span class="ferr" id="ed${idx}">Please enter date of birth.</span>
-          </div>
-          <div class="field">
-            <label class="fl" for="pn${idx}">Nationality <span class="req">*</span></label>
-            <input type="text" id="pn${idx}" class="pax-nat" data-idx="${idx}"
-                   placeholder="e.g. German" required>
-            <span class="ferr" id="enat${idx}">Please enter nationality.</span>
-          </div>
-        </div>
-      </div>`;
+    var label = type==='adult' ? 'Traveller '+num+' &mdash; Adult' : 'Traveller '+(idx+1)+' &mdash; Child';
+    return '<div class="form-card" data-type="'+type+'" data-idx="'+idx+'">'+
+      '<div class="pax-header">'+label+'</div>'+
+      '<div class="pax-body">'+
+        '<div class="field">'+
+          '<label class="fl">Title &amp; full name <span class="req">*</span></label>'+
+          '<div class="row3">'+
+            '<select id="pt'+idx+'" class="pax-title" data-idx="'+idx+'"><option value="">\\u2014</option><option>Mr.</option><option>Mrs.</option><option>Ms.</option><option>Dr.</option></select>'+
+            '<input type="text" id="pf'+idx+'" class="pax-fname" data-idx="'+idx+'" placeholder="First name" required>'+
+            '<input type="text" id="ps'+idx+'" class="pax-sname" data-idx="'+idx+'" placeholder="Surname" required>'+
+          '</div>'+
+          '<span class="ferr" id="en'+idx+'">Please enter first and last name.</span>'+
+        '</div>'+
+        '<div class="field">'+
+          '<label class="fl" for="pd'+idx+'">Date of birth <span class="req">*</span></label>'+
+          '<input type="date" id="pd'+idx+'" class="pax-dob" data-idx="'+idx+'" required>'+
+          '<span class="ferr" id="ed'+idx+'">Please enter date of birth.</span>'+
+        '</div>'+
+        '<div class="field">'+
+          '<label class="fl" for="pn'+idx+'">Nationality <span class="req">*</span></label>'+
+          '<input type="text" id="pn'+idx+'" class="pax-nat" data-idx="'+idx+'" placeholder="e.g. German" required>'+
+          '<span class="ferr" id="enat'+idx+'">Please enter nationality.</span>'+
+        '</div>'+
+      '</div></div>';
   }
 
-  /* ── Math CAPTCHA ── */
+  /* ── CAPTCHA ── */
   (function(){
-    const a = Math.floor(Math.random()*20)+1;
-    const b = Math.floor(Math.random()*20)+1;
+    var a = Math.floor(Math.random()*20)+1;
+    var b = Math.floor(Math.random()*20)+1;
     document.getElementById('captcha-question').textContent = a + ' + ' + b;
     document.getElementById('captcha-expected').value = a + b;
   })();
 
-  /* ── Validation & submit ── */
+  /* ── Validation ── */
   function clearErrs(){
-    document.querySelectorAll('.ferr,.tc-err').forEach(e=>e.classList.remove('show'));
-    document.querySelectorAll('input.err,select.err').forEach(e=>e.classList.remove('err'));
+    document.querySelectorAll('.ferr,.tc-err').forEach(function(e){e.classList.remove('show')});
+    document.querySelectorAll('input.err,select.err').forEach(function(e){e.classList.remove('err')});
     document.getElementById('err-banner').classList.remove('show');
     document.getElementById('e-captcha').style.display='none';
   }
   function markErr(id, errId){
-    const i=document.getElementById(id), e=document.getElementById(errId);
+    var i=document.getElementById(id), e=document.getElementById(errId);
     if(i) i.classList.add('err');
     if(e) e.classList.add('show');
   }
@@ -557,24 +542,22 @@ TEMPLATE = """<!doctype html>
   document.getElementById('reg-form').addEventListener('submit', function(ev){
     ev.preventDefault();
     clearErrs();
-    let ok = true;
-
-    document.querySelectorAll('.pax-fname').forEach(inp=>{
-      const idx=inp.dataset.idx;
-      const sn=document.getElementById('ps'+idx);
+    var ok = true;
+    document.querySelectorAll('.pax-fname').forEach(function(inp){
+      var idx=inp.dataset.idx;
+      var sn=document.getElementById('ps'+idx);
       if(!inp.value.trim()||!sn.value.trim()){ markErr('pf'+idx,'en'+idx); ok=false; }
     });
-    document.querySelectorAll('.pax-dob').forEach(inp=>{
-      const idx=inp.dataset.idx;
+    document.querySelectorAll('.pax-dob').forEach(function(inp){
+      var idx=inp.dataset.idx;
       if(!inp.value){ markErr('pd'+idx,'ed'+idx); ok=false; }
     });
-    document.querySelectorAll('.pax-nat').forEach(inp=>{
-      const idx=inp.dataset.idx;
+    document.querySelectorAll('.pax-nat').forEach(function(inp){
+      var idx=inp.dataset.idx;
       if(!inp.value.trim()){ markErr('pn'+idx,'enat'+idx); ok=false; }
     });
-
-    const email=document.getElementById('f-email');
-    if(!email.value.trim()||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value)){
+    var email=document.getElementById('f-email');
+    if(!email.value.trim()||!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email.value)){
       markErr('f-email','e-email'); ok=false;
     }
     if(!document.getElementById('f-phone').value.trim()){ markErr('f-phone','e-phone'); ok=false; }
@@ -582,30 +565,24 @@ TEMPLATE = """<!doctype html>
     if(!document.getElementById('f-postal').value.trim()||
        !document.getElementById('f-city').value.trim()){ markErr('f-postal','e-city'); ok=false; }
     if(!document.getElementById('f-country').value.trim()){ markErr('f-country','e-country'); ok=false; }
-
-    ['tc-reservation','tc-terms','tc-data','tc-accuracy'].forEach(id=>{
+    ['tc-reservation','tc-terms','tc-data','tc-accuracy'].forEach(function(id){
       if(!document.getElementById(id).checked){
         document.getElementById('e-'+id).classList.add('show'); ok=false;
       }
     });
-
-    const captchaInput = parseInt(document.getElementById('captcha-input').value,10);
-    const captchaExpected = parseInt(document.getElementById('captcha-expected').value,10);
-    if(isNaN(captchaInput)||captchaInput!==captchaExpected){
-      document.getElementById('e-captcha').style.display='block'; ok=false;
-    }
-
+    var ci = parseInt(document.getElementById('captcha-input').value,10);
+    var ce = parseInt(document.getElementById('captcha-expected').value,10);
+    if(isNaN(ci)||ci!==ce){ document.getElementById('e-captcha').style.display='block'; ok=false; }
     if(!ok){
-      const b=document.getElementById('err-banner');
-      b.textContent='Please fill in all required fields and accept all terms.';
+      var b=document.getElementById('err-banner');
+      b.textContent='Please complete all required fields and accept the terms.';
       b.classList.add('show');
       window.scrollTo({top:0,behavior:'smooth'});
       return;
     }
-
-    const passengers=[];
-    document.querySelectorAll('.form-card[data-type]').forEach(block=>{
-      const idx=block.dataset.idx;
+    var passengers=[];
+    document.querySelectorAll('.form-card[data-type]').forEach(function(block){
+      var idx=block.dataset.idx;
       passengers.push({
         type: block.dataset.type,
         title: (document.getElementById('pt'+idx)||{}).value||'',
@@ -616,14 +593,13 @@ TEMPLATE = """<!doctype html>
       });
     });
     document.getElementById('passengers-json').value=JSON.stringify(passengers);
-
-    const btn=document.getElementById('submit-btn');
-    btn.disabled=true; btn.textContent='Sending…';
+    var btn=document.getElementById('submit-btn');
+    btn.disabled=true; btn.textContent='Submitting\\u2026';
     this.submit();
   });
 
   function esc(s){
-    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 </script>
 </body>

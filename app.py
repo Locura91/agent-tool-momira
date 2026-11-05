@@ -1616,20 +1616,20 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
     if pack:
         hl_parts = []
         if pack.days:
-            hl_parts.append(f'<div class="hl-card"><span class="hl-icon">📅</span><span class="hl-val">{pack.days} Days</span><span class="hl-sub">{pack.nights} Nights</span></div>')
+            hl_parts.append(f'<div class="hl-card"><span class="hl-val">{pack.days} Days / {pack.nights} Nights</span></div>')
         fc = pack.transport_counts.get("flights", 0) if pack.transport_counts else 0
         if fc:
-            hl_parts.append(f'<div class="hl-card"><span class="hl-icon">✈️</span><span class="hl-val">{fc} Flight{"s" if fc != 1 else ""}</span><span class="hl-sub">Included</span></div>')
+            hl_parts.append(f'<div class="hl-card"><span class="hl-val">{fc} Flight{"s" if fc != 1 else ""}</span></div>')
         if pack.hotel_names:
             hn = len(pack.hotel_names)
             total_n = sum(pack.hotel_nights) if pack.hotel_nights else 0
-            hl_parts.append(f'<div class="hl-card"><span class="hl-icon">🏨</span><span class="hl-val">{hn} Hotel{"s" if hn != 1 else ""}</span><span class="hl-sub">{total_n} Nights</span></div>')
+            hl_parts.append(f'<div class="hl-card"><span class="hl-val">{hn} Hotel{"s" if hn != 1 else ""}, {total_n} Nights</span></div>')
         tc2 = pack.transport_counts.get("transfers", 0) if pack.transport_counts else 0
         if tc2:
-            hl_parts.append(f'<div class="hl-card"><span class="hl-icon">🚐</span><span class="hl-val">{tc2} Transfer{"s" if tc2 != 1 else ""}</span><span class="hl-sub">Included</span></div>')
+            hl_parts.append(f'<div class="hl-card"><span class="hl-val">{tc2} Transfer{"s" if tc2 != 1 else ""}</span></div>')
         if pack.activities:
             ac = len(pack.activities)
-            hl_parts.append(f'<div class="hl-card"><span class="hl-icon">🎯</span><span class="hl-val">{ac} Excursion{"s" if ac != 1 else ""}</span><span class="hl-sub">Included</span></div>')
+            hl_parts.append(f'<div class="hl-card"><span class="hl-val">{ac} Excursion{"s" if ac != 1 else ""}</span></div>')
         highlights_html = "".join(hl_parts)
 
     # Hotel cards with per-hotel images
@@ -1667,16 +1667,16 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
             if not hotel_img_url and pack.gallery:
                 hotel_img_url = pack.gallery[idx_h % len(pack.gallery)]
 
-            img_html = f'<img src="{_html.escape(hotel_img_url)}" alt="{_html.escape(h_name)}" class="hc-img" loading="lazy">' if hotel_img_url else '<div class="hc-img-ph">🏨</div>'
+            img_html = f'<img src="{_html.escape(hotel_img_url)}" alt="{_html.escape(h_name)}" class="hc-img" loading="lazy">' if hotel_img_url else '<div class="hc-img-ph"></div>'
             stars_html_h = f'<div class="hc-stars">{"★" * min(stars_h, 5)}</div>' if stars_h else ""
-            nights_html_h = f'<span class="hc-chip hc-nights">🌙 {nights_h} Night{"s" if nights_h != 1 else ""}</span>' if nights_h else ""
-            board_html_h = f'<span class="hc-chip hc-board">🍽 {_html.escape(board_label_h)}</span>' if board_label_h else ""
+            nights_html_h = f'<span class="hc-chip">{nights_h} Night{"s" if nights_h != 1 else ""}</span>' if nights_h else ""
+            board_html_h = f'<span class="hc-chip">{_html.escape(board_label_h)}</span>' if board_label_h else ""
 
             # Extract room name
             room_name_h = ""
             if idx_h < len(raw_hotels_list) and isinstance(raw_hotels_list[idx_h], dict):
                 room_name_h = _room_name(raw_hotels_list[idx_h])
-            room_html_h = f'<span class="hc-chip hc-room">🛏 {_html.escape(room_name_h)}</span>' if room_name_h else ""
+            room_html_h = f'<span class="hc-chip">{_html.escape(room_name_h)}</span>' if room_name_h else ""
 
             h_cards.append(f'''<div class="hotel-card">
               {img_html}
@@ -1696,7 +1696,6 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
             .replace("{{AGENT_ID}}", agent_id)
             .replace("{{PACKAGE_ID}}", package_id)
             .replace("{{PKG_TITLE}}", _e(pkg_title))
-            .replace("{{PKG_DEST}}", _e(pkg_dest))
             .replace("{{PRICE_STR}}", _e(price_str))
             .replace("{{PKG_DESC}}", _e(pkg_desc))
             .replace("{{ROUTE_HTML}}", route_html)
