@@ -1567,22 +1567,20 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
 
     agency_name = agent.agency_name or "Your Travel Agent"
     logo_html = (
-        f'<img src="{agent.logo_url}" alt="{agency_name}" class="agency-logo">'
+        f'<img src="{agent.logo_url}" alt="{agency_name}" class="topbar-logo">'
         if agent.logo_url else ""
     )
-
-    # Hero image — use first gallery photo if available
-    hero_img_html = ""
-    if pack and pack.gallery:
-        hero_url = pack.gallery[0]
-        hero_img_html = f'<img src="{hero_url}" alt="{pkg_title}" class="hero-img" loading="lazy">'
-    if not hero_img_html:
-        hero_img_html = '<div class="hero-img-placeholder">✈️</div>'
 
     # Package description
     pkg_desc = (pack.description or "") if pack else ""
 
-    # Route chips: destination names joined as a strip
+    # Gallery JSON for hero slideshow (up to 6 images)
+    gallery_json = "[]"
+    if pack and pack.gallery:
+        import json as _json3
+        gallery_json = _json3.dumps(pack.gallery[:6], ensure_ascii=False)
+
+    # Route chips
     route_html = ""
     if pack and pack.destinations:
         chips = []
@@ -1590,25 +1588,109 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
             name = d.get("name", "")
             if name:
                 arrow = " <span class='route-arrow'>→</span> " if i > 0 else ""
-                chips.append(f"{arrow}<span class='route-chip'>{name}</span>")
+                chips.append(f"{arrow}<span class='route-chip'>{_html.escape(name)}</span>")
         if chips:
             route_html = "".join(chips)
 
-    # Upcoming departures (up to 3 nearest)
-    departures_html = ""
+    # Single departure date (first upcoming, or first available)
+    departure_date = ""
     if pack and pack.departures:
-        import json as _json2
-        from datetime import date as _today_cls
-        today_str = _today_cls.today().isoformat()
-        upcoming = sorted([d for d in pack.departures if str(d) >= today_str])[:3]
-        if upcoming:
-            dep_parts = [f"<span class='dep-chip'>{d}</span>" for d in upcoming]
-            departures_html = "Departures: " + " &nbsp; ".join(dep_parts)
+        from datetime import date as _today_cls2
+        today_str2 = _today_cls2.today().isoformat()
+        upcoming2 = sorted([d for d in pack.departures if str(d) >= today_str2])
+        if upcoming2:
+            departure_date = str(upcoming2[0])
+        elif pack.departures:
+            departure_date = str(pack.departures[0])
+    # Format departure date nicely
+    dep_display = ""
+    if departure_date:
+        try:
+            from datetime import datetime as _dt2
+            dep_display = _dt2.strptime(departure_date[:10], "%Y-%m-%d").strftime("%A, %d %B %Y")
+        except Exception:
+            dep_display = departure_date
+
+    # Highlights chips
+    highlights_html = ""
+    if pack:
+        hl_parts = []
+        if pack.days:
+            hl_parts.append(f'<div class="hl-card"><span class="hl-icon">📅</span><span class="hl-val">{pack.days} Days</span><span class="hl-sub">{pack.nights} Nights</span></div>')
+        fc = pack.transport_counts.get("flights", 0) if pack.transport_counts else 0
+        if fc:
+            hl_parts.append(f'<div class="hl-card"><span class="hl-icon">✈️</span><span class="hl-val">{fc} Flight{"s" if fc != 1 else ""}</span><span class="hl-sub">Included</span></div>')
+        if pack.hotel_names:
+            hn = len(pack.hotel_names)
+            total_n = sum(pack.hotel_nights) if pack.hotel_nights else 0
+            hl_parts.append(f'<div class="hl-card"><span class="hl-icon">🏨</span><span class="hl-val">{hn} Hotel{"s" if hn != 1 else ""}</span><span class="hl-sub">{total_n} Nights</span></div>')
+        tc2 = pack.transport_counts.get("transfers", 0) if pack.transport_counts else 0
+        if tc2:
+            hl_parts.append(f'<div class="hl-card"><span class="hl-icon">🚐</span><span class="hl-val">{tc2} Transfer{"s" if tc2 != 1 else ""}</span><span class="hl-sub">Included</span></div>')
+        if pack.activities:
+            ac = len(pack.activities)
+            hl_parts.append(f'<div class="hl-card"><span class="hl-icon">🎯</span><span class="hl-val">{ac} Excursion{"s" if ac != 1 else ""}</span><span class="hl-sub">Included</span></div>')
+        highlights_html = "".join(hl_parts)
+
+    # Hotel cards with per-hotel images
+    hotel_cards_html = ""
+    if pack and pack.hotel_names:
+        raw_hotels_list = []
+        if pack.raw:
+            rd = pack.raw.get("detail", {}) or {}
+            raw_hotels_list = rd.get("hotels") or rd.get("accommodations") or rd.get("hotel") or []
+            if not isinstance(raw_hotels_list, list):
+                raw_hotels_list = []
+
+        h_cards = []
+        for idx_h, h_name in enumerate(pack.hotel_names):
+            nights_h = pack.hotel_nights[idx_h] if idx_h < len(pack.hotel_nights) else 0
+            stars_h = pack.hotel_stars[idx_h] if idx_h < len(pack.hotel_stars) else 0
+            board_h = pack.hotel_boards[idx_h] if idx_h < len(pack.hotel_boards) else ""
+            board_label_h = sk._board_label(board_h) if board_h else ""
+
+            # Try to find per-hotel image
+            hotel_img_url = ""
+            if idx_h < len(raw_hotels_list) and isinstance(raw_hotels_list[idx_h], dict):
+                h_raw_obj = raw_hotels_list[idx_h]
+                h_imgs = h_raw_obj.get("images") or h_raw_obj.get("imageUrls") or h_raw_obj.get("photos") or []
+                if isinstance(h_imgs, list) and h_imgs:
+                    first_img = h_imgs[0]
+                    if isinstance(first_img, dict):
+                        hotel_img_url = str(first_img.get("url") or first_img.get("imageUrl") or first_img.get("src") or "")
+                    else:
+                        hotel_img_url = str(first_img)
+                if not hotel_img_url:
+                    hotel_img_url = str(h_raw_obj.get("imageUrl") or h_raw_obj.get("image") or "")
+
+            # Fallback: use gallery images assigned round-robin
+            if not hotel_img_url and pack.gallery:
+                hotel_img_url = pack.gallery[idx_h % len(pack.gallery)]
+
+            img_html = f'<img src="{_html.escape(hotel_img_url)}" alt="{_html.escape(h_name)}" class="hc-img" loading="lazy">' if hotel_img_url else '<div class="hc-img-ph">🏨</div>'
+            stars_html_h = f'<div class="hc-stars">{"★" * min(stars_h, 5)}</div>' if stars_h else ""
+            nights_html_h = f'<span class="hc-chip hc-nights">🌙 {nights_h} Night{"s" if nights_h != 1 else ""}</span>' if nights_h else ""
+            board_html_h = f'<span class="hc-chip hc-board">🍽 {_html.escape(board_label_h)}</span>' if board_label_h else ""
+
+            # Extract room name
+            room_name_h = ""
+            if idx_h < len(raw_hotels_list) and isinstance(raw_hotels_list[idx_h], dict):
+                room_name_h = _room_name(raw_hotels_list[idx_h])
+            room_html_h = f'<span class="hc-chip hc-room">🛏 {_html.escape(room_name_h)}</span>' if room_name_h else ""
+
+            h_cards.append(f'''<div class="hotel-card">
+              {img_html}
+              <div class="hc-body">
+                <div class="hc-name">{_html.escape(h_name)}</div>
+                {stars_html_h}
+                <div class="hc-chips">{nights_html_h}{board_html_h}{room_html_h}</div>
+              </div>
+            </div>''')
+        hotel_cards_html = "\n".join(h_cards)
 
     import registration_form_template as _rft
     tmpl = _rft.TEMPLATE
 
-    # Escape TC/DB-sourced text before HTML substitution to prevent injection
     _e = _html.escape
     html = (tmpl
             .replace("{{AGENT_ID}}", agent_id)
@@ -1617,9 +1699,11 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
             .replace("{{PKG_DEST}}", _e(pkg_dest))
             .replace("{{PRICE_STR}}", _e(price_str))
             .replace("{{PKG_DESC}}", _e(pkg_desc))
-            .replace("{{HERO_IMG_HTML}}", hero_img_html)
             .replace("{{ROUTE_HTML}}", route_html)
-            .replace("{{DEPARTURES_HTML}}", departures_html)
+            .replace("{{DEPARTURE_DATE}}", _e(dep_display))
+            .replace("{{GALLERY_JSON}}", gallery_json)
+            .replace("{{HIGHLIGHTS_HTML}}", highlights_html)
+            .replace("{{HOTEL_CARDS_HTML}}", hotel_cards_html)
             .replace("{{AGENCY_NAME}}", _e(agency_name))
             .replace("{{LOGO_HTML}}", logo_html)
             .replace("{{NUM_ADULTS}}", str(num_adults))
