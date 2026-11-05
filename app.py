@@ -1247,15 +1247,61 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
             return str(t.get("airline") or t.get("carrier") or t.get("company") or
                        t.get("operator") or t.get("provider") or "").strip()
 
+        IATA_NAMES = {
+            "FRA": "Frankfurt Main", "MUC": "Munich", "BER": "Berlin Brandenburg",
+            "DUS": "Düsseldorf", "HAM": "Hamburg", "STR": "Stuttgart", "CGN": "Cologne/Bonn",
+            "VIE": "Vienna", "ZRH": "Zurich", "GVA": "Geneva",
+            "LHR": "London Heathrow", "LGW": "London Gatwick", "STN": "London Stansted",
+            "CDG": "Paris Charles de Gaulle", "ORY": "Paris Orly",
+            "AMS": "Amsterdam Schiphol", "BCN": "Barcelona", "MAD": "Madrid",
+            "FCO": "Rome Fiumicino", "MXP": "Milan Malpensa", "LIS": "Lisbon",
+            "ATH": "Athens", "IST": "Istanbul",
+            "SIN": "Singapore Changi", "BKK": "Bangkok Suvarnabhumi", "DMK": "Bangkok Don Mueang",
+            "HKT": "Phuket Intl", "KBV": "Krabi Intl", "CNX": "Chiang Mai",
+            "USM": "Koh Samui", "HKG": "Hong Kong", "KUL": "Kuala Lumpur",
+            "DXB": "Dubai", "DOH": "Doha Hamad", "AUH": "Abu Dhabi",
+            "JFK": "New York JFK", "LAX": "Los Angeles", "MIA": "Miami",
+            "ORD": "Chicago O'Hare", "SFO": "San Francisco",
+            "NRT": "Tokyo Narita", "HND": "Tokyo Haneda", "ICN": "Seoul Incheon",
+            "DEL": "Delhi Indira Gandhi", "BOM": "Mumbai", "CMB": "Colombo",
+            "MLE": "Malé", "CUN": "Cancún", "PMI": "Palma de Mallorca",
+            "TFS": "Tenerife South", "LPA": "Gran Canaria", "SSH": "Sharm el-Sheikh",
+            "HRG": "Hurghada", "MBA": "Mombasa", "NBO": "Nairobi",
+            "CPT": "Cape Town", "JNB": "Johannesburg",
+            "SYD": "Sydney", "MEL": "Melbourne", "AKL": "Auckland",
+            "MRU": "Mauritius", "SEZ": "Seychelles Mahé",
+            "HAV": "Havana", "SJO": "San José Costa Rica", "LIM": "Lima",
+            "BOG": "Bogotá", "GRU": "São Paulo",
+            "AGP": "Málaga", "FAO": "Faro", "OPO": "Porto",
+            "SKG": "Thessaloniki", "HER": "Heraklion", "SPU": "Split",
+            "DBV": "Dubrovnik", "PRG": "Prague", "BUD": "Budapest",
+            "WAW": "Warsaw", "OTP": "Bucharest",
+            "TLV": "Tel Aviv", "CAI": "Cairo", "CMN": "Casablanca",
+            "RAK": "Marrakech", "TUN": "Tunis",
+            "PUJ": "Punta Cana", "MBJ": "Montego Bay", "BGI": "Barbados",
+            "PHX": "Phoenix", "DEN": "Denver", "SEA": "Seattle",
+            "YYZ": "Toronto Pearson", "YVR": "Vancouver",
+        }
+
         def _loc_name(val) -> str:
             """TC location fields can be a plain string, an airport code, or a
             dict like {'latitude':1.35,'longitude':103.99,'name':'Changi Intl'}.
-            Always return a human-readable name."""
+            Always return a human-readable name with IATA code if available."""
             if not val:
                 return ""
             if isinstance(val, dict):
-                return str(val.get("name") or val.get("code") or val.get("iata") or "").strip()
-            return str(val).strip()
+                name = str(val.get("name") or val.get("city") or "").strip()
+                code = str(val.get("code") or val.get("iata") or "").strip().upper()
+                if name and code:
+                    return f"{name} ({code})"
+                if code and code in IATA_NAMES:
+                    return f"{IATA_NAMES[code]} ({code})"
+                return name or code or ""
+            s = str(val).strip()
+            upper = s.upper()
+            if len(upper) == 3 and upper.isalpha() and upper in IATA_NAMES:
+                return f"{IATA_NAMES[upper]} ({upper})"
+            return s
 
         def _dt_sort(date_iso: str, time_str: str, kind_default: str) -> str:
             """Return a sortable ISO-like string: YYYY-MM-DDThh:mm<kind>.

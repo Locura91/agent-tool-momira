@@ -180,12 +180,16 @@ TEMPLATE = """<!doctype html>
     .page-footer{text-align:center;padding:1.2rem 1rem;font-size:.68rem;color:var(--subtle);
       border-top:1px solid var(--border);margin-top:.5rem}
 
+    /* ── Timeline detail line ── */
+    .tl-detail{font-size:.76rem;color:var(--muted);line-height:1.5;margin-top:.2rem}
+
     @media(max-width:520px){
       .hero{height:320px}
       .hero h1{font-size:1.35rem}
       .hero-overlay{padding:1.2rem 1rem 1.5rem}
       .hotel-card{flex-direction:column}
       .hc-img,.hc-img-ph{width:100%;height:180px}
+      .tl-body{padding:.5rem .7rem}
       .row3{grid-template-columns:1fr 1fr}
       .row3>:first-child{grid-column:1/-1}
       .row2,.row2b{grid-template-columns:1fr}
@@ -420,41 +424,53 @@ TEMPLATE = """<!doctype html>
   function renderItem(it){
     var kind = it.kind || 'activity';
     var typeLabel = (TYPE_LABELS[kind] || it.chip || kind).toUpperCase();
+
+    var headerExtra = '';
+    if(it.provider) headerExtra = ' &middot; ' + esc(it.provider);
+
     var starsHtml = '';
     if(it.stars && parseInt(it.stars) > 0)
       starsHtml = '<div class="tl-stars">' + Array(Math.min(parseInt(it.stars),5)+1).join('&#9733;') + '</div>';
 
-    var chips = [];
+    var detailParts = [];
     if(kind==='flight'||kind==='ferry'||kind==='bus'||kind==='train'||kind==='car'){
-      if(it.time)     chips.push('<span class="chip">'+esc(it.time)+'</span>');
-      if(it.duration) chips.push('<span class="chip">'+esc(it.duration)+'</span>');
-      if(it.stops)    chips.push('<span class="chip chip-green">'+esc(it.stops)+'</span>');
-      else if(kind==='flight') chips.push('<span class="chip chip-green">Direct</span>');
-      if(it.overnight) chips.push('<span class="chip chip-blue">Overnight</span>');
-      if(it.baggage)   chips.push('<span class="chip">'+esc(it.baggage)+'</span>');
-      if(it.provider)  chips.push('<span class="chip chip-purple">'+esc(it.provider)+'</span>');
+      var infoParts = [];
+      if(it.time)     infoParts.push(esc(it.time));
+      if(it.duration) infoParts.push(esc(it.duration));
+      if(it.stops)    infoParts.push(esc(it.stops));
+      else if(kind==='flight') infoParts.push('Direct');
+      if(it.overnight) infoParts.push('Overnight');
+      if(infoParts.length) detailParts.push(infoParts.join(' &middot; '));
+      if(it.baggage) detailParts.push('Baggage: ' + esc(it.baggage));
     } else if(kind==='hotel'){
-      if(it.date_range) chips.push('<span class="chip">'+esc(it.date_range)+'</span>');
-      if(it.nights && it.nights>0) chips.push('<span class="chip chip-amber">'+it.nights+' night'+(it.nights!==1?'s':'')+'</span>');
-      if(it.board) chips.push('<span class="chip chip-green">'+esc(it.board)+'</span>');
-      if(it.room)  chips.push('<span class="chip">'+esc(it.room)+'</span>');
+      var hotelParts = [];
+      if(it.nights && it.nights>0) hotelParts.push(it.nights+' Night'+(it.nights!==1?'s':''));
+      if(it.board) hotelParts.push(esc(it.board));
+      if(it.room)  hotelParts.push(esc(it.room));
+      if(hotelParts.length) detailParts.push(hotelParts.join(' &middot; '));
+      if(it.date_range) detailParts.push(esc(it.date_range));
     } else if(kind==='transfer'){
-      if(it.time)     chips.push('<span class="chip">'+esc(it.time)+'</span>');
-      if(it.overnight) chips.push('<span class="chip chip-blue">Overnight</span>');
-      if(it.baggage)   chips.push('<span class="chip">'+esc(it.baggage)+'</span>');
-      if(it.provider)  chips.push('<span class="chip chip-purple">'+esc(it.provider)+'</span>');
+      var trParts = [];
+      if(it.time) trParts.push(esc(it.time) + ' pickup');
+      if(it.provider) trParts.push(esc(it.provider));
+      if(it.overnight) trParts.push('Overnight');
+      if(trParts.length) detailParts.push(trParts.join(' &middot; '));
+      headerExtra = '';
     } else if(kind==='cruise'){
-      if(it.nights && it.nights>0) chips.push('<span class="chip chip-amber">'+it.nights+' night'+(it.nights!==1?'s':'')+'</span>');
-      if(it.provider) chips.push('<span class="chip chip-purple">'+esc(it.provider)+'</span>');
+      var crParts = [];
+      if(it.nights && it.nights>0) crParts.push(it.nights+' Night'+(it.nights!==1?'s':''));
+      if(crParts.length) detailParts.push(crParts.join(' &middot; '));
     } else if(kind==='activity'){
-      if(it.pax && it.pax>0) chips.push('<span class="chip">'+it.pax+' person'+(it.pax!==1?'s':'')+'</span>');
+      if(it.pax && it.pax>0) detailParts.push(it.pax+' person'+(it.pax!==1?'s':''));
     } else if(kind==='tour'){
-      if(it.date_range) chips.push('<span class="chip">'+esc(it.date_range)+'</span>');
-      if(it.modality)   chips.push('<span class="chip chip-purple">'+esc(it.modality)+'</span>');
+      if(it.date_range) detailParts.push(esc(it.date_range));
+      if(it.modality) detailParts.push(esc(it.modality));
     } else if(kind==='supplement'){
-      if(it.pax && it.pax>0) chips.push('<span class="chip">'+it.pax+' person'+(it.pax!==1?'s':'')+'</span>');
+      if(it.pax && it.pax>0) detailParts.push(it.pax+' person'+(it.pax!==1?'s':''));
     }
-    var chipsHtml = chips.length ? '<div class="tl-chips">'+chips.join('')+'</div>' : '';
+
+    var detailHtml = detailParts.length
+      ? '<div class="tl-detail">' + detailParts.join('<br>') + '</div>' : '';
 
     var dateHtml = '';
     if(it.date_label){
@@ -467,9 +483,9 @@ TEMPLATE = """<!doctype html>
     return '<div class="tl-row">'+
       '<div class="tl-left"><div class="tl-dot"></div>'+dateHtml+'</div>'+
       '<div class="tl-body">'+
-        '<div class="tl-type">'+esc(typeLabel)+'</div>'+
+        '<div class="tl-type">'+esc(typeLabel)+headerExtra+'</div>'+
         '<div class="tl-title">'+esc(it.title||'')+'</div>'+
-        starsHtml+chipsHtml+
+        starsHtml+detailHtml+
       '</div></div>';
   }
 
