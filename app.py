@@ -1349,7 +1349,20 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
             if not isinstance(t, dict):
                 continue
             ttype = str(t.get("transportType") or t.get("type") or "OTHER").upper()
-            chip_label, chip_kind = TRANSPORT_LABELS.get(ttype, (ttype.title(), "flight"))
+            if ttype in TRANSPORT_LABELS:
+                chip_label, chip_kind = TRANSPORT_LABELS[ttype]
+            else:
+                ttype_l = ttype.lower()
+                if any(kw in ttype_l for kw in ("driver", "private", "shuttle", "transfer", "minibus", "van", "pickup", "taxi")):
+                    chip_label, chip_kind = "Transfer", "transfer"
+                elif any(kw in ttype_l for kw in ("bus", "coach")):
+                    chip_label, chip_kind = "Bus", "bus"
+                elif any(kw in ttype_l for kw in ("ferry", "boat", "ship", "catamaran")):
+                    chip_label, chip_kind = "Ferry", "ferry"
+                elif any(kw in ttype_l for kw in ("train", "rail")):
+                    chip_label, chip_kind = "Train", "train"
+                else:
+                    chip_label, chip_kind = "Transport", "flight"
 
             dep_raw = (t.get("departureDate") or t.get("departureDateTime") or
                        t.get("date") or t.get("startDate") or "")
@@ -1373,7 +1386,15 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
 
             origin  = (_loc_name(t.get("originCode") or t.get("originAirport") or t.get("originCity") or t.get("origin") or t.get("from")) or "")
             dest_c  = (_loc_name(t.get("targetCode") or t.get("destinationCode") or t.get("destinationAirport") or t.get("destinationCity") or t.get("destination") or t.get("target") or t.get("to")) or "")
-            title   = f"{origin} → {dest_c}" if (origin and dest_c) else chip_label
+            # TC internal meeting-point codes start with "meet_" or "pnt_" — use name field instead
+            def _is_tc_internal(s: str) -> bool:
+                sl = s.lower()
+                return sl.startswith("meet_") or sl.startswith("pnt_") or sl.startswith("mtg_")
+            if _is_tc_internal(origin) or _is_tc_internal(dest_c):
+                name_title = _clean_html(t.get("name") or t.get("description") or "")
+                title = name_title or (f"{origin} → {dest_c}" if (origin and dest_c) else chip_label)
+            else:
+                title = f"{origin} → {dest_c}" if (origin and dest_c) else _clean_html(t.get("name") or t.get("description") or "") or chip_label
 
             time_str = ""
             if dep_time and dep_time[:5]:
@@ -1434,6 +1455,23 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
                 date_range = f"{ci} – {co}"
             elif ci:
                 date_range = ci
+            # Extract hotel photo URL
+            photo_url = ""
+            if isinstance(h_raw, dict):
+                for _img_f in ("image", "imageUrl", "photo", "photoUrl", "thumbnail",
+                               "thumbnailUrl", "mainPhoto", "mainImage", "picture", "img"):
+                    _v = h_raw.get(_img_f)
+                    if isinstance(_v, str) and _v.startswith("http"):
+                        photo_url = _v; break
+                if not photo_url:
+                    for _imgs_f in ("images", "photos", "pictures"):
+                        _imgs = h_raw.get(_imgs_f)
+                        if isinstance(_imgs, list) and _imgs:
+                            _fi = _imgs[0]
+                            if isinstance(_fi, str) and _fi.startswith("http"):
+                                photo_url = _fi; break
+                            elif isinstance(_fi, dict):
+                                photo_url = str(_fi.get("url") or _fi.get("src") or _fi.get("href") or ""); break
             items.append({
                 "sort_key":   _dt_sort(_fmt_date_iso(checkin_raw), "", "B"),
                 "date_label": _fmt_date(checkin_raw),
@@ -1445,7 +1483,17 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
                 "board":      board_label,
                 "room":       room_name,
                 "date_range": date_range,
+                "photo":      photo_url,
+                "checkin_iso": _fmt_date_iso(checkin_raw),
+                "checkout_iso": _fmt_date_iso(checkout_raw),
             })
+
+        # Build hotel date lookup for transfer date inference (name → checkin/checkout iso)
+        _hotel_date_map = {}
+        for _hi_item in items:
+            if _hi_item.get("kind") == "hotel" and _hi_item.get("title"):
+                _hn = _hi_item["title"].lower()
+                _hotel_date_map[_hn] = (_hi_item.get("checkin_iso", ""), _hi_item.get("checkout_iso", ""))
 
         # 3. Transfers (detail.transfers) — airport ↔ hotel
         for t in (_pick_raw(raw_detail, ["transfers", "transfer"], []) or []):
@@ -1475,10 +1523,20 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
             # transfer luggage / overnight indicators
             tr_luggage = _baggage_str(t)
             tr_overnight = bool(t.get("overnight") or t.get("overnightTransfer") or t.get("isOvernight"))
+            # Infer date from hotel name when transfer has no explicit date
+            dep_iso = _fmt_date_iso(dep_raw)
+            if not dep_iso and _hotel_date_map:
+                _dest_l = (dest_t or "").lower()
+                _orig_l = (origin_t or "").lower()
+                for _hn2, (_hci2, _hco2) in _hotel_date_map.items():
+                    if _hn2 and (_hn2 in _dest_l or _dest_l in _hn2):
+                        dep_iso = _hci2; break  # arrival transfer → hotel check-in
+                    if _hn2 and (_hn2 in _orig_l or _orig_l in _hn2):
+                        dep_iso = _hco2; break  # departure transfer → hotel check-out
             # Sort by actual pickup time; default T08:00 keeps transfer before hotel (T18:00)
             items.append({
-                "sort_key":   _dt_sort(_fmt_date_iso(dep_raw), dep_time_t, "C"),
-                "date_label": _fmt_date(dep_raw),
+                "sort_key":   _dt_sort(dep_iso, dep_time_t, "C"),
+                "date_label": _fmt_date(dep_iso or dep_raw),
                 "kind":       "transfer",
                 "chip":       "Transfer",
                 "title":      title_t,
@@ -1496,13 +1554,20 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
             if not name:
                 continue
             date_raw = ticket.get("date") or ticket.get("startDate") or ticket.get("ticketDate") or ""
+            # If no date but has a hotel/location reference, infer from hotel check-in
+            ticket_date_iso = _fmt_date_iso(date_raw)
+            if not ticket_date_iso and _hotel_date_map:
+                _tloc = _clean_html(ticket.get("location") or ticket.get("city") or ticket.get("destination") or "").lower()
+                for _hn2, (_hci2, _) in _hotel_date_map.items():
+                    if _tloc and (_tloc in _hn2 or _hn2 in _tloc):
+                        ticket_date_iso = _hci2; break
             pax_c = (ticket.get("pax") or ticket.get("quantity") or ticket.get("numberOfPersons") or
                      ticket.get("personsCount") or ticket.get("numPax") or ticket.get("participants") or 0)
             try: pax_c = int(pax_c)
             except Exception: pax_c = 0
             items.append({
-                "sort_key":   _dt_sort(_fmt_date_iso(date_raw), "", "D"),
-                "date_label": _fmt_date(date_raw),
+                "sort_key":   _dt_sort(ticket_date_iso, "", "D"),
+                "date_label": _fmt_date(ticket_date_iso or date_raw),
                 "kind":       "activity",
                 "chip":       "Excursion",
                 "title":      name,

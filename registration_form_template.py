@@ -114,6 +114,26 @@ TEMPLATE = """<!doctype html>
     .chip-blue{background:#eff6ff;color:#1d4ed8}
     .chip-purple{background:#f5f3ff;color:#5b21b6}
 
+    /* ── Timeline per-kind colours ── */
+    .tl-row--flight  .tl-dot{border-color:#2563eb}
+    .tl-row--bus     .tl-dot{border-color:#0891b2}
+    .tl-row--ferry   .tl-dot{border-color:#0891b2}
+    .tl-row--train   .tl-dot{border-color:#0891b2}
+    .tl-row--hotel   .tl-dot{border-color:#0d9488;background:#f0fdfa}
+    .tl-row--transfer .tl-dot{border-color:#d97706}
+    .tl-row--activity .tl-dot{border-color:#7c3aed}
+    .tl-row--tour    .tl-dot{border-color:#7c3aed}
+    .tl-row--cruise  .tl-dot{border-color:#0891b2}
+    .tl-type-flight  {color:#2563eb}
+    .tl-type-bus,.tl-type-ferry,.tl-type-train,.tl-type-cruise{color:#0891b2}
+    .tl-type-hotel   {color:#0d9488}
+    .tl-type-transfer{color:#d97706}
+    .tl-type-activity,.tl-type-tour{color:#7c3aed}
+
+    /* Hotel photo inside timeline */
+    .tl-hotel-photo{width:72px;height:56px;object-fit:cover;border-radius:5px;
+      flex-shrink:0;margin-right:.6rem;float:right;margin-left:.6rem}
+
     .no-itin{background:var(--white);border:1px solid var(--border);
       border-radius:8px;padding:1rem 1.2rem;font-size:.84rem;color:var(--muted);line-height:1.6}
 
@@ -480,10 +500,14 @@ TEMPLATE = """<!doctype html>
       dateHtml = '<div class="tl-date-sm">'+parts.join('<br>')+'</div>';
     }
 
-    return '<div class="tl-row">'+
+    var photoHtml = '';
+    if(kind==='hotel' && it.photo)
+      photoHtml = '<img class="tl-hotel-photo" src="'+esc(it.photo)+'" alt="" loading="lazy">';
+
+    return '<div class="tl-row tl-row--'+kind+'">'+
       '<div class="tl-left"><div class="tl-dot"></div>'+dateHtml+'</div>'+
-      '<div class="tl-body">'+
-        '<div class="tl-type">'+esc(typeLabel)+headerExtra+'</div>'+
+      '<div class="tl-body">'+photoHtml+
+        '<div class="tl-type tl-type-'+kind+'">'+esc(typeLabel)+headerExtra+'</div>'+
         '<div class="tl-title">'+esc(it.title||'')+'</div>'+
         starsHtml+detailHtml+
       '</div></div>';
