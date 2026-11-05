@@ -1730,10 +1730,14 @@ def render_offer_overlay(pack: "Package", fmt: str, brand: "Brand",
 
     y = panel_y + accent_h + int(18 * unit)
 
-    # "YOUR PERSONAL OFFER" micro-label
-    label_font = _font("bold", int(19 * unit))
+    # "YOUR PERSONAL OFFER" label — prominent, with tagline
+    label_font = _font("bold", int(26 * unit))
     draw.text((pad, y), "YOUR PERSONAL OFFER", font=label_font, fill=(*GOLD, 255), anchor="lt")
-    y += int(label_font.size * 1.55)
+    y += int(label_font.size * 1.3)
+    tagline_font = _font("bold", int(16 * unit))
+    tagline_color = (180, 220, 215, 220)
+    draw.text((pad, y), "FLEXIBLE  ·  CUSTOMISABLE TO YOUR NEEDS", font=tagline_font, fill=tagline_color, anchor="lt")
+    y += int(tagline_font.size * 1.6)
 
     # Destinations row
     dests = [d.get("name", "") for d in (pack.destinations or []) if d.get("name")]

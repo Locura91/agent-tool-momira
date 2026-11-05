@@ -770,12 +770,18 @@ async def generate_offer_video(
     package_id: str,
     format: str = "story",
     music: str = "none",
+    clip1: str | None = None,   # optional pre-selected clip download URLs
+    clip2: str | None = None,
+    clip3: str | None = None,
     agent: Agent = Depends(current_agent),
 ):
     """
     One-click offer video: auto-searches Pexels for the package destinations,
     picks the 3 best clips, burns the personalised offer overlay (title, dates,
     price, destinations) and returns the MP4.
+
+    If clip1/clip2/clip3 are provided (Pexels download URLs from /video/search),
+    those are used directly instead of auto-searching.
     """
     if format not in sk.FORMATS:
         raise HTTPException(status_code=400, detail=f"format must be one of {list(sk.FORMATS)}")
@@ -786,24 +792,31 @@ async def generate_offer_video(
     pack = await _get_pack(package_id, brand)
 
     want_portrait = _video_portrait(format)
-    q = vk.search_query(pack)
 
-    try:
-        candidates = vk.search_clips(q, want_portrait, per_page=15)
-    except vk.VideoError as e:
-        raise HTTPException(status_code=502, detail=str(e))
-
-    if not candidates:
-        raise HTTPException(status_code=404, detail=f"No stock clips found for query '{q}'.")
-
-    # Pick up to 3 distinct clips (spread across results for variety)
-    if len(candidates) >= 3:
-        step = len(candidates) // 3
-        clips = [candidates[0], candidates[step], candidates[step * 2]]
-    else:
-        clips = candidates[:3]
+    # Use pre-selected clips if provided, otherwise auto-search
+    pre_selected = [u for u in [clip1, clip2, clip3] if u]
+    if pre_selected:
+        clips = [{"download_url": u, "source": "pexels"} for u in pre_selected]
         while len(clips) < 3:
-            clips.append(clips[-1])   # repeat last if fewer than 3
+            clips.append(clips[-1])  # repeat last clip if fewer than 3
+    else:
+        q = vk.search_query(pack)
+        try:
+            candidates = vk.search_clips(q, want_portrait, per_page=15)
+        except vk.VideoError as e:
+            raise HTTPException(status_code=502, detail=str(e))
+
+        if not candidates:
+            raise HTTPException(status_code=404, detail=f"No stock clips found for query '{q}'.")
+
+        # Pick up to 3 distinct clips (spread across results for variety)
+        if len(candidates) >= 3:
+            step = len(candidates) // 3
+            clips = [candidates[0], candidates[step], candidates[step * 2]]
+        else:
+            clips = candidates[:3]
+            while len(clips) < 3:
+                clips.append(clips[-1])   # repeat last if fewer than 3
 
     # Resolve music
     music_path: str | None = None

@@ -139,6 +139,44 @@
       width: 100%; max-width: 360px; border-radius: 12px;
       background: #000; display: block; margin-bottom: .7rem;
     }
+    /* Clip picker for offer video */
+    .ofv-clip-section { margin-bottom: 1rem; }
+    .ofv-clip-search-row { display: flex; gap: .5rem; margin-bottom: .8rem; }
+    .ofv-clip-search-row input {
+      flex: 1; border: 1.5px solid var(--border); border-radius: 8px;
+      padding: .45rem .75rem; font-size: .85rem; color: var(--ink);
+    }
+    .ofv-clip-search-row input:focus { outline: none; border-color: var(--brand); }
+    .btn-search {
+      background: var(--bg); border: 1.5px solid var(--border); border-radius: 8px;
+      padding: .45rem .9rem; font-size: .83rem; font-weight: 600; cursor: pointer; color: var(--ink); white-space: nowrap;
+    }
+    .btn-search:hover { background: var(--brand-light); border-color: var(--brand); color: var(--brand); }
+    .ofv-clip-tray { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; margin-bottom: .8rem;
+      padding: .6rem .8rem; background: #f9fafb; border: 1px solid var(--border); border-radius: 8px; min-height: 44px; }
+    .ofv-tray-label { font-size: .73rem; color: var(--muted); font-weight: 600; white-space: nowrap; }
+    .ofv-tray-slot { position: relative; width: 44px; height: 78px; border: 2px dashed var(--border);
+      border-radius: 6px; display: flex; align-items: center; justify-content: center;
+      font-size: .9rem; color: var(--muted); background: #fff; cursor: default; overflow: hidden; flex-shrink: 0; }
+    .ofv-tray-slot.filled { border-style: solid; border-color: var(--brand); cursor: pointer; }
+    .ofv-tray-slot video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    .ofv-tray-num { position: absolute; top: 2px; left: 2px; background: var(--brand); color: #fff;
+      font-size: .6rem; font-weight: 800; width: 14px; height: 14px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center; }
+    .ofv-tray-rm { position: absolute; top: 2px; right: 2px; background: rgba(0,0,0,.55); color: #fff;
+      font-size: .6rem; border: none; border-radius: 50%; width: 14px; height: 14px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; }
+    .ofv-clips { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: .6rem; }
+    .ofv-clip { position: relative; border: 2px solid var(--border); border-radius: 8px; overflow: hidden;
+      cursor: pointer; aspect-ratio: 9/16; background: #e5e7eb; }
+    .ofv-clip.in-tray { border-color: var(--brand); }
+    .ofv-clip video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    .ofv-clip .ofv-num-badge { position: absolute; top: 4px; left: 4px; background: var(--brand); color: #fff;
+      font-size: .68rem; font-weight: 800; width: 18px; height: 18px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center; }
+    .ofv-clip .ofv-dur { position: absolute; bottom: 3px; right: 3px; background: rgba(0,0,0,.7);
+      color: #fff; font-size: .65rem; padding: 1px 4px; border-radius: 3px; }
+    .ofv-clip-hint { font-size: .73rem; color: var(--muted); margin-bottom: .5rem; }
     .btn-sm {
       font-size: .82rem; font-weight: 700; border-radius: 8px;
       padding: .4rem .85rem; cursor: pointer; border: none;
@@ -255,12 +293,32 @@
       <span class="music-desc-text" id="ofv-music-desc"></span>
     </div>
 
+    <!-- Clip picker -->
+    <div class="ofv-clip-section">
+      <div style="font-size:.78rem;font-weight:600;margin-bottom:.5rem;color:var(--muted)">🎬 SELECT VIDEO CLIPS <span style="font-weight:400">(optional — leave empty to auto-pick)</span></div>
+      <div class="ofv-clip-search-row">
+        <input type="text" id="ofv-clip-query" placeholder="e.g. Singapore, Phuket beach">
+        <button class="btn-search" id="ofv-search-btn" onclick="ofvSearchClips()">Find clips →</button>
+      </div>
+      <!-- Clip tray -->
+      <div class="ofv-clip-tray" id="ofv-clip-tray">
+        <span class="ofv-tray-label">Your clips:</span>
+        <div class="ofv-tray-slot" id="ofv-tray-0"><span style="font-size:1rem;opacity:.4">+</span></div>
+        <span style="color:var(--muted);font-size:.8rem">→</span>
+        <div class="ofv-tray-slot" id="ofv-tray-1"><span style="font-size:1rem;opacity:.4">+</span></div>
+        <span style="color:var(--muted);font-size:.8rem">→</span>
+        <div class="ofv-tray-slot" id="ofv-tray-2"><span style="font-size:1rem;opacity:.4">+</span></div>
+        <span style="font-size:.72rem;color:var(--muted);margin-left:.4rem">Click a clip to add · click slot to remove</span>
+      </div>
+      <div class="ofv-clips" id="ofv-clips"></div>
+    </div>
+
     <button class="btn-generate" id="ofv-create-btn">
       ✨ Create offer video →
     </button>
 
     <div id="ofv-result">
-      <video id="ofv-player" controls playsinline></video>
+      <video id="ofv-player" controls playsinline disablepictureinpicture></video>
       <button class="btn-sm btn-dl" id="ofv-dl-btn">⬇ Download offer video</button>
     </div>
     <div class="ofv-status" id="ofv-status"></div>
@@ -337,6 +395,10 @@
       document.getElementById('offer-video-card').style.display = 'block';
       document.getElementById('ofv-result').style.display = 'none';
       document.getElementById('ofv-status').textContent   = '';
+      document.getElementById('ofv-clips').innerHTML = '';
+      ofvClips = [null, null, null];
+      ofvRefreshTray();
+      ofvPrefillSearch(pkg);
       if (!musicTracks.length) await loadMusicTracks();
       populateOfvMusic();
 
@@ -397,6 +459,110 @@
     });
   }
 
+  // ── Clip picker for offer video ──────────────────────────────────────────
+  let ofvClips = [null, null, null];  // selected clip objects
+
+  function ofvTrayCount() { return ofvClips.filter(Boolean).length; }
+
+  function ofvRefreshTray() {
+    [0,1,2].forEach(i => {
+      const slot = document.getElementById('ofv-tray-' + i);
+      const clip = ofvClips[i];
+      if (!clip) {
+        slot.classList.remove('filled');
+        slot.innerHTML = '<span style="font-size:1rem;opacity:.4">+</span>';
+        return;
+      }
+      slot.classList.add('filled');
+      const numBadge = `<div class="ofv-tray-num">${i+1}</div>`;
+      const rmBtn = `<button class="ofv-tray-rm" onclick="ofvRemoveClip(${i})">✕</button>`;
+      const vid = `<video src="${clip.downloadUrl}" autoplay muted loop playsinline></video>`;
+      slot.innerHTML = vid + numBadge + rmBtn;
+    });
+    ofvRefreshBadges();
+  }
+
+  function ofvRemoveClip(i) {
+    ofvClips[i] = null;
+    ofvClips = ofvClips.filter(Boolean);
+    while (ofvClips.length < 3) ofvClips.push(null);
+    ofvRefreshTray();
+  }
+
+  function ofvAddClip(clip) {
+    const idx = ofvClips.findIndex(c => !c);
+    if (idx === -1) { alert('You can add up to 3 clips. Click a slot to remove one.'); return; }
+    ofvClips[idx] = clip;
+    ofvRefreshTray();
+  }
+
+  function ofvRefreshBadges() {
+    document.querySelectorAll('.ofv-clip').forEach(el => {
+      const cid = parseInt(el.dataset.clipId || '0');
+      const pos = ofvClips.findIndex(c => c && c.id === cid);
+      el.classList.toggle('in-tray', pos >= 0);
+      let badge = el.querySelector('.ofv-num-badge');
+      if (pos >= 0) {
+        if (!badge) { badge = document.createElement('div'); badge.className = 'ofv-num-badge'; el.appendChild(badge); }
+        badge.textContent = pos + 1;
+      } else if (badge) badge.remove();
+    });
+  }
+
+  async function ofvSearchClips() {
+    if (!currentPkgId) return;
+    const btn = document.getElementById('ofv-search-btn');
+    const q   = document.getElementById('ofv-clip-query').value.trim();
+    const grid = document.getElementById('ofv-clips');
+    btn.disabled = true; btn.textContent = 'Searching…';
+    grid.innerHTML = '<div style="color:var(--muted);font-size:.84rem;padding:.4rem 0">Searching…</div>';
+    try {
+      let url = `/generate/${encodeURIComponent(currentPkgId)}/video/search?format=${_ofvFmt}`;
+      if (q) url += '&query=' + encodeURIComponent(q);
+      const r = await fetch(url, { headers });
+      if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.detail || r.statusText); }
+      const data = await r.json();
+      ofvRenderClipGrid(data.clips || []);
+    } catch (e) {
+      grid.innerHTML = '<div style="color:#dc2626;font-size:.84rem">' + (e.message || 'Search failed') + '</div>';
+    } finally {
+      btn.disabled = false; btn.textContent = 'Find clips →';
+    }
+  }
+
+  function ofvRenderClipGrid(clips) {
+    const grid = document.getElementById('ofv-clips');
+    grid.innerHTML = '';
+    if (!clips.length) { grid.innerHTML = '<div style="color:var(--muted);font-size:.84rem">No clips found — try different keywords.</div>'; return; }
+    clips.forEach(clip => {
+      const el = document.createElement('div');
+      el.className = 'ofv-clip';
+      el.dataset.clipId = clip.id;
+      const vid = document.createElement('video');
+      vid.src = clip.download_url; vid.poster = clip.preview;
+      vid.muted = true; vid.loop = true; vid.playsInline = true; vid.preload = 'none';
+      vid.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;';
+      el.appendChild(vid);
+      const dur = document.createElement('div');
+      dur.className = 'ofv-dur'; dur.textContent = clip.duration + 's'; el.appendChild(dur);
+      el.addEventListener('mouseenter', () => vid.play().catch(() => {}));
+      el.addEventListener('mouseleave', () => { vid.pause(); vid.currentTime = 0; });
+      el.addEventListener('click', () => {
+        const pos = ofvClips.findIndex(c => c && c.id === clip.id);
+        if (pos >= 0) ofvRemoveClip(pos);
+        else ofvAddClip({ id: clip.id, downloadUrl: clip.download_url });
+      });
+      grid.appendChild(el);
+    });
+    ofvRefreshBadges();
+  }
+
+  // Auto-search when package loads
+  function ofvPrefillSearch(pkg) {
+    const dests = (pkg.destinations || []).slice(0, 2).join(' ');
+    document.getElementById('ofv-clip-query').value = dests || pkg.title || '';
+  }
+
   // ── Generate offer video ─────────────────────────────────────────────────
   document.getElementById('ofv-create-btn').addEventListener('click', async () => {
     if (!currentPkgId) return;
@@ -405,13 +571,20 @@
     const music = document.getElementById('ofv-music').value;
     btn.disabled    = true;
     btn.textContent = 'Generating… (15–30 s)';
-    st.textContent  = '⏳ Fetching stock clips and rendering your offer video…';
+    const selectedCount = ofvTrayCount();
+    st.textContent  = selectedCount
+      ? `⏳ Rendering with your ${selectedCount} selected clip${selectedCount > 1 ? 's' : ''}…`
+      : '⏳ Auto-picking clips and rendering your offer video…';
     document.getElementById('ofv-result').style.display = 'none';
     if (_ofvBlobUrl) { URL.revokeObjectURL(_ofvBlobUrl); _ofvBlobUrl = null; }
 
     try {
-      const url = `/generate/${encodeURIComponent(currentPkgId)}/video/offer`
-                + `?format=${_ofvFmt}&music=${encodeURIComponent(music)}`;
+      let url = `/generate/${encodeURIComponent(currentPkgId)}/video/offer`
+              + `?format=${_ofvFmt}&music=${encodeURIComponent(music)}`;
+      // Pass selected clip URLs if agent picked them
+      const filled = ofvClips.filter(Boolean);
+      filled.forEach((c, i) => { url += `&clip${i+1}=${encodeURIComponent(c.downloadUrl)}`; });
+
       const r   = await fetch(url, { headers });
       if (!r.ok) {
         const err = await r.json().catch(() => ({}));
