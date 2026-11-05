@@ -352,7 +352,8 @@
   async function loadMusicTracks() {
     try {
       const r = await fetch('/generate/music/tracks', { headers });
-      musicTracks = await r.json();
+      const data = await r.json();
+      musicTracks = (data && data.tracks) ? data.tracks : (Array.isArray(data) ? data : []);
     } catch (_) {
       musicTracks = [];
     }
