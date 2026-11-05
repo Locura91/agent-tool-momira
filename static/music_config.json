@@ -19,19 +19,5 @@
     "file": "saltwater-afternoon.mp3",
     "suno_url": "",
     "description": "Relaxed & warm — ideal for coastal holidays and wellness retreats"
-  },
-  {
-    "id": "upbeat-travel",
-    "name": "Upbeat Travel",
-    "file": "upbeat-travel.mp3",
-    "suno_url": "",
-    "description": "Bright & energetic — perfect for adventure tours and active holidays"
-  },
-  {
-    "id": "gentle-acoustic",
-    "name": "Gentle Acoustic",
-    "file": "gentle-acoustic.mp3",
-    "suno_url": "",
-    "description": "Warm & relaxed — ideal for family and wellness packages"
   }
 ]

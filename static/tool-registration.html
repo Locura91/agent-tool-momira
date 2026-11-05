@@ -559,8 +559,7 @@
 
   // Auto-search when package loads
   function ofvPrefillSearch(pkg) {
-    const dests = (pkg.destinations || []).slice(0, 2).join(' ');
-    document.getElementById('ofv-clip-query').value = dests || pkg.title || '';
+    document.getElementById('ofv-clip-query').value = pkg.title || '';
   }
 
   // ── Generate offer video ─────────────────────────────────────────────────
