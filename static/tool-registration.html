@@ -475,10 +475,14 @@
       }
       slot.classList.add('filled');
       const numBadge = `<div class="ofv-tray-num">${i+1}</div>`;
-      const rmBtn = `<button class="ofv-tray-rm" onclick="ofvRemoveClip(${i})">✕</button>`;
+      const rmBtn = `<button class="ofv-tray-rm" onclick="ofvRemoveClip(${i})" title="Remove clip ${i+1}">✕</button>`;
       const vid = `<video src="${clip.downloadUrl}" autoplay muted loop playsinline></video>`;
       slot.innerHTML = vid + numBadge + rmBtn;
     });
+    // Update tray label to show count
+    const n = ofvTrayCount();
+    const lbl = document.querySelector('.ofv-tray-label');
+    if (lbl) lbl.textContent = n > 0 ? `Your clips (${n}/3):` : 'Your clips:';
     ofvRefreshBadges();
   }
 
@@ -498,8 +502,8 @@
 
   function ofvRefreshBadges() {
     document.querySelectorAll('.ofv-clip').forEach(el => {
-      const cid = parseInt(el.dataset.clipId || '0');
-      const pos = ofvClips.findIndex(c => c && c.id === cid);
+      const cid = el.dataset.clipId || '';
+      const pos = ofvClips.findIndex(c => c && String(c.id) === cid);
       el.classList.toggle('in-tray', pos >= 0);
       let badge = el.querySelector('.ofv-num-badge');
       if (pos >= 0) {
@@ -535,9 +539,10 @@
     grid.innerHTML = '';
     if (!clips.length) { grid.innerHTML = '<div style="color:var(--muted);font-size:.84rem">No clips found — try different keywords.</div>'; return; }
     clips.forEach(clip => {
+      const clipId = String(clip.id);
       const el = document.createElement('div');
       el.className = 'ofv-clip';
-      el.dataset.clipId = clip.id;
+      el.dataset.clipId = clipId;
       const vid = document.createElement('video');
       vid.src = clip.download_url; vid.poster = clip.preview;
       vid.muted = true; vid.loop = true; vid.playsInline = true; vid.preload = 'none';
@@ -548,13 +553,15 @@
       el.addEventListener('mouseenter', () => vid.play().catch(() => {}));
       el.addEventListener('mouseleave', () => { vid.pause(); vid.currentTime = 0; });
       el.addEventListener('click', () => {
-        const pos = ofvClips.findIndex(c => c && c.id === clip.id);
-        if (pos >= 0) ofvRemoveClip(pos);
-        else ofvAddClip({ id: clip.id, downloadUrl: clip.download_url });
+        const pos = ofvClips.findIndex(c => c && String(c.id) === clipId);
+        // If already in tray: do nothing (remove via the ✕ in the tray slot)
+        if (pos >= 0) return;
+        ofvAddClip({ id: clipId, downloadUrl: clip.download_url });
       });
       grid.appendChild(el);
     });
-    ofvRefreshBadges();
+    // Rebuild tray (preserves clips from previous searches) then mark badges
+    ofvRefreshTray();
   }
 
   // Auto-search when package loads
