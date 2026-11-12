@@ -627,10 +627,10 @@
       resetVideoResult();
       applyStyleView();   // show images or the video picker, per the selected style
 
-      // Show offer video section now that we have a package
-      document.getElementById('offer-video-section').style.display = 'block';
-      document.getElementById('ofv-result').style.display = 'none';
-      document.getElementById('ofv-status').textContent = '';
+      // Offer Video section hidden for now — focusing on the social media kit only
+      // document.getElementById('offer-video-section').style.display = 'block';
+      // document.getElementById('ofv-result').style.display = 'none';
+      // document.getElementById('ofv-status').textContent = '';
 
     } catch (e) {
       showError('Could not reach the server. Please try again.');
@@ -1113,8 +1113,8 @@
 
   function refreshClipBadges() {
     document.querySelectorAll('.vid-clip').forEach(el => {
-      const cid = parseInt(el.dataset.clipId || '0');
-      const pos = trayClips.findIndex(c => c && c.id === cid);
+      const cid = el.dataset.clipId || '';
+      const pos = trayClips.findIndex(c => c && String(c.id) === cid);
       el.classList.toggle('in-tray', pos >= 0);
       let badge = el.querySelector('.vid-slot-badge');
       if (pos >= 0) {
@@ -1152,7 +1152,6 @@
     const q = document.getElementById('vid-query').value.trim();
     const grid = document.getElementById('vid-clips');
     grid.innerHTML = '<div style="color:var(--muted);font-size:.85rem;padding:.5rem 0;">Searching…</div>';
-    resetTray();
     resetVideoResult();
 
     const btn = document.getElementById('vid-search-btn');
@@ -1219,11 +1218,9 @@
 
       el.dataset.clipId = clip.id;
       el.addEventListener('click', () => {
-        // If already in tray, remove it; otherwise add it
-        const pos = trayClips.findIndex(c => c && c.id === clip.id);
-        if (pos >= 0) {
-          removeFromTray(pos);
-        } else {
+        const pos = trayClips.findIndex(c => c && String(c.id) === String(clip.id));
+        if (pos >= 0) return;  // already in tray — remove via ✕ in the tray slot
+        {
           addToTray({
             id: clip.id,
             source: clip.source || '',
