@@ -1555,14 +1555,18 @@ def render_video_overlay(pack: Package, fmt: str, brand: "Brand",
         draw.text((pad, y), price_line, font=price_font, fill=GOLD)
         y += int(price_font.size * 1.4)
 
-    # CTA pill — pinned to bottom-right.
-    foot_cta = height - int(60 * unit)
-    _pill(draw, (width - pad - cta_w, foot_cta - int(cta_font.size * 2.2)),
-          cta, cta_font, BRAND, WHITE, int(28 * unit))
+    # CTA pill — raised higher so Instagram's bottom UI chrome doesn't cover it.
+    # Place it in the info panel, left-aligned, below the price.
+    cta_y = y + int(12 * unit)
+    _pill(draw, (pad, cta_y), cta, cta_font, BRAND, WHITE, int(28 * unit))
 
-    # Wordmark pill — shifted right of top-left corner for better reel visibility.
+    # Wordmark pill — centred horizontally so it clears Instagram's top-left avatar.
     if brand.wordmark:
-        _pill(draw, (int(pad * 1.6), pad), brand.wordmark, _font("bold", int(30 * unit)), BRAND, WHITE, int(28 * unit))
+        wm_font = _font("bold", int(30 * unit))
+        wm_w = int(draw.textlength(brand.wordmark, font=wm_font)) + int(56 * unit)
+        wm_x = (width - wm_w) // 2
+        wm_y = int(pad * 0.8)
+        _pill(draw, (wm_x, wm_y), brand.wordmark, wm_font, BRAND, WHITE, int(28 * unit))
 
     return canvas
 
