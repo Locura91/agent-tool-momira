@@ -719,11 +719,8 @@ async def generate_video_multi(
     want_portrait = _video_portrait(format)
     q = query or vk.search_query(pack)
 
-    # Re-fetch all requested clips (deduplicated lookup)
-    try:
-        all_clips = {c.id: c for c in vk.search_clips(q, want_portrait, per_page=20)}
-    except vk.VideoError as e:
-        raise HTTPException(status_code=502, detail=str(e))
+    # Fetch each requested clip directly by ID (avoids re-search pagination limits)
+    all_clips = vk.fetch_clips_by_ids(id_list, want_portrait)
 
     clips = []
     for cid in id_list:

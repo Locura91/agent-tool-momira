@@ -265,6 +265,43 @@ def search_clips(query: str, want_portrait: bool, per_page: int = 6) -> List[Cli
     return merged[:per_page]
 
 
+def _fetch_pexels_clip_by_id(clip_id: int, want_portrait: bool) -> Optional[Clip]:
+    """Fetch a single Pexels video directly by ID (no search query needed)."""
+    key = os.environ.get("PEXELS_API_KEY")
+    if not key:
+        return None
+    try:
+        resp = requests.get(
+            f"https://api.pexels.com/videos/videos/{clip_id}",
+            headers={"Authorization": key},
+            timeout=_HTTP_TIMEOUT,
+        )
+    except requests.RequestException:
+        return None
+    if not resp.ok:
+        return None
+    v = resp.json()
+    chosen = _pick_file(v.get("video_files", []), want_portrait)
+    if not chosen:
+        return None
+    return Clip(
+        id=v.get("id", 0), duration=v.get("duration", 0),
+        width=chosen.get("width", 0), height=chosen.get("height", 0),
+        preview=v.get("image", ""), download_url=chosen.get("link", ""),
+        user=(v.get("user") or {}).get("name", ""), source="pexels",
+    )
+
+
+def fetch_clips_by_ids(clip_ids: List[int], want_portrait: bool) -> dict:
+    """Fetch clips by ID directly (no re-search). Returns {id: Clip} for found clips."""
+    result = {}
+    for cid in clip_ids:
+        clip = _fetch_pexels_clip_by_id(cid, want_portrait)
+        if clip:
+            result[cid] = clip
+    return result
+
+
 def clip_by_id(query: str, want_portrait: bool, clip_id: int,
                source: Optional[str] = None) -> Optional[Clip]:
     """Re-find a chosen clip. `source` disambiguates when both providers are on."""
