@@ -292,11 +292,52 @@ def _fetch_pexels_clip_by_id(clip_id: int, want_portrait: bool) -> Optional[Clip
     )
 
 
+def _fetch_pixabay_clip_by_id(clip_id: int, want_portrait: bool) -> Optional[Clip]:
+    """Fetch a single Pixabay video directly by ID."""
+    key = os.environ.get("PIXABAY_API_KEY")
+    if not key:
+        return None
+    try:
+        resp = requests.get(
+            PIXABAY_SEARCH_URL,
+            params={"key": key, "id": clip_id, "video_type": "film"},
+            timeout=_HTTP_TIMEOUT,
+        )
+    except requests.RequestException:
+        return None
+    if not resp.ok:
+        return None
+    hits = resp.json().get("hits", [])
+    if not hits:
+        return None
+    h = hits[0]
+    files = []
+    for size in (h.get("videos") or {}).values():
+        if isinstance(size, dict) and size.get("url"):
+            files.append({"link": size["url"], "width": size.get("width", 0),
+                          "height": size.get("height", 0), "file_type": "mp4"})
+    chosen = _pick_file(files, want_portrait)
+    if not chosen:
+        return None
+    thumb = ""
+    for size in (h.get("videos") or {}).values():
+        if isinstance(size, dict) and size.get("thumbnail"):
+            thumb = size["thumbnail"]; break
+    return Clip(
+        id=h.get("id", 0), duration=h.get("duration", 0),
+        width=chosen.get("width", 0), height=chosen.get("height", 0),
+        preview=thumb, download_url=chosen.get("link", ""),
+        user=h.get("user", ""), source="pixabay",
+    )
+
+
 def fetch_clips_by_ids(clip_ids: List[int], want_portrait: bool) -> dict:
-    """Fetch clips by ID directly (no re-search). Returns {id: Clip} for found clips."""
+    """Fetch clips by ID directly (no re-search). Tries Pexels first, then Pixabay."""
     result = {}
     for cid in clip_ids:
         clip = _fetch_pexels_clip_by_id(cid, want_portrait)
+        if not clip:
+            clip = _fetch_pixabay_clip_by_id(cid, want_portrait)
         if clip:
             result[cid] = clip
     return result
