@@ -627,18 +627,35 @@ async def video_search(
 _MUSIC_DIR    = os.path.join(os.path.dirname(__file__), "static", "music")
 _MUSIC_CONFIG = os.path.join(os.path.dirname(__file__), "static", "music_config.json")
 
+_music_config_cache: list | None = None
+
 def _load_music_config() -> list:
+    global _music_config_cache
+    if _music_config_cache is not None:
+        return _music_config_cache
     try:
         import json as _j
         with open(_MUSIC_CONFIG, "r", encoding="utf-8") as f:
-            return _j.load(f)
+            _music_config_cache = _j.load(f)
+            return _music_config_cache
     except Exception:
         return []
 
 def _save_music_config(tracks: list) -> None:
+    global _music_config_cache
     import json as _j
     with open(_MUSIC_CONFIG, "w", encoding="utf-8") as f:
         _j.dump(tracks, f, indent=2, ensure_ascii=False)
+    _music_config_cache = tracks  # keep cache in sync after a write
+
+def _resolve_music_path(music_id: str) -> str | None:
+    """Return the absolute path to a music file by its track ID, or None."""
+    if not music_id or music_id == "none":
+        return None
+    cfg_entry = next((t for t in _load_music_config() if t["id"] == music_id), None)
+    fname = cfg_entry["file"] if cfg_entry else music_id + ".mp3"
+    candidate = os.path.join(_MUSIC_DIR, fname)
+    return candidate if os.path.isfile(candidate) else None
 
 
 @app.get("/generate/music/tracks")
@@ -694,9 +711,7 @@ async def generate_video_multi(
     package_id: str,
     clip_ids: str,          # comma-separated clip IDs in playback order
     format: str = "story",
-    query: str | None = None,
-    source: str | None = None,
-    music: str = "none",    # track id from _MUSIC_TRACKS, or "none"
+    music: str = "none",    # track id from music_config.json, or "none"
     agent: Agent = Depends(current_agent),
 ):
     """Render up to 3 stock clips as a single branded MP4 (up to 15 seconds)."""
@@ -717,7 +732,6 @@ async def generate_video_multi(
     pack = await _get_pack(package_id, brand)
 
     want_portrait = _video_portrait(format)
-    q = query or vk.search_query(pack)
 
     # Fetch each requested clip directly by ID (avoids re-search pagination limits)
     all_clips = vk.fetch_clips_by_ids(id_list, want_portrait)
@@ -729,15 +743,7 @@ async def generate_video_multi(
             raise HTTPException(status_code=404, detail=f"Clip {cid} not found — search again.")
         clips.append(clip)
 
-    # Resolve music path from config
-    music_path: str | None = None
-    if music and music != "none":
-        cfg_entry = next((t for t in _load_music_config() if t["id"] == music), None)
-        fname = cfg_entry["file"] if cfg_entry else music + ".mp3"
-        candidate = os.path.join(_MUSIC_DIR, fname)
-        if os.path.isfile(candidate):
-            music_path = candidate
-
+    music_path = _resolve_music_path(music)
     loop = asyncio.get_running_loop()
 
     def _work() -> bytes:
@@ -815,14 +821,7 @@ async def generate_offer_video(
             while len(clips) < 3:
                 clips.append(clips[-1])   # repeat last if fewer than 3
 
-    # Resolve music
-    music_path: str | None = None
-    if music and music != "none":
-        cfg_entry = next((t for t in _load_music_config() if t["id"] == music), None)
-        fname = cfg_entry["file"] if cfg_entry else music + ".mp3"
-        candidate_path = os.path.join(_MUSIC_DIR, fname)
-        if os.path.isfile(candidate_path):
-            music_path = candidate_path
+    music_path = _resolve_music_path(music)
 
     loop = asyncio.get_running_loop()
 
@@ -851,19 +850,19 @@ async def generate_offer_video(
 @app.post("/generate/video/combine")
 async def combine_uploaded_clips(
     clip1: UploadFile = File(...),
-    clip2: UploadFile = File(...),
-    clip3: UploadFile = File(...),
+    clip2: UploadFile | None = File(None),
+    clip3: UploadFile | None = File(None),
     agent: Agent = Depends(current_agent),
 ):
-    """Accept up to 3 user-uploaded video files, trim each to 5 seconds,
-    concatenate them and return a single 15-second MP4."""
+    """Accept 1–3 user-uploaded video files, trim each to 5 seconds,
+    concatenate them and return a 5–15 second MP4."""
     import tempfile, os, subprocess as _sp
 
     ffmpeg = vk.ffmpeg_bin()
     if not ffmpeg:
         raise HTTPException(status_code=503, detail="FFmpeg is not installed on this server.")
 
-    clips = [clip1, clip2, clip3]
+    clips = [c for c in [clip1, clip2, clip3] if c is not None]
     loop = asyncio.get_running_loop()
     _MAX = 200 * 1024 * 1024  # 200 MB per clip
 
