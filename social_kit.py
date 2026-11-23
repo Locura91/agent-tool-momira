@@ -34,6 +34,7 @@ MODULE_BUILD = "2026-10-19-video-wordmark-and-agent-logo"
 import io
 import os
 import re
+import threading
 import unicodedata
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -175,6 +176,24 @@ class TCClient:
 
     def calendar(self, package_id: str, lang: str = "PL") -> Dict[str, Any]:
         return self.get(f"/package/calendar/{self.config.microsite}/{package_id}", {"lang": lang})
+
+
+_shared_client: Optional["TCClient"] = None
+_shared_client_lock = threading.Lock()
+
+
+def shared_client() -> "TCClient":
+    """A process-wide TCClient so its auth-token is reused across requests.
+
+    A fresh TCClient() re-runs the login POST before its first GET, doubling
+    the round trips on every TC call. Reusing one instance keeps the token;
+    `get()` already re-authenticates on a 401, so expiry is handled.
+    """
+    global _shared_client
+    with _shared_client_lock:
+        if _shared_client is None:
+            _shared_client = TCClient()
+        return _shared_client
 
 
 # --------------------------------------------------------------------------

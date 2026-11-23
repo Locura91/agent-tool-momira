@@ -65,6 +65,17 @@ def _cache_put(key: tuple, pack: sk.Package) -> None:
         _PKG_CACHE[key] = (pack, time.time())
 
 
+async def _tc_call(fn, *args, **kwargs):
+    """Run a blocking Travel Compositor call in a worker thread.
+
+    social_kit uses synchronous `requests`; calling it straight from an async
+    endpoint parks the event loop for the whole round trip (up to the 45s
+    timeout), which stalls every other request in the process.
+    """
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, lambda: fn(*args, **kwargs))
+
+
 async def _get_pack(package_id: str, brand: sk.Brand) -> sk.Package:
     """
     Fetch a Package from TC, using a 10-minute in-process cache.
@@ -76,7 +87,7 @@ async def _get_pack(package_id: str, brand: sk.Brand) -> sk.Package:
     if cached:
         return cached
     try:
-        pack = sk.fetch(sk.TCClient(), package_id, brand)
+        pack = await _tc_call(sk.fetch, sk.shared_client(), package_id, brand)
     except sk.TCError as e:
         raise HTTPException(status_code=502, detail=str(e))
     _cache_put(key, pack)
@@ -203,8 +214,8 @@ async def debug_tc(agent: Agent = Depends(current_admin)):
     auth_ok = False
     auth_error = None
     try:
-        client = sk.TCClient()
-        client.authenticate()
+        client = sk.shared_client()
+        await _tc_call(client.authenticate, force=True)
         auth_ok = True
     except sk.TCError as e:
         auth_error = str(e)
@@ -387,19 +398,19 @@ async def debug_package(
 ):
     """Returns the raw TC API response for a package so image field names can be inspected."""
     brand = engine.agent_brand(agent)
-    client = sk.TCClient()
+    client = sk.shared_client()
     import re as _re
     pkg_id = _re.sub(r"\D", "", str(package_id))
     try:
-        info = client.info(pkg_id, brand.tc_lang)
+        info = await _tc_call(client.info, pkg_id, brand.tc_lang)
     except sk.TCError as e:
         info = {"error": str(e)}
     try:
-        detail = client.detail(pkg_id, brand.tc_lang)
+        detail = await _tc_call(client.detail, pkg_id, brand.tc_lang)
     except sk.TCError as e:
         detail = {"error": str(e)}
     try:
-        calendar = client.calendar(pkg_id, brand.tc_lang)
+        calendar = await _tc_call(client.calendar, pkg_id, brand.tc_lang)
     except sk.TCError as e:
         calendar = {"error": str(e)}
 
@@ -1052,10 +1063,9 @@ async def registration_form(agent_id: str, package_id: str, db: AsyncSession = D
     itinerary_json = "null"
 
     try:
-        # Use TCClient() directly so it reads TRAVELC_USERNAME/PASSWORD from env
-        # via TCConfig.from_env() — passing empty strings as explicit args breaks auth
-        _tc_client = sk.TCClient()
-        pack = sk.fetch(_tc_client, package_id, lang="EN")
+        # Let the client read TRAVELC_USERNAME/PASSWORD from env via
+        # TCConfig.from_env() — passing empty strings as explicit args breaks auth
+        pack = await _tc_call(sk.fetch, sk.shared_client(), package_id, lang="EN")
         pkg_title = pack.title or pkg_title
         # Destination: first destination name
         if pack.destinations:
@@ -1976,11 +1986,10 @@ async def lookup_booking(
     agent: Agent = Depends(current_agent),
 ):
     """Look up a TC booking by reference number and return customer details."""
-    import os as _os
-    microsite = _os.environ.get("TRAVELC_MICROSITE_ID", "momiratravel")
     try:
-        client = sk.TCClient()
-        data = client.get(f"/booking/getBookings/{microsite}/{ref.strip()}")
+        client = sk.shared_client()
+        microsite = client.config.microsite
+        data = await _tc_call(client.get, f"/booking/getBookings/{microsite}/{ref.strip()}")
     except sk.TCError as e:
         msg = str(e)
         if "404" in msg:
@@ -1996,14 +2005,7 @@ async def lookup_booking(
         raise HTTPException(status_code=404, detail="Booking not found")
 
     cp = data.get("contactPerson") or {}
-    # TC may surface the trip name under several keys depending on version
-    pkg_title = (
-        data.get("name")
-        or data.get("title")
-        or data.get("packageName")
-        or data.get("productName")
-        or ""
-    )
+    pkg_title = tc_sync.booking_title(data)
 
     # Check sales channel — marketplace bookings cannot receive review reminders
     # (the booking is not owned by the agent; they did not make the sale).
@@ -2049,8 +2051,7 @@ async def add_booking(
     pkg_title = package_title.strip() or None
     if not pkg_title and package_id.strip():
         try:
-            _tc = sk.TCClient()
-            pack = sk.fetch(_tc, package_id.strip(), lang="EN")
+            pack = await _tc_call(sk.fetch, sk.shared_client(), package_id.strip(), lang="EN")
             pkg_title = pack.title
         except Exception as _e:
             logger.warning("TC lookup failed for package %s: %s", package_id.strip(), _e)

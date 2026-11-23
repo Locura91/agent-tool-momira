@@ -10,7 +10,7 @@ for the same agent, it is skipped (not re-imported, not overwritten).
 """
 from __future__ import annotations
 
-import os
+import asyncio
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -18,10 +18,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import social_kit as sk
-
-
-def _env(key: str, default: str = "") -> str:
-    return os.environ.get(key, default).strip()
 
 
 def _parse_date(value: str | None) -> Optional[datetime]:
@@ -41,6 +37,18 @@ def _parse_date(value: str | None) -> Optional[datetime]:
         return None
 
 
+def booking_title(data: Dict[str, Any]) -> str:
+    """The trip name, which TC surfaces under different keys per version."""
+    return (
+        data.get("name")
+        or data.get("title")
+        or data.get("packageName")
+        or data.get("productName")
+        or data.get("packageTitle")
+        or ""
+    )
+
+
 def _extract_booking_fields(data: Dict[str, Any]) -> Dict[str, Any]:
     """Normalize a raw TC booking dict into fields we care about."""
     cp = data.get("contactPerson") or data.get("customer") or {}
@@ -49,14 +57,7 @@ def _extract_booking_fields(data: Dict[str, Any]) -> Dict[str, Any]:
     last = cp.get("lastName") or cp.get("surname") or ""
     email = cp.get("email") or cp.get("emailAddress") or ""
 
-    pkg_title = (
-        data.get("name")
-        or data.get("title")
-        or data.get("packageName")
-        or data.get("productName")
-        or data.get("packageTitle")
-        or ""
-    )
+    pkg_title = booking_title(data)
     pkg_id = (
         data.get("packageId")
         or data.get("productId")
@@ -101,8 +102,8 @@ def fetch_tc_bookings(
     TC endpoint: GET /booking/getBookings/{micrositeId}
     Returns a list of normalized booking dicts.
     """
-    microsite = _env("TRAVELC_MICROSITE_ID", _env("TC_MICROSITE", "momiratravel"))
-    client = sk.TCClient()
+    client = sk.shared_client()
+    microsite = client.config.microsite
 
     try:
         data = client.get(
@@ -157,7 +158,8 @@ async def sync_tc_bookings(db: AsyncSession) -> Dict[str, int]:
     }
 
     print(f"[tc_sync] Fetching TC bookings for {len(agency_map)} agencies…")
-    tc_bookings = fetch_tc_bookings()
+    # Off the event loop: fetch_tc_bookings uses blocking `requests`.
+    tc_bookings = await asyncio.to_thread(fetch_tc_bookings)
     print(f"[tc_sync] Got {len(tc_bookings)} bookings from TC.")
 
     for b in tc_bookings:
@@ -220,7 +222,8 @@ async def sync_tc_bookings_for_agent(db: AsyncSession, agent: Any) -> Dict[str, 
         return stats
 
     print(f"[tc_sync] Fetching TC bookings for '{agent.agency_name}'…")
-    tc_bookings = fetch_tc_bookings()
+    # Off the event loop: fetch_tc_bookings uses blocking `requests`.
+    tc_bookings = await asyncio.to_thread(fetch_tc_bookings)
     print(f"[tc_sync] Got {len(tc_bookings)} total TC bookings.")
 
     for b in tc_bookings:

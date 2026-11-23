@@ -324,7 +324,9 @@ def _fetch_one_clip(cid: int, want_portrait: bool) -> tuple[int, Optional[Clip]]
 
 def fetch_clips_by_ids(clip_ids: List[int], want_portrait: bool) -> Dict[int, Clip]:
     """Fetch clips by ID in parallel (Pexels first, Pixabay fallback)."""
-    with ThreadPoolExecutor(max_workers=len(clip_ids)) as pool:
+    if not clip_ids:
+        return {}
+    with ThreadPoolExecutor(max_workers=min(len(clip_ids), 8)) as pool:
         results = pool.map(lambda cid: _fetch_one_clip(cid, want_portrait), clip_ids)
     return {cid: clip for cid, clip in results if clip is not None}
 
