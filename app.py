@@ -2004,6 +2004,18 @@ async def lookup_booking(
         or data.get("productName")
         or ""
     )
+
+    # Check sales channel — marketplace bookings cannot receive review reminders
+    # (the booking is not owned by the agent; they did not make the sale).
+    sales_channel = (
+        data.get("salesChannel")
+        or data.get("saleChannel")
+        or data.get("channelType")
+        or data.get("channel")
+        or ""
+    ).strip().upper()
+    is_marketplace = sales_channel == "MARKETPLACE"
+
     return {
         "first_name": cp.get("name") or "",
         "last_name": cp.get("lastName") or "",
@@ -2011,6 +2023,13 @@ async def lookup_booking(
         "return_date": data.get("endDate") or "",  # YYYY-MM-DD
         "package_title": pkg_title,
         "booking_ref": ref.strip(),
+        "sales_channel": sales_channel,
+        "blocked": is_marketplace,
+        "blocked_reason": (
+            "This booking was made via the Marketplace. You are not permitted to "
+            "send review reminders for Marketplace bookings — the customer relationship "
+            "belongs to the platform, not to your agency."
+        ) if is_marketplace else None,
     }
 
 
