@@ -503,6 +503,7 @@ async def generate_image(
     focus: str = "center",
     zoom: float = 1.0,
     ribbon: str | None = None,   # per-request ribbon override (empty string = clear ribbon)
+    photo_url: str | None = None,  # external photo URL (e.g. Unsplash) — bypasses TC gallery
     agent: Agent = Depends(current_agent),
 ):
     """
@@ -518,22 +519,29 @@ async def generate_image(
 
     pack = await _get_pack(package_id, brand)
 
-    if not pack.gallery:
-        raise HTTPException(
-            status_code=422,
-            detail=(
-                "No photographs found for this package. "
-                "Check the package ID and try again, or open a raw response via the "
-                "/package/{id} endpoint to locate the image field."
-            ),
-        )
+    if photo_url:
+        # External photo (e.g. Unsplash) — hotlink: load directly from their CDN
+        try:
+            photo = await _tc_call(sk.load_photo, photo_url)
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"Could not load photograph: {e}")
+    else:
+        if not pack.gallery:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "No photographs found for this package. "
+                    "Check the package ID and try again, or open a raw response via the "
+                    "/package/{id} endpoint to locate the image field."
+                ),
+            )
 
-    idx = max(0, min(photo_index, len(pack.gallery) - 1))
+        idx = max(0, min(photo_index, len(pack.gallery) - 1))
 
-    try:
-        photo = sk.load_photo(pack.gallery[idx])
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Could not load photograph: {e}")
+        try:
+            photo = await _tc_call(sk.load_photo, pack.gallery[idx])
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"Could not load photograph: {e}")
 
     # Apply per-request ribbon override without mutating the DB row
     render_agent = agent
@@ -584,6 +592,45 @@ async def generate_flyer(
         None, lambda: flyer_engine.render_flyer(pack, agent, style=style, show_qr=qr)
     )
     return html
+
+
+# --------------------------------------------------------------------------
+# Unsplash photo search — free stock photos as an alternative to TC gallery
+# --------------------------------------------------------------------------
+
+@app.get("/generate/{package_id}/photos/search")
+async def unsplash_photo_search(
+    package_id: str,
+    query: str | None = None,
+    format: str = "square",
+    agent: Agent = Depends(current_agent),
+):
+    """Search Unsplash for free stock photos matching this package's destination."""
+    brand = engine.agent_brand(agent)
+    pack = await _get_pack(package_id, brand)
+
+    q = (query or "").strip()
+    if not q:
+        dests = [d.get("name", "") for d in (pack.destinations or [])]
+        q = " ".join(d for d in dests if d)[:100] or pack.title or "travel"
+
+    w, h, _ = sk.FORMATS.get(format, sk.FORMATS["square"])
+    orientation = "portrait" if h > w else "landscape"
+    photos = await _tc_call(sk.unsplash_search, q, 9, orientation)
+
+    return {"query": q, "photos": photos}
+
+
+@app.post("/generate/unsplash/download")
+async def unsplash_trigger_download(
+    download_location: str = Form(...),
+    _agent: Agent = Depends(current_agent),
+):
+    """Trigger the Unsplash download endpoint when a user picks a photo.
+
+    Required by Unsplash API guidelines — gives the photographer credit."""
+    await _tc_call(sk.unsplash_trigger_download, download_location)
+    return {"ok": True}
 
 
 # --------------------------------------------------------------------------

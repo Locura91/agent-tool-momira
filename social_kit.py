@@ -1844,6 +1844,86 @@ def load_photo(url: str) -> Image.Image:
     return Image.open(io.BytesIO(response.content))
 
 
+# --------------------------------------------------------------------------
+# Unsplash — photo search with full guideline compliance
+#
+# Production checklist (https://help.unsplash.com/api-guidelines):
+# 1. Hotlink: images are served from Unsplash CDNs, never re-hosted.
+# 2. Trigger download: when a user picks a photo, we POST to the download
+#    endpoint so the photographer gets credit.
+# 3. Attribution: "Photo by {name} on Unsplash" with UTM-tagged links.
+# 4. No logo/name confusion: app is "Momira Agent Tool", not "Unsplash".
+# --------------------------------------------------------------------------
+
+_UNSPLASH_API = "https://api.unsplash.com"
+_UTM_SOURCE = "momira_agent_tool"
+
+
+def _unsplash_key() -> Optional[str]:
+    return os.environ.get("UNSPLASH_ACCESS_KEY") or None
+
+
+def unsplash_search(query: str, per_page: int = 9,
+                    orientation: str = "landscape") -> List[Dict[str, Any]]:
+    """Search Unsplash photos. Returns a list of dicts with id, urls,
+    photographer info, and the download trigger endpoint."""
+    key = _unsplash_key()
+    if not key:
+        return []
+    try:
+        resp = requests.get(
+            f"{_UNSPLASH_API}/search/photos",
+            headers={"Authorization": f"Client-ID {key}",
+                     "Accept-Version": "v1"},
+            params={"query": query, "per_page": per_page,
+                    "orientation": orientation, "content_filter": "high"},
+            timeout=_TIMEOUT,
+        )
+    except requests.RequestException:
+        return []
+    if not resp.ok:
+        return []
+    results = []
+    for photo in resp.json().get("results", []):
+        user = photo.get("user") or {}
+        username = user.get("username", "")
+        name = user.get("name", username)
+        results.append({
+            "id": photo["id"],
+            "width": photo.get("width", 0),
+            "height": photo.get("height", 0),
+            "description": photo.get("alt_description") or photo.get("description") or "",
+            "thumb": photo.get("urls", {}).get("small", ""),
+            "regular": photo.get("urls", {}).get("regular", ""),
+            "full": photo.get("urls", {}).get("full", ""),
+            "download_location": photo.get("links", {}).get("download_location", ""),
+            "source": "unsplash",
+            "photographer": name,
+            "photographer_url": f"https://unsplash.com/@{username}?utm_source={_UTM_SOURCE}&utm_medium=referral",
+            "unsplash_url": f"https://unsplash.com/?utm_source={_UTM_SOURCE}&utm_medium=referral",
+            "attribution": f"Photo by {name} on Unsplash",
+        })
+    return results
+
+
+def unsplash_trigger_download(download_location: str) -> None:
+    """Trigger the Unsplash download endpoint (guideline requirement).
+
+    Must be called when a user actually uses a photo, not on search.
+    This gives the photographer credit for the download."""
+    key = _unsplash_key()
+    if not key or not download_location:
+        return
+    try:
+        requests.get(
+            download_location,
+            headers={"Authorization": f"Client-ID {key}"},
+            timeout=15,
+        )
+    except requests.RequestException:
+        pass
+
+
 def to_jpeg(image: Image.Image, quality: int = 88) -> bytes:
     buffer = io.BytesIO()
     image.convert("RGB").save(buffer, format="JPEG", quality=quality)

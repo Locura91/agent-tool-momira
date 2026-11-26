@@ -64,6 +64,20 @@
     }
     .photo-thumb.selected { border-color: var(--brand); }
 
+    /* Unsplash photo grid */
+    .unsplash-section { margin-bottom: 1.5rem; }
+    .unsplash-header { display: flex; align-items: center; gap: .5rem; margin-bottom: .5rem; }
+    .unsplash-header .section-label { font-size: .85rem; font-weight: 600; }
+    .unsplash-search { display: flex; gap: .5rem; margin-bottom: .75rem; }
+    .unsplash-search input { flex: 1; padding: .4rem .6rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: .85rem; }
+    .unsplash-search button { padding: .4rem .8rem; background: var(--brand); color: #fff; border: none; border-radius: 6px; font-size: .85rem; cursor: pointer; }
+    .unsplash-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .5rem; }
+    .unsplash-card { position: relative; border-radius: 8px; overflow: hidden; cursor: pointer; border: 2px solid transparent; aspect-ratio: 4/3; }
+    .unsplash-card.selected { border-color: var(--brand); }
+    .unsplash-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .unsplash-credit { position: absolute; bottom: 0; left: 0; right: 0; padding: 2px 6px; background: rgba(0,0,0,.55); color: #fff; font-size: .6rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .unsplash-credit a { color: #fff; text-decoration: underline; }
+
     /* Results grid */
     .results { display: none; }
     .results-title { font-size: 1rem; font-weight: 700; margin-bottom: 1rem; }
@@ -246,6 +260,19 @@
   <div id="photo-strip-wrap" style="display:none">
     <div style="font-size:.85rem;font-weight:600;margin-bottom:.5rem;">Choose photo</div>
     <div class="photo-strip" id="photo-strip"></div>
+  </div>
+
+  <!-- Unsplash stock photos -->
+  <div id="unsplash-section" class="unsplash-section" style="display:none">
+    <div class="unsplash-header">
+      <span class="section-label">Stock photos</span>
+      <span style="font-size:.7rem;color:var(--muted)">Powered by <a href="https://unsplash.com/?utm_source=momira_agent_tool&utm_medium=referral" target="_blank" style="color:var(--muted)">Unsplash</a></span>
+    </div>
+    <div class="unsplash-search">
+      <input type="text" id="unsplash-query" placeholder="Search free photos...">
+      <button onclick="searchUnsplash()">Search</button>
+    </div>
+    <div class="unsplash-grid" id="unsplash-grid"></div>
   </div>
 
   <!-- Render controls: zoom + ribbon override -->
@@ -442,6 +469,8 @@
   let currentPhotoIdx = 0;
   let currentZoom = 1.0;
   let currentRibbon = '';   // empty = use agent's settings ribbon
+  let currentUnsplashUrl = '';  // when set, use this Unsplash photo instead of TC gallery
+  let currentUnsplashDownload = '';  // download_location to trigger when photo is used
   let agencySlug = 'momira-travel';   // used in download filenames (tour + agency)
 
   // Fetch the agency name once so every download is named "<tour>-<agency>".
@@ -468,6 +497,7 @@
     document.getElementById('results').style.display = isVideo ? 'none' : 'block';
     document.getElementById('render-controls').style.display = isVideo ? 'none' : '';
     document.getElementById('photo-strip-wrap').style.display = isVideo ? 'none' : 'block';
+    document.getElementById('unsplash-section').style.display = isVideo ? 'none' : 'block';
     document.getElementById('video-section').style.display = isVideo ? 'block' : 'none';
   }
 
@@ -491,6 +521,10 @@
       currentRibbon = e.target.value.trim();
       renderImages();
     }
+  });
+  // Unsplash search on Enter
+  document.getElementById('unsplash-query').addEventListener('keydown', e => {
+    if (e.key === 'Enter') searchUnsplash();
   });
 
   // Caption tabs
@@ -582,8 +616,11 @@
           img.dataset.idx = i;
           img.addEventListener('click', () => {
             document.querySelectorAll('.photo-thumb').forEach(t => t.classList.remove('selected'));
+            document.querySelectorAll('.unsplash-card').forEach(c => c.classList.remove('selected'));
             img.classList.add('selected');
             currentPhotoIdx = i;
+            currentUnsplashUrl = '';  // back to TC gallery
+            currentUnsplashDownload = '';
             renderImages();
           });
           strip.appendChild(img);
@@ -599,6 +636,13 @@
         }
         document.getElementById('photo-strip-wrap').style.display = 'block';
       }
+
+      // 1b. Auto-search Unsplash stock photos for this destination
+      currentUnsplashUrl = '';
+      currentUnsplashDownload = '';
+      document.getElementById('unsplash-query').value = '';
+      document.getElementById('unsplash-section').style.display = 'block';
+      searchUnsplash();  // auto-search with package destination
 
       // 2. Fetch captions — if the agent pasted a full package URL, pass it so
       //    the captions link straight to that package rather than the homepage.
@@ -668,6 +712,7 @@
 
     formats.forEach(({ key, label, aspect }) => {
       let url = `/generate/${pkgId}/image?photo_index=${currentPhotoIdx}&format=${key}&style=${currentStyle}&zoom=${currentZoom}`;
+      if (currentUnsplashUrl) url += `&photo_url=${encodeURIComponent(currentUnsplashUrl)}`;
       if (currentRibbon) url += `&ribbon=${encodeURIComponent(currentRibbon)}`;
       const card = document.createElement('div');
       card.className = 'format-card';
@@ -825,6 +870,63 @@
       .replace(/[^a-zA-Z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '')
       .slice(0, 80);
+  }
+
+  // ── Unsplash photo search ───────────────────────────────────────────────
+  async function searchUnsplash(query) {
+    const pkgId = extractPackageId(document.getElementById('pkg-id').value.trim());
+    if (!pkgId) return;
+    const q = query || document.getElementById('unsplash-query').value.trim();
+    const grid = document.getElementById('unsplash-grid');
+    grid.innerHTML = '<div style="color:var(--muted);font-size:.82rem;grid-column:1/-1">Searching...</div>';
+
+    try {
+      let url = `/generate/${pkgId}/photos/search?format=${currentStyle === 'story' ? 'story' : 'square'}`;
+      if (q) url += `&query=${encodeURIComponent(q)}`;
+      const res = await fetch(url, { headers: H });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      if (data.query && !document.getElementById('unsplash-query').value.trim()) {
+        document.getElementById('unsplash-query').value = data.query;
+      }
+      renderUnsplashGrid(data.photos || []);
+    } catch (e) {
+      grid.innerHTML = '<div style="color:#ef4444;font-size:.82rem;grid-column:1/-1">Search failed</div>';
+    }
+  }
+
+  function renderUnsplashGrid(photos) {
+    const grid = document.getElementById('unsplash-grid');
+    grid.innerHTML = '';
+    if (!photos.length) {
+      grid.innerHTML = '<div style="color:var(--muted);font-size:.82rem;grid-column:1/-1">No photos found</div>';
+      return;
+    }
+    photos.forEach(p => {
+      const card = document.createElement('div');
+      card.className = 'unsplash-card' + (currentUnsplashUrl === p.regular ? ' selected' : '');
+      card.innerHTML = `<img src="${p.thumb}" alt="${p.description || ''}" loading="lazy">` +
+        `<div class="unsplash-credit"><a href="${p.photographer_url}" target="_blank">${p.photographer}</a> / <a href="${p.unsplash_url}" target="_blank">Unsplash</a></div>`;
+      card.addEventListener('click', () => selectUnsplashPhoto(p));
+      grid.appendChild(card);
+    });
+  }
+
+  function selectUnsplashPhoto(photo) {
+    // Deselect TC gallery photos
+    document.querySelectorAll('.photo-thumb').forEach(t => t.classList.remove('selected'));
+    // Set Unsplash as the active photo source
+    currentUnsplashUrl = photo.regular;
+    currentUnsplashDownload = photo.download_location;
+    // Highlight selected card
+    document.querySelectorAll('.unsplash-card').forEach(c => c.classList.remove('selected'));
+    event.currentTarget.classList.add('selected');
+    // Trigger download endpoint (Unsplash guideline requirement)
+    fetch('/generate/unsplash/download', {
+      method: 'POST', headers: { ...H, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'download_location=' + encodeURIComponent(photo.download_location)
+    }).catch(() => {});
+    renderImages();
   }
 
   async function downloadImage(url, format) {
